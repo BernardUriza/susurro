@@ -13,7 +13,10 @@
       "Bash(cp:*)",
       "Bash(npm install:*)",
       "Bash(ls:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "WebFetch(domain:medium.com)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }

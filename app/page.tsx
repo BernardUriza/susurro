@@ -167,34 +167,34 @@ export default function Home() {
       {/* Header */}
       <header className="header">
         <h1>SUSURRO</h1>
-        <p className="tagline">Transcripción Diabólica con IA</p>
+        <p className="tagline">Neural Voice Recognition System v2.077</p>
       </header>
 
       {/* Main Content - 3 Column Layout */}
       <main className="main-content">
         {/* Left Panel - Features */}
         <aside className="panel panel-left">
-          <h2>✨ Poderes</h2>
+          <h2>⚡ System Capabilities</h2>
           <ul className="features-list">
             <li>
-              <span className="feature-icon">🔒</span>
-              <strong>Privacidad Total</strong>
-              <small>Tu voz nunca abandona tu dispositivo</small>
+              <span className="feature-icon">🔐</span>
+              <strong>Zero-Knowledge Protocol</strong>
+              <small>Neural processing stays on-device</small>
             </li>
             <li>
               <span className="feature-icon">⚡</span>
-              <strong>Sin Latencia</strong>
-              <small>Procesamiento instantáneo local</small>
+              <strong>Real-Time Processing</strong>
+              <small>Sub-millisecond response time</small>
             </li>
             <li>
               <span className="feature-icon">🌐</span>
-              <strong>100% Offline</strong>
-              <small>No requiere conexión a internet</small>
+              <strong>Edge Computing</strong>
+              <small>No cloud dependency required</small>
             </li>
             <li>
               <span className="feature-icon">🤖</span>
-              <strong>IA Avanzada</strong>
-              <small>Powered by Transformers.js</small>
+              <strong>Neural Architecture</strong>
+              <small>Transformer-based AI engine</small>
             </li>
           </ul>
         </aside>
@@ -202,7 +202,7 @@ export default function Home() {
         {/* Center Panel - Main Interface */}
         <section className="panel panel-center">
           <div className="recorder-section">
-            <h2>🎙️ Grabación en Vivo</h2>
+            <h2>🎙️ Live Audio Capture</h2>
             <WhisperRecorder
               config={{
                 language: 'es',
@@ -214,11 +214,11 @@ export default function Home() {
           <div className="divider"></div>
 
           <div className="upload-section">
-            <h2>📁 Subir Archivo WAV</h2>
+            <h2>📁 WAV File Upload</h2>
             
             {/* Demo Button */}
             <div className="demo-section">
-              <p className="demo-text">¿Primera vez? Prueba con nuestro archivo de ejemplo:</p>
+              <p className="demo-text">First time? Try our sample audio file:</p>
               <button 
                 className="demo-button"
                 onClick={async () => {

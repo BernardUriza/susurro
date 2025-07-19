@@ -1,25 +1,7 @@
-console.log('[Worker] Whisper worker starting...');
-
-// Use dynamic import to handle ES modules in worker
-let pipeline, env;
-let transformersLoaded = false;
-
-const loadTransformers = async () => {
-    try {
-        console.log('[Worker] Loading Transformers.js...');
-        const transformers = await import('@xenova/transformers');
-        pipeline = transformers.pipeline;
-        env = transformers.env;
-        transformersLoaded = true;
-        console.log('[Worker] Transformers.js loaded successfully');
-        return true;
-    } catch (error) {
-        console.error('[Worker] Failed to load Transformers.js:', error);
-        throw new Error(`Failed to load Transformers.js: ${error.message}`);
-    }
-};
-
-// This will be configured after loading
+import { pipeline, env } from '@xenova/transformers';
+// Configure Transformers.js environment for maximum caching
+env.allowLocalModels = true;
+env.useBrowserCache = true;
 class WhisperPipeline {
     static async getInstance(progressCallback) {
         if (this.instance === null) {
@@ -116,50 +98,15 @@ const postResponse = (response) => {
 };
 // Handle incoming messages
 self.addEventListener('message', async (event) => {
-    console.log('[Worker] Received message:', event.data);
     const { type, data } = event.data;
     switch (type) {
         case 'load':
             try {
-                console.log('[Worker] Starting model load...');
                 postResponse({ type: 'initiate' });
-                
-                // Load Transformers.js first if not loaded
-                if (!transformersLoaded) {
-                    postResponse({
-                        type: 'progress',
-                        data: {
-                            progress: 0,
-                            status: 'loading_library',
-                            cachedModel: false
-                        }
-                    });
-                    
-                    await loadTransformers();
-                    
-                    // Configure environment after loading
-                    env.allowLocalModels = true;
-                    env.useBrowserCache = true;
-                }
-                
                 // Check cache status first
                 const cacheStatus = await WhisperPipeline.checkCacheStatus();
-                console.log('[Worker] Cache status:', cacheStatus);
-                
-                // Send initial progress
-                postResponse({
-                    type: 'progress',
-                    data: {
-                        progress: 5,
-                        status: 'checking_cache',
-                        cachedModel: cacheStatus.hasCachedModel
-                    }
-                });
-                
-                // Load the model
-                console.log('[Worker] Loading Whisper model...');
+                console.log('Cache status:', cacheStatus);
                 await WhisperPipeline.getInstance((progress) => {
-                    console.log('[Worker] Progress:', progress);
                     postResponse({
                         type: 'progress',
                         data: {
@@ -168,12 +115,9 @@ self.addEventListener('message', async (event) => {
                         }
                     });
                 });
-                
-                console.log('[Worker] Model loaded successfully!');
                 postResponse({ type: 'ready' });
             }
             catch (error) {
-                console.error('[Worker] Error loading model:', error);
                 postResponse({
                     type: 'error',
                     data: error instanceof Error ? error.message : 'Failed to load model'

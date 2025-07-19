@@ -9,9 +9,9 @@ class WhisperPipeline {
             env.useBrowserCache = true;
             env.useCustomCache = true;
             // Request persistent storage for better cache persistence
-            if ('storage' in navigator && 'persist' in navigator.storage) {
+            if ('storage' in self.navigator && 'persist' in self.navigator.storage) {
                 try {
-                    const persistent = await navigator.storage.persist();
+                    const persistent = await self.navigator.storage.persist();
                     console.log(`Persistent storage: ${persistent ? 'granted' : 'denied'}`);
                 }
                 catch (e) {
@@ -129,13 +129,11 @@ self.addEventListener('message', async (event) => {
                 const { audio: audioBase64, options = {} } = data;
                 // Get the pipeline instance
                 const transcriber = await WhisperPipeline.getInstance();
-                
                 // Transformers.js expects the full data URL for audio
                 // Add the data URL prefix if it's not there
-                const audioDataUrl = audioBase64.startsWith('data:') 
-                    ? audioBase64 
+                const audioDataUrl = audioBase64.startsWith('data:')
+                    ? audioBase64
                     : `data:audio/webm;base64,${audioBase64}`;
-                
                 // Perform transcription
                 const output = await transcriber(audioDataUrl, {
                     // Transformers.js specific options

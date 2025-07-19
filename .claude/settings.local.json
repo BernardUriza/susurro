@@ -16,7 +16,9 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "WebFetch(domain:medium.com)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "WebFetch(domain:huggingface.co)",
+      "Bash(taskkill:*)"
     ],
     "deny": []
   }

@@ -277,7 +277,7 @@ export default function Home() {
                   }
                 }}
               >
-                🎤 Usar archivo de ejemplo
+                🎤 Load Sample File
               </button>
             </div>
             
@@ -292,7 +292,7 @@ export default function Home() {
                 className="file-input"
               />
               <label htmlFor="wav-upload" className="file-label">
-                {uploadedFile ? uploadedFile.name : 'Seleccionar archivo WAV'}
+                {uploadedFile ? uploadedFile.name : 'Select WAV File'}
               </label>
               {uploadedFile && (
                 <button 
@@ -346,7 +346,7 @@ export default function Home() {
                     })
                   }}
                 >
-                  Procesar Archivo
+                  Process File
                 </button>
               )}
             </div>
@@ -355,10 +355,10 @@ export default function Home() {
 
         {/* Right Panel - History */}
         <aside className="panel panel-right">
-          <h2>📜 Historial</h2>
+          <h2>📜 Transcription Log</h2>
           <div className="transcription-history">
             {transcriptions.length === 0 ? (
-              <p className="empty-history">No hay transcripciones aún</p>
+              <p className="empty-history">No transcriptions recorded</p>
             ) : (
               transcriptions.map((text, index) => (
                 <div key={index} className="history-item">
@@ -373,7 +373,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="footer">
-        <p>La primera vez se descargará el modelo (~40MB) • Se guarda en caché para uso futuro</p>
+        <p>Initial model download: ~40MB • Cached for future sessions</p>
       </footer>
     </div>
   )

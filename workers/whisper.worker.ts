@@ -28,9 +28,9 @@ class WhisperPipeline {
       env.useCustomCache = true
       
       // Request persistent storage for better cache persistence
-      if ('storage' in navigator && 'persist' in navigator.storage) {
+      if ('storage' in self.navigator && 'persist' in self.navigator.storage) {
         try {
-          const persistent = await navigator.storage.persist()
+          const persistent = await (self.navigator.storage as any).persist()
           console.log(`Persistent storage: ${persistent ? 'granted' : 'denied'}`)
         } catch (e) {
           console.log('Could not request persistent storage')
@@ -158,13 +158,19 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
 
     case 'transcribe':
       try {
-        const { audio, options = {} } = data
+        const { audio: audioBase64, options = {} } = data
         
         // Get the pipeline instance
         const transcriber = await WhisperPipeline.getInstance()
         
+        // Transformers.js expects the full data URL for audio
+        // Add the data URL prefix if it's not there
+        const audioDataUrl = audioBase64.startsWith('data:') 
+          ? audioBase64 
+          : `data:audio/webm;base64,${audioBase64}`
+        
         // Perform transcription
-        const output = await transcriber(audio, {
+        const output = await transcriber(audioDataUrl, {
           // Transformers.js specific options
           chunk_length_s: 30,
           stride_length_s: 5,
@@ -181,6 +187,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
           }
         })
       } catch (error) {
+        console.error('Transcription error:', error)
         postResponse({ 
           type: 'error', 
           data: error instanceof Error ? error.message : 'Transcription failed' 

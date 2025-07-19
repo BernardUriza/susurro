@@ -93,13 +93,13 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
     }
   }, [modelReady])
 
-  // Convert audio blob to base64 for worker
+  // Convert audio blob to base64 data URL for worker
   const audioToBase64 = async (blob: Blob): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader()
       reader.onloadend = () => {
         const base64 = reader.result as string
-        resolve(base64.split(',')[1])
+        resolve(base64) // Return full data URL
       }
       reader.readAsDataURL(blob)
     })
@@ -115,19 +115,13 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
     setError(null)
 
     try {
-      // Convert blob to base64 for transfer to worker
-      const audioBase64 = await audioToBase64(audioBlob)
+      // Convert blob to data URL for worker
+      const audioDataUrl = await audioToBase64(audioBlob)
       
-      // Send to worker for transcription
+      // Send to worker using new pattern
       workerRef.current.postMessage({
         type: 'transcribe',
-        data: {
-          audio: audioBase64,
-          options: {
-            language: config.language,
-            timestamps: config.responseFormat === 'verbose_json'
-          }
-        }
+        audio: audioDataUrl
       })
 
       // Return will be handled by the message handler

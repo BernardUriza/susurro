@@ -10,7 +10,10 @@
       "Bash(npm run dev:*)",
       "Bash(npm run copy-styles:*)",
       "Bash(npm link:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(npm install:*)",
+      "Bash(ls:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

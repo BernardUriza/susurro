@@ -29,11 +29,14 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
 
         switch (type) {
           case 'initiate':
-            console.log('Loading Whisper model...')
+            console.log('[Hook] Loading Whisper model...')
+            setLoadingProgress(1) // Set minimum progress to show it's starting
             break
           
           case 'progress':
-            setLoadingProgress(data.progress || 0)
+            const progress = data.progress || 0
+            console.log('[Hook] Progress update:', progress, data.status)
+            setLoadingProgress(Math.max(1, progress)) // Never show 0% after initiate
             if (data.cachedModel) {
               setIsLoadingFromCache(true)
             }
@@ -41,7 +44,8 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
           
           case 'ready':
             setModelReady(true)
-            console.log('Whisper model ready!')
+            setLoadingProgress(100)
+            console.log('[Hook] Whisper model ready!')
             break
           
           case 'complete':
@@ -50,24 +54,44 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
             break
           
           case 'error':
+            console.error('[Hook] Error from worker:', data)
             setError(new Error(data))
             setIsTranscribing(false)
+            setLoadingProgress(0)
             break
         }
       }
 
-      // Load the model
-      workerRef.current.postMessage({ type: 'load' })
-    }
+      // Add error handler
+      workerRef.current.onerror = (error) => {
+        console.error('[Hook] Worker error:', error)
+        setError(new Error('Worker failed to load'))
+        setLoadingProgress(0)
+      }
 
-    // Cleanup
-    return () => {
-      if (workerRef.current) {
-        workerRef.current.terminate()
-        workerRef.current = null
+      // Load the model
+      console.log('[Hook] Sending load message to worker...')
+      workerRef.current.postMessage({ type: 'load' })
+      
+      // Add timeout for model loading
+      const loadTimeout = setTimeout(() => {
+        if (!modelReady) {
+          console.error('[Hook] Model loading timeout')
+          setError(new Error('Model loading timeout - please refresh the page'))
+          setLoadingProgress(0)
+        }
+      }, 120000) // 2 minutes timeout
+      
+      // Store timeout in cleanup
+      return () => {
+        clearTimeout(loadTimeout)
+        if (workerRef.current) {
+          workerRef.current.terminate()
+          workerRef.current = null
+        }
       }
     }
-  }, [])
+  }, [modelReady])
 
   // Convert audio blob to base64 for worker
   const audioToBase64 = async (blob: Blob): Promise<string> => {

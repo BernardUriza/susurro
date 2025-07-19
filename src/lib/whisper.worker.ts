@@ -37,6 +37,7 @@ class WhisperPipeline {
         }
       }
 
+      console.log('Assigning model:', this.model)
       this.instance = await pipeline(this.task as any, this.model, {
         progress_callback: (progress: any) => {
           // Enhanced progress tracking

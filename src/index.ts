@@ -1,3 +1,12 @@
-export { useWhisper } from './hooks/useWhisper'
+// Export hooks
+export { useWhisper } from './hooks/useWhisperDirect'
+
+// Export components
 export { WhisperRecorder } from './components/WhisperRecorder'
-export type { WhisperConfig, TranscriptionResult } from './lib/types'
+
+// Export types
+export type { 
+  WhisperConfig, 
+  TranscriptionResult, 
+  UseWhisperReturn
+} from './lib/types'

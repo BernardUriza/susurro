@@ -90,7 +90,7 @@ export const WhisperRecorder: React.FC<WhisperRecorderProps> = ({
     stopRecording()
     
     // Mostrar alerta de procesamiento
-    const processingAlert = Swal.fire({
+    Swal.fire({
       title: '⚡ Procesando Audio',
       html: '<div class="swal-loading-spinner">🎵</div><br>Transcribiendo tu voz con IA diabólica...',
       allowOutsideClick: false,

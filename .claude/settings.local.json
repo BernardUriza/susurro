@@ -20,7 +20,9 @@
       "WebFetch(domain:huggingface.co)",
       "Bash(taskkill:*)",
       "Bash(del:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npm run clean:*)",
+      "Bash(npm publish:*)"
     ],
     "deny": []
   }

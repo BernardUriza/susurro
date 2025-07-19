@@ -24,6 +24,18 @@ A sleek, Matrix-themed web application for real-time voice transcription using O
 
 ## 📦 Installation
 
+### As NPM Package
+
+```bash
+npm install @susurro/whisper-nextjs
+# or
+yarn add @susurro/whisper-nextjs
+# or
+pnpm add @susurro/whisper-nextjs
+```
+
+### From Source
+
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/susurro.git
@@ -32,11 +44,42 @@ cd susurro
 # Install dependencies
 npm install
 
-# Run development server
+# Build the library
+npm run build-lib
+
+# Run development server (for demo)
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the application
+## 🚀 Quick Start
+
+```tsx
+import { useWhisper } from '@susurro/whisper-nextjs'
+import '@susurro/whisper-nextjs/dist/styles.css'
+
+function MyComponent() {
+  const { 
+    transcribeAudio, 
+    isTranscribing, 
+    modelReady 
+  } = useWhisper({ language: 'english' })
+
+  const handleFileUpload = async (file: File) => {
+    const result = await transcribeAudio(file)
+    if (result) {
+      console.log('Transcription:', result.text)
+    }
+  }
+
+  return (
+    <div>
+      {modelReady ? 'Ready to transcribe!' : 'Loading model...'}
+    </div>
+  )
+}
+```
+
+Open [http://localhost:3000](http://localhost:3000) to see the demo application
 
 ## 🎨 Features Breakdown
 

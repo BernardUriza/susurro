@@ -44,7 +44,7 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
   const [error, setError] = useState<Error | null>(null)
   const [modelReady, setModelReady] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState(0)
-  const [isLoadingFromCache, setIsLoadingFromCache] = useState(false)
+  const [isLoadingFromCache] = useState(false)
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -199,7 +199,7 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
 
       const result: TranscriptionResult = {
         text: output.text,
-        chunks: output.chunks
+        segments: output.chunks
       }
 
       setTranscript(result.text)

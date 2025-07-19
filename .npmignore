@@ -1,0 +1,44 @@
+# Source files
+src/
+app/
+public/
+example/
+
+# Config files
+.next/
+next.config.js
+next-env.d.ts
+tsconfig.json
+tsconfig.*.json
+.eslintrc.json
+
+# Git files
+.git/
+.gitignore
+
+# Development files
+node_modules/
+*.log
+.DS_Store
+.env*
+
+# Build files
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Editor files
+.vscode/
+.idea/
+
+# Test files
+__tests__/
+*.test.*
+*.spec.*
+
+# Documentation
+docs/
+
+# Claude files
+.claude/
+
+# Only keep dist and README.md

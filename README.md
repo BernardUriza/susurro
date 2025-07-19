@@ -27,11 +27,11 @@ A sleek, Matrix-themed web application for real-time voice transcription using O
 ### As NPM Package
 
 ```bash
-npm install @susurro/whisper-nextjs
+npm install susurro-whisper-nextjs
 # or
-yarn add @susurro/whisper-nextjs
+yarn add susurro-whisper-nextjs
 # or
-pnpm add @susurro/whisper-nextjs
+pnpm add susurro-whisper-nextjs
 ```
 
 ### From Source
@@ -54,8 +54,8 @@ npm run dev
 ## 🚀 Quick Start
 
 ```tsx
-import { useWhisper } from '@susurro/whisper-nextjs'
-import '@susurro/whisper-nextjs/dist/styles.css'
+import { useWhisper } from 'susurro-whisper-nextjs'
+import 'susurro-whisper-nextjs/dist/styles.css'
 
 function MyComponent() {
   const { 

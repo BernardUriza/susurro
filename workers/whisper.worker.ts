@@ -4,6 +4,17 @@ import { pipeline, env } from '@xenova/transformers'
 env.allowLocalModels = true
 env.useBrowserCache = true
 
+// Add global error handler for debugging
+self.addEventListener('error', (event) => {
+  console.error('[Worker] Global error:', event.error)
+  self.postMessage({ type: 'error', data: event.error?.message || 'Unknown worker error' })
+})
+
+self.addEventListener('unhandledrejection', (event) => {
+  console.error('[Worker] Unhandled promise rejection:', event.reason)
+  self.postMessage({ type: 'error', data: event.reason?.message || 'Unhandled promise rejection' })
+})
+
 // Message types for communication
 interface WorkerMessage {
   type: 'load' | 'transcribe' | 'check-cache' | 'clear-cache'
@@ -124,8 +135,12 @@ const postResponse = (response: WorkerResponse) => {
   self.postMessage(response)
 }
 
+// Log worker initialization
+console.log('[Worker] Whisper worker initialized')
+
 // Handle incoming messages
 self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
+  console.log('[Worker] Received message:', event.data.type)
   const { type, data } = event.data
 
   switch (type) {

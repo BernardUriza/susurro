@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { WhisperConfig, TranscriptionResult, UseWhisperReturn } from '../lib/types'
+import Swal from 'sweetalert2'
 
 export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
   const [isRecording, setIsRecording] = useState(false)
@@ -27,7 +28,7 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
         // Create worker - Next.js will handle this differently
         const workerUrl = '/whisper.worker.js'
         workerRef.current = new Worker(workerUrl, { type: 'module' })
-        console.log('[useWhisper] Worker created successfully')
+        console.log('[useWhisper] Worker created successfully, URL:', workerUrl)
 
         // Set up message handler
         workerRef.current.onmessage = (event) => {

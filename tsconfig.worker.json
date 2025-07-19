@@ -9,7 +9,9 @@
     "noEmit": false,
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "removeComments": false,
+    "inlineSourceMap": true
   },
   "include": ["workers/**/*.ts"],
   "exclude": ["node_modules"]

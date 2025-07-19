@@ -4,12 +4,14 @@ import { WhisperRecorder } from '../src/components/WhisperRecorder'
 import '../src/components/styles.css'
 import { useState, useEffect } from 'react'
 import Swal from 'sweetalert2'
+import { useWhisper } from '../src/hooks/useWhisperDirect'
 
 export default function Home() {
   const [transcriptions, setTranscriptions] = useState<string[]>([])
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [showApp, setShowApp] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const { transcribeAudio } = useWhisper({ language: 'english' })
 
   useEffect(() => {
     setMounted(true)
@@ -313,35 +315,70 @@ export default function Home() {
                         popup.style.boxShadow = '0 0 30px #00ff00'
                         Swal.showLoading()
                         
-                        // Simulación de procesamiento (aquí iría la lógica real)
-                        setTimeout(() => {
-                          Swal.close()
-                          const Toast = Swal.mixin({
-                            toast: true,
-                            position: 'top-end',
-                            showConfirmButton: false,
-                            timer: 3000,
-                            timerProgressBar: true,
-                            background: '#000a00',
-                            color: '#00ff00',
-                            iconColor: '#00ff00',
-                            customClass: {
-                              popup: 'swal-dark-popup',
-                              title: 'swal-dark-title',
-                              timerProgressBar: 'swal-dark-progress'
-                            },
-                            didOpen: (toast) => {
-                              toast.style.border = '2px solid #00ff00'
-                              toast.style.boxShadow = '0 0 20px #00ff00'
+                        // Procesar archivo WAV con Whisper
+                        setTimeout(async () => {
+                          try {
+                            if (uploadedFile) {
+                              const result = await transcribeAudio(uploadedFile)
+                              if (result) {
+                                handleTranscription(result.text)
+                                Swal.close()
+                                const Toast = Swal.mixin({
+                                  toast: true,
+                                  position: 'top-end',
+                                  showConfirmButton: false,
+                                  timer: 3000,
+                                  timerProgressBar: true,
+                                  background: '#000a00',
+                                  color: '#00ff00',
+                                  iconColor: '#00ff00',
+                                  customClass: {
+                                    popup: 'swal-dark-popup',
+                                    title: 'swal-dark-title',
+                                    timerProgressBar: 'swal-dark-progress'
+                                  },
+                                  didOpen: (toast) => {
+                                    toast.style.border = '1px solid #00ff00'
+                                    toast.style.boxShadow = '0 0 20px #00ff00'
+                                  }
+                                })
+                                Toast.fire({
+                                  icon: 'success',
+                                  title: '✅ Transcripción completada'
+                                })
+                              } else {
+                                throw new Error('No se pudo transcribir el audio')
+                              }
                             }
-                          })
-                          
-                          Toast.fire({
-                            icon: 'info',
-                            title: '⏳ Funcionalidad en desarrollo',
-                            text: 'Procesamiento WAV próximamente'
-                          })
-                        }, 2000)
+                          } catch (error) {
+                            Swal.close()
+                            const Toast = Swal.mixin({
+                              toast: true,
+                              position: 'top-end',
+                              showConfirmButton: false,
+                              timer: 3000,
+                              timerProgressBar: true,
+                              background: '#000a00',
+                              color: '#ff0000',
+                              iconColor: '#ff0000',
+                              customClass: {
+                                popup: 'swal-dark-popup',
+                                title: 'swal-dark-title',
+                                timerProgressBar: 'swal-dark-progress'
+                              },
+                              didOpen: (toast) => {
+                                toast.style.border = '1px solid #ff0000'
+                                toast.style.boxShadow = '0 0 20px #ff0000'
+                              }
+                            })
+                            
+                            Toast.fire({
+                              icon: 'error',
+                              title: '❌ Error al procesar',
+                              text: error instanceof Error ? error.message : 'Error desconocido'
+                            })
+                          }
+                        }, 100)
                       }
                     })
                   }}

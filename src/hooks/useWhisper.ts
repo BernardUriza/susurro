@@ -18,80 +18,83 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
 
   // Initialize Web Worker
   useEffect(() => {
+    console.log('[useWhisper] useEffect triggered, workerRef.current:', workerRef.current)
+    
     if (!workerRef.current && typeof window !== 'undefined') {
-      // Create worker - Next.js will handle this differently
-      const workerUrl = '/whisper.worker.js'
-      workerRef.current = new Worker(workerUrl, { type: 'module' })
-
-      // Set up message handler
-      workerRef.current.onmessage = (event) => {
-        const { type, data } = event.data
-
-        switch (type) {
-          case 'initiate':
-            console.log('[Hook] Loading Whisper model...')
-            setLoadingProgress(1) // Set minimum progress to show it's starting
-            break
-          
-          case 'progress':
-            const progress = data.progress || 0
-            console.log('[Hook] Progress update:', progress, data.status)
-            setLoadingProgress(Math.max(1, progress)) // Never show 0% after initiate
-            if (data.cachedModel) {
-              setIsLoadingFromCache(true)
-            }
-            break
-          
-          case 'ready':
-            setModelReady(true)
-            setLoadingProgress(100)
-            console.log('[Hook] Whisper model ready!')
-            break
-          
-          case 'complete':
-            setTranscript(data.text)
-            setIsTranscribing(false)
-            break
-          
-          case 'error':
-            console.error('[Hook] Error from worker:', data)
-            setError(new Error(data))
-            setIsTranscribing(false)
-            setLoadingProgress(0)
-            break
-        }
-      }
-
-      // Add error handler
-      workerRef.current.onerror = (error) => {
-        console.error('[Hook] Worker error:', error)
-        setError(new Error('Worker failed to load'))
-        setLoadingProgress(0)
-      }
-
-      // Load the model
-      console.log('[Hook] Sending load message to worker...')
-      workerRef.current.postMessage({ type: 'load' })
+      console.log('[useWhisper] Creating new worker...')
       
-      // Add timeout for model loading
-      const loadTimeout = setTimeout(() => {
-        if (!modelReady) {
-          console.error('[Hook] Model loading timeout')
-          setError(new Error('Model loading timeout - please refresh the page'))
+      try {
+        // Create worker - Next.js will handle this differently
+        const workerUrl = '/whisper.worker.js'
+        workerRef.current = new Worker(workerUrl, { type: 'module' })
+        console.log('[useWhisper] Worker created successfully')
+
+        // Set up message handler
+        workerRef.current.onmessage = (event) => {
+          const { type, data } = event.data
+          console.log('[useWhisper] Message from worker:', type, data)
+
+          switch (type) {
+            case 'initiate':
+              console.log('[Hook] Loading Whisper model...')
+              setLoadingProgress(1) // Set minimum progress to show it's starting
+              break
+            
+            case 'progress':
+              const progress = data.progress || 0
+              console.log('[Hook] Progress update:', progress, data.status)
+              setLoadingProgress(Math.max(1, progress)) // Never show 0% after initiate
+              if (data.cachedModel) {
+                setIsLoadingFromCache(true)
+              }
+              break
+            
+            case 'ready':
+              setModelReady(true)
+              setLoadingProgress(100)
+              console.log('[Hook] Whisper model ready!')
+              break
+            
+            case 'complete':
+              setTranscript(data.text)
+              setIsTranscribing(false)
+              break
+            
+            case 'error':
+              console.error('[Hook] Error from worker:', data)
+              setError(new Error(data))
+              setIsTranscribing(false)
+              setLoadingProgress(0)
+              break
+          }
+        }
+
+        // Add error handler
+        workerRef.current.onerror = (error) => {
+          console.error('[Hook] Worker error:', error)
+          setError(new Error('Worker failed to load'))
           setLoadingProgress(0)
         }
-      }, 120000) // 2 minutes timeout
-      
-      // Store timeout in cleanup
-      return () => {
-        clearTimeout(loadTimeout)
-        if (workerRef.current) {
-          workerRef.current.terminate()
-          workerRef.current = null
-        }
+
+        // Load the model
+        console.log('[Hook] Sending load message to worker...')
+        workerRef.current.postMessage({ type: 'load' })
+        
+      } catch (error) {
+        console.error('[useWhisper] Failed to create worker:', error)
+        setError(new Error('Failed to initialize worker'))
       }
     }
-  }, [modelReady])
+    
+    // Cleanup function
+    return () => {
+      console.log('[useWhisper] Cleanup called')
+      if (workerRef.current) {
+        workerRef.current.terminate()
+        workerRef.current = null
+      }
+    }
+  }, []) // Remove modelReady dependency to prevent infinite loop
 
   // Convert audio blob to base64 data URL for worker
   const audioToBase64 = async (blob: Blob): Promise<string> => {
@@ -121,7 +124,10 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
       // Send to worker using new pattern
       workerRef.current.postMessage({
         type: 'transcribe',
-        audio: audioDataUrl
+        data: {
+          audio: audioDataUrl,
+          options: config
+        }
       })
 
       // Return will be handled by the message handler

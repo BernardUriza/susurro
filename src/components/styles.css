@@ -1,284 +1,60 @@
-/* Cyberpunk Component Styles */
+/* WhisperRecorder Component Styles - Modern 2025 Design */
+
 .whisper-recorder {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1.5rem;
-  background: linear-gradient(135deg, 
-    rgba(15, 15, 30, 0.8) 0%, 
-    rgba(10, 10, 15, 0.9) 100%);
-  border: 1px solid rgba(0, 255, 255, 0.3);
-  position: relative;
-  overflow: hidden;
-  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
-}
-
-.whisper-recorder::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(45deg, 
-    var(--cyber-cyan, #00ffff), 
-    var(--cyber-purple, #b026ff), 
-    var(--cyber-pink, #ff0080), 
-    var(--cyber-cyan, #00ffff));
-  background-size: 400% 400%;
-  z-index: -1;
-  animation: borderRotate 3s linear infinite;
-  opacity: 0.5;
-}
-
-@keyframes borderRotate {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 100% 50%; }
-}
-
-.whisper-recorder__controls {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-}
-
-/* Cyberpunk Button Base */
-.whisper-recorder__button {
-  padding: 0.8rem 1.5rem;
-  border: 1px solid;
-  font-family: 'Orbitron', monospace;
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: all 0.3s;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  position: relative;
-  overflow: hidden;
-  background: transparent;
-  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-}
-
-.whisper-recorder__button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(255, 255, 255, 0.3), 
-    transparent);
-  transition: left 0.5s;
-}
-
-.whisper-recorder__button:hover::before {
-  left: 100%;
-}
-
-/* Start Button */
-.whisper-recorder__button--start {
-  background: linear-gradient(45deg, 
-    rgba(0, 255, 255, 0.1) 0%, 
-    rgba(0, 255, 65, 0.1) 100%);
-  border-color: var(--cyber-cyan, #00ffff);
-  color: var(--cyber-cyan, #00ffff);
-}
-
-.whisper-recorder__button--start:hover:not(:disabled) {
-  background: linear-gradient(45deg, 
-    rgba(0, 255, 255, 0.2) 0%, 
-    rgba(0, 255, 65, 0.2) 100%);
-  box-shadow: 
-    0 0 20px rgba(0, 255, 255, 0.6),
-    inset 0 0 20px rgba(0, 255, 255, 0.1);
-  transform: scale(1.05);
-  border-color: var(--cyber-green, #00ff41);
-  color: var(--cyber-green, #00ff41);
-}
-
-.whisper-recorder__button--start:disabled {
-  background: rgba(0, 255, 255, 0.05);
-  border-color: rgba(0, 255, 255, 0.3);
-  color: rgba(0, 255, 255, 0.5);
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.whisper-recorder__button--start:disabled::before {
-  display: none;
-}
-
-/* Stop Button */
-.whisper-recorder__button--stop {
-  background: linear-gradient(45deg, 
-    rgba(255, 0, 128, 0.1) 0%, 
-    rgba(255, 0, 64, 0.1) 100%);
-  border-color: var(--cyber-pink, #ff0080);
-  color: var(--cyber-pink, #ff0080);
-  animation: pulseGlow 1s ease-in-out infinite;
-}
-
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 10px rgba(255, 0, 128, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 25px rgba(255, 0, 128, 0.8);
-  }
-}
-
-.whisper-recorder__button--stop:hover {
-  background: linear-gradient(45deg, 
-    rgba(255, 0, 128, 0.3) 0%, 
-    rgba(255, 0, 64, 0.3) 100%);
-  transform: scale(1.05);
-  animation: none;
-  box-shadow: 
-    0 0 30px rgba(255, 0, 128, 0.8),
-    inset 0 0 20px rgba(255, 0, 128, 0.2);
-}
-
-/* Clear Button */
-.whisper-recorder__button--clear {
-  background: linear-gradient(45deg, 
-    rgba(176, 38, 255, 0.1) 0%, 
-    rgba(255, 215, 0, 0.1) 100%);
-  border-color: var(--cyber-purple, #b026ff);
-  color: var(--cyber-purple, #b026ff);
-}
-
-.whisper-recorder__button--clear:hover {
-  background: linear-gradient(45deg, 
-    rgba(176, 38, 255, 0.2) 0%, 
-    rgba(255, 215, 0, 0.2) 100%);
-  border-color: var(--cyber-yellow, #ffd700);
-  color: var(--cyber-yellow, #ffd700);
-  box-shadow: 
-    0 0 20px rgba(255, 215, 0, 0.6),
-    inset 0 0 20px rgba(255, 215, 0, 0.1);
-  transform: scale(1.05);
-}
-
-/* Error Display */
-.whisper-recorder__error {
-  padding: 1rem;
-  background: rgba(255, 0, 64, 0.1);
-  border: 1px solid var(--cyber-red, #ff0040);
-  color: var(--cyber-red, #ff0040);
-  font-family: 'Share Tech Mono', monospace;
-  position: relative;
-  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-}
-
-.whisper-recorder__error::before {
-  content: '⚠ ERROR: ';
-  font-weight: bold;
-  color: var(--cyber-red, #ff0040);
-}
-
-/* Transcript Display */
-.whisper-recorder__transcript {
-  padding: 1.5rem;
-  background: rgba(0, 255, 255, 0.05);
-  border: 1px solid rgba(0, 255, 255, 0.3);
-  min-height: 100px;
-  color: var(--cyber-cyan, #00ffff);
-  font-family: 'Share Tech Mono', monospace;
-  line-height: 1.6;
-  position: relative;
-  overflow: hidden;
-  clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 15px 100%, 0 calc(100% - 15px));
-}
-
-.whisper-recorder__transcript::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0, 255, 255, 0.03) 2px,
-      rgba(0, 255, 255, 0.03) 4px
-    );
-  pointer-events: none;
+  gap: 24px;
+  animation: fadeIn 0.5s ease-out;
 }
 
 /* Loading State */
 .whisper-recorder__loading {
-  padding: 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
   text-align: center;
-  animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  gap: 20px;
 }
 
 .whisper-recorder__loading-icon {
-  font-size: 4rem;
-  margin-bottom: 1.5rem;
-  display: inline-block;
-  animation: cyberPulse 2s ease-in-out infinite;
-  filter: drop-shadow(0 0 20px var(--cyber-purple, #b026ff));
-}
-
-@keyframes cyberPulse {
-  0%, 100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 20px var(--cyber-purple, #b026ff));
-  }
-  50% {
-    transform: scale(1.1);
-    filter: drop-shadow(0 0 30px var(--cyber-cyan, #00ffff));
-  }
+  font-size: 3rem;
+  animation: pulse 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 20px var(--accent-primary));
 }
 
 .whisper-recorder__loading-text {
-  margin-bottom: 1.5rem;
-  font-size: 1.2rem;
-  color: var(--cyber-cyan, #00ffff);
-  font-family: 'Orbitron', monospace;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 2px;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.whisper-recorder__loading-hint {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 8px;
 }
 
 /* Progress Bar */
 .whisper-recorder__progress-bar {
   width: 100%;
-  max-width: 400px;
-  height: 8px;
-  background: rgba(0, 255, 255, 0.1);
-  border: 1px solid rgba(0, 255, 255, 0.3);
-  margin: 0 auto 1rem;
+  max-width: 300px;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
   overflow: hidden;
   position: relative;
-  clip-path: polygon(0 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 4px 100%, 0 calc(100% - 4px));
 }
 
 .whisper-recorder__progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, 
-    var(--cyber-cyan, #00ffff), 
-    var(--cyber-purple, #b026ff), 
-    var(--cyber-pink, #ff0080));
-  transition: width 0.3s ease;
+  background: var(--accent-gradient);
+  transition: width 0.3s ease-out;
+  border-radius: 3px;
   position: relative;
-  box-shadow: 0 0 10px currentColor;
+  overflow: hidden;
 }
 
 .whisper-recorder__progress-fill::after {
@@ -290,11 +66,172 @@
   right: 0;
   background: linear-gradient(
     90deg,
-    transparent,
-    rgba(255, 255, 255, 0.4),
-    transparent
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
   );
   animation: shimmer 1.5s infinite;
+}
+
+/* Controls */
+.whisper-recorder__controls {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+/* Modern Button Styles */
+.whisper-recorder__button {
+  padding: 16px 32px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.whisper-recorder__button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.whisper-recorder__button:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+.whisper-recorder__button--start {
+  background: var(--accent-gradient);
+  color: white;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+}
+
+.whisper-recorder__button--start:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(59, 130, 246, 0.4);
+}
+
+.whisper-recorder__button--start:active {
+  transform: translateY(0);
+}
+
+.whisper-recorder__button--start:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.whisper-recorder__button--stop {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.whisper-recorder__button--stop:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(239, 68, 68, 0.4);
+}
+
+.whisper-recorder__button--clear {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 8px 16px;
+  font-size: 0.875rem;
+}
+
+.whisper-recorder__button--clear:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+}
+
+/* Results Section */
+.whisper-recorder__result {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  animation: slideUp 0.4s ease-out;
+}
+
+.whisper-recorder__transcript {
+  color: var(--text-primary);
+  line-height: 1.6;
+  margin-bottom: 16px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  font-size: 1rem;
+  min-height: 60px;
+}
+
+/* Info Text */
+.whisper-recorder__info {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.whisper-recorder__info-text {
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
 }
 
 @keyframes shimmer {
@@ -306,119 +243,24 @@
   }
 }
 
-.whisper-recorder__loading-hint {
-  font-size: 0.85rem;
-  color: var(--cyber-purple, #b026ff);
-  font-family: 'Rajdhani', sans-serif;
-  margin-top: 0.5rem;
-  opacity: 0.8;
-}
-
-.whisper-recorder__info {
-  margin-top: 1.5rem;
-  text-align: center;
-}
-
-.whisper-recorder__info-text {
-  font-size: 0.9rem;
-  color: var(--cyber-cyan, #00ffff);
-  font-family: 'Share Tech Mono', monospace;
-  opacity: 0.7;
-  letter-spacing: 1px;
-}
-
-/* Result Section */
-.whisper-recorder__result {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  animation: slideIn 0.5s ease;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-20px);
+/* Responsive Design */
+@media (max-width: 768px) {
+  .whisper-recorder__button {
+    padding: 14px 24px;
+    font-size: 0.875rem;
   }
-  to {
-    opacity: 1;
-    transform: translateX(0);
+  
+  .whisper-recorder__loading-icon {
+    font-size: 2.5rem;
+  }
+  
+  .whisper-recorder__controls {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .whisper-recorder__button {
+    width: 100%;
+    justify-content: center;
   }
 }
-
-/* Glitch Text Effect for Headers */
-.glitch-text {
-  position: relative;
-  color: var(--cyber-cyan, #00ffff);
-  letter-spacing: 2px;
-}
-
-.glitch-text::before,
-.glitch-text::after {
-  content: attr(data-text);
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.glitch-text::before {
-  animation: glitch-1 0.5s infinite;
-  color: var(--cyber-pink, #ff0080);
-  z-index: -1;
-}
-
-.glitch-text::after {
-  animation: glitch-2 0.5s infinite;
-  color: var(--cyber-purple, #b026ff);
-  z-index: -2;
-}
-
-@keyframes glitch-1 {
-  0%, 100% {
-    clip-path: inset(0 0 0 0);
-    transform: translate(0);
-  }
-  20% {
-    clip-path: inset(20% 0 60% 0);
-    transform: translate(-2px, 2px);
-  }
-  40% {
-    clip-path: inset(60% 0 20% 0);
-    transform: translate(2px, -2px);
-  }
-  60% {
-    clip-path: inset(40% 0 40% 0);
-    transform: translate(-1px, 1px);
-  }
-  80% {
-    clip-path: inset(80% 0 10% 0);
-    transform: translate(1px, -1px);
-  }
-}
-
-@keyframes glitch-2 {
-  0%, 100% {
-    clip-path: inset(0 0 0 0);
-    transform: translate(0);
-  }
-  20% {
-    clip-path: inset(80% 0 10% 0);
-    transform: translate(2px, -1px);
-  }
-  40% {
-    clip-path: inset(20% 0 60% 0);
-    transform: translate(-2px, 1px);
-  }
-  60% {
-    clip-path: inset(60% 0 20% 0);
-    transform: translate(1px, 2px);
-  }
-  80% {
-    clip-path: inset(40% 0 40% 0);
-    transform: translate(-1px, -2px);
-  }
-}
-
-/* Welcome Section Styles - Keep existing welcome styles below */

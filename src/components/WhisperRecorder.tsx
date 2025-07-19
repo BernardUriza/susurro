@@ -164,14 +164,14 @@ export const WhisperRecorder: React.FC<WhisperRecorderProps> = ({
                 disabled={isTranscribing || !modelReady}
                 className="whisper-recorder__button whisper-recorder__button--start"
               >
-                {isTranscribing ? 'Transcribiendo...' : 'Iniciar Grabación'}
+                {isTranscribing ? 'Transcribing...' : 'Start Recording'}
               </button>
             ) : (
               <button
                 onClick={handleStopRecording}
                 className="whisper-recorder__button whisper-recorder__button--stop"
               >
-                Detener Grabación
+                Stop Recording
               </button>
             )}
           </div>
@@ -191,14 +191,14 @@ export const WhisperRecorder: React.FC<WhisperRecorderProps> = ({
                 }}
                 className="whisper-recorder__button whisper-recorder__button--clear"
               >
-                Limpiar
+                Clear
               </button>
             </div>
           )}
 
           <div className="whisper-recorder__info">
             <p className="whisper-recorder__info-text">
-              🎙️ Transcripción local con Transformers.js - Sin servidor
+              🎙️ Local transcription with Transformers.js - No server required
             </p>
           </div>
         </>

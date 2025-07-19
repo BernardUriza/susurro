@@ -16,6 +16,7 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const workerRef = useRef<Worker | null>(null)
+  const progressAlertRef = useRef<any>(null)
 
   // Initialize Web Worker
   useEffect(() => {
@@ -24,11 +25,40 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
     if (!workerRef.current && typeof window !== 'undefined') {
       console.log('[useWhisper] Creating new worker...')
       
+      // Show initial loading alert
+      progressAlertRef.current = Swal.fire({
+        title: '🤖 Initializing AI Model',
+        html: `
+          <div style="margin: 20px 0;">
+            <div class="swal-loading-spinner" style="font-size: 3rem; margin-bottom: 20px;">🎙️</div>
+            <p style="font-size: 1.1rem; margin-bottom: 20px;">Loading Whisper AI model...</p>
+            <div style="background: #1a1a1a; border-radius: 10px; overflow: hidden; height: 10px; margin: 20px 0;">
+              <div id="swal-progress-bar" style="background: linear-gradient(90deg, #3b82f6, #8b5cf6); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+            </div>
+            <p id="swal-progress-text" style="font-size: 0.9rem; color: #888;">Initializing...</p>
+          </div>
+        `,
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        background: '#111',
+        color: '#fff',
+        customClass: {
+          popup: 'swal-dark-popup',
+          title: 'swal-dark-title'
+        },
+        didOpen: () => {
+          Swal.showLoading()
+        }
+      })
+      
       try {
         // Create worker - Next.js will handle this differently
         const workerUrl = '/whisper.worker.js'
-        workerRef.current = new Worker(workerUrl, { type: 'module' })
-        console.log('[useWhisper] Worker created successfully, URL:', workerUrl)
+        console.log('[useWhisper] Attempting to create worker from:', workerUrl)
+        
+        // Create worker as classic since we're using importScripts
+        workerRef.current = new Worker(workerUrl)
+        console.log('[useWhisper] Worker created successfully')
 
         // Set up message handler
         workerRef.current.onmessage = (event) => {
@@ -39,12 +69,32 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
             case 'initiate':
               console.log('[Hook] Loading Whisper model...')
               setLoadingProgress(1) // Set minimum progress to show it's starting
+              // Update progress alert
+              if (progressAlertRef.current) {
+                const progressBar = document.getElementById('swal-progress-bar')
+                const progressText = document.getElementById('swal-progress-text')
+                if (progressBar) progressBar.style.width = '1%'
+                if (progressText) progressText.textContent = 'Starting download...'
+              }
               break
             
             case 'progress':
               const progress = data.progress || 0
               console.log('[Hook] Progress update:', progress, data.status)
               setLoadingProgress(Math.max(1, progress)) // Never show 0% after initiate
+              
+              // Update progress alert
+              if (progressAlertRef.current) {
+                const progressBar = document.getElementById('swal-progress-bar')
+                const progressText = document.getElementById('swal-progress-text')
+                if (progressBar) progressBar.style.width = `${progress}%`
+                if (progressText) {
+                  const status = data.status || 'downloading'
+                  const file = data.file || 'model'
+                  progressText.textContent = `${status} ${file}... ${Math.round(progress)}%`
+                }
+              }
+              
               if (data.cachedModel) {
                 setIsLoadingFromCache(true)
               }
@@ -54,6 +104,30 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
               setModelReady(true)
               setLoadingProgress(100)
               console.log('[Hook] Whisper model ready!')
+              
+              // Close progress alert and show success
+              if (progressAlertRef.current) {
+                Swal.close()
+                progressAlertRef.current = null
+                
+                // Show success toast
+                const Toast = Swal.mixin({
+                  toast: true,
+                  position: 'top-end',
+                  showConfirmButton: false,
+                  timer: 3000,
+                  timerProgressBar: true,
+                  background: '#111',
+                  color: '#fff',
+                  iconColor: '#3b82f6'
+                })
+                
+                Toast.fire({
+                  icon: 'success',
+                  title: '🎉 AI Model Ready',
+                  text: 'You can now start recording!'
+                })
+              }
               break
             
             case 'complete':
@@ -66,6 +140,21 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
               setError(new Error(data))
               setIsTranscribing(false)
               setLoadingProgress(0)
+              
+              // Close progress alert and show error
+              if (progressAlertRef.current) {
+                Swal.close()
+                progressAlertRef.current = null
+              }
+              
+              Swal.fire({
+                icon: 'error',
+                title: 'Failed to Load Model',
+                text: data,
+                background: '#111',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6'
+              })
               break
           }
         }
@@ -73,8 +162,37 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
         // Add error handler
         workerRef.current.onerror = (error) => {
           console.error('[Hook] Worker error:', error)
+          console.error('[Hook] Worker error details:', {
+            filename: error.filename || 'unknown',
+            lineno: error.lineno || 'unknown',
+            message: error.message || 'No message'
+          })
           setError(new Error('Worker failed to load'))
           setLoadingProgress(0)
+          
+          if (progressAlertRef.current) {
+            Swal.close()
+            progressAlertRef.current = null
+          }
+          
+          Swal.fire({
+            icon: 'error',
+            title: 'Worker Error',
+            html: `
+              <p>Failed to initialize AI worker.</p>
+              <p style="font-size: 0.9rem; color: #888; margin-top: 10px;">
+                This might be due to:<br>
+                • Browser compatibility issues<br>
+                • Module import errors<br>
+                • Missing dependencies
+              </p>
+              <p style="font-size: 0.85rem; margin-top: 15px;">Please check the console for details.</p>
+            `,
+            background: '#111',
+            color: '#fff',
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'OK'
+          })
         }
 
         // Load the model
@@ -84,12 +202,30 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
       } catch (error) {
         console.error('[useWhisper] Failed to create worker:', error)
         setError(new Error('Failed to initialize worker'))
+        
+        if (progressAlertRef.current) {
+          Swal.close()
+          progressAlertRef.current = null
+        }
+        
+        Swal.fire({
+          icon: 'error',
+          title: 'Initialization Error',
+          text: 'Failed to start AI model. Please check your browser compatibility.',
+          background: '#111',
+          color: '#fff',
+          confirmButtonColor: '#3b82f6'
+        })
       }
     }
     
     // Cleanup function
     return () => {
       console.log('[useWhisper] Cleanup called')
+      if (progressAlertRef.current) {
+        Swal.close()
+        progressAlertRef.current = null
+      }
       if (workerRef.current) {
         workerRef.current.terminate()
         workerRef.current = null
@@ -179,6 +315,15 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to start recording')
       setError(error)
+      
+      Swal.fire({
+        icon: 'error',
+        title: 'Microphone Error',
+        text: 'Could not access your microphone. Please check permissions.',
+        background: '#111',
+        color: '#fff',
+        confirmButtonColor: '#3b82f6'
+      })
     }
   }, [transcribeAudio])
 

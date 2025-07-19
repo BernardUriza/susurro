@@ -18,7 +18,9 @@
       "WebFetch(domain:medium.com)",
       "Bash(ls:*)",
       "WebFetch(domain:huggingface.co)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(del:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }

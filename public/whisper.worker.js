@@ -1,4 +1,15 @@
-import { pipeline, env } from '@xenova/transformers';
+// Import Transformers.js using importScripts for Web Workers
+importScripts('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+
+// Get pipeline and env from the global scope
+console.log('[Worker] Checking for transformers global:', self.transformers);
+const { pipeline, env } = self.transformers || {};
+
+if (!pipeline || !env) {
+    console.error('[Worker] Transformers.js not loaded properly');
+    self.postMessage({ type: 'error', data: 'Failed to load Transformers.js from CDN' });
+}
+
 // Configure Transformers.js environment for maximum caching
 env.allowLocalModels = true;
 env.useBrowserCache = true;

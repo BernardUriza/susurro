@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useWhisper } from '../hooks/useWhisper'
+import { useWhisper } from '../hooks/useWhisperDirect'
 import { WhisperConfig } from '../lib/types'
 import Swal from 'sweetalert2'
 

@@ -21,10 +21,10 @@ const nextConfig = {
         type: 'asset/resource',
       })
       
-      // Add worker-loader for .worker.js files
+      // Handle .worker.js files
       config.module.rules.push({
-        test: /\.worker\.(js|ts)$/,
-        use: { loader: 'worker-loader' },
+        test: /\.worker\.js$/,
+        type: 'asset/resource',
       })
       
       // Ignore node-specific modules

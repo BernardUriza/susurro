@@ -10,6 +10,7 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
   const [error, setError] = useState<Error | null>(null)
   const [modelReady, setModelReady] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState(0)
+  const [isLoadingFromCache, setIsLoadingFromCache] = useState(false)
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -17,12 +18,10 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
 
   // Initialize Web Worker
   useEffect(() => {
-    if (!workerRef.current) {
-      // Create worker with dynamic import for Next.js compatibility
-      workerRef.current = new Worker(
-        new URL('../lib/whisper.worker.ts', import.meta.url),
-        { type: 'module' }
-      )
+    if (!workerRef.current && typeof window !== 'undefined') {
+      // Create worker - Next.js will handle this differently
+      const workerUrl = '/whisper.worker.js'
+      workerRef.current = new Worker(workerUrl, { type: 'module' })
 
       // Set up message handler
       workerRef.current.onmessage = (event) => {
@@ -35,6 +34,9 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
           
           case 'progress':
             setLoadingProgress(data.progress || 0)
+            if (data.cachedModel) {
+              setIsLoadingFromCache(true)
+            }
             break
           
           case 'ready':
@@ -177,6 +179,7 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
     transcribeAudio,
     clearTranscript,
     modelReady,
-    loadingProgress
+    loadingProgress,
+    isLoadingFromCache
   }
 }

@@ -28,18 +28,6 @@ const nextConfig = {
         path: false,
         crypto: false,
       }
-
-      // Configure for Web Workers
-      config.module.rules.push({
-        test: /\.worker\.(js|ts)$/,
-        use: { 
-          loader: 'worker-loader',
-          options: {
-            filename: 'static/[hash].worker.js',
-            publicPath: '/_next/',
-          }
-        },
-      })
     }
 
     return config

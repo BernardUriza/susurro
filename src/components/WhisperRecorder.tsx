@@ -41,14 +41,18 @@ export const WhisperRecorder: React.FC<WhisperRecorderProps> = ({
     <div className={`whisper-recorder ${className}`}>
       {!modelReady && (
         <div className="whisper-recorder__loading">
+          <div className="whisper-recorder__loading-icon">🎙️</div>
           <div className="whisper-recorder__loading-text">
-            Cargando modelo Whisper... {formatProgress(loadingProgress)}
+            {loadingProgress === 0 ? 'Verificando caché...' : `Cargando modelo Whisper... ${formatProgress(loadingProgress)}`}
           </div>
           <div className="whisper-recorder__progress-bar">
             <div 
               className="whisper-recorder__progress-fill"
               style={{ width: `${loadingProgress}%` }}
             />
+          </div>
+          <div className="whisper-recorder__loading-hint">
+            {loadingProgress === 100 ? 'Inicializando...' : 'Primera vez: ~40MB • Próximas veces: instantáneo'}
           </div>
         </div>
       )}

@@ -38,4 +38,5 @@ export interface UseWhisperReturn {
   clearTranscript: () => void
   modelReady: boolean
   loadingProgress: number
+  isLoadingFromCache?: boolean
 }

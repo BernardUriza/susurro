@@ -7,7 +7,10 @@
       "Bash(npm install)",
       "Bash(npm run build:*)",
       "Bash(mkdir:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npm run copy-styles:*)",
+      "Bash(npm link:*)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }

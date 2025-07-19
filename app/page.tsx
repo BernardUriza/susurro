@@ -1,7 +1,7 @@
 'use client'
 
-import { WhisperRecorder } from '@susurro/whisper-nextjs'
-import '@susurro/whisper-nextjs/styles.css'
+import { WhisperRecorder } from '../src/components/WhisperRecorder'
+import '../src/components/styles.css'
 
 export default function Home() {
   const handleTranscription = (text: string) => {

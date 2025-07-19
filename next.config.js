@@ -21,11 +21,6 @@ const nextConfig = {
         type: 'asset/resource',
       })
       
-      // Handle .worker.js files
-      config.module.rules.push({
-        test: /\.worker\.js$/,
-        type: 'asset/resource',
-      })
       
       // Ignore node-specific modules
       config.resolve.fallback = {

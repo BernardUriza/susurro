@@ -1,127 +1,115 @@
-# Susurro - Whisper para Next.js con Transformers.js
+# Susurro - Whisper AI Voice Transcription
 
-Transcripción de voz a texto 100% local en el navegador usando Whisper y Transformers.js. Sin servidor, sin API keys, completamente privado.
+A sleek, Matrix-themed web application for real-time voice transcription using OpenAI's Whisper model through Transformers.js.
 
-## Instalación
+**Working Commit ID**: `f8d559d3d7c3c69fde502fa48ac3ea94ad03402b`
+
+## 🎯 Features
+
+- **Real-time voice recording and transcription** in the browser
+- **WAV file upload and processing** support
+- **Matrix-inspired cyberpunk UI** with green-on-black aesthetics
+- **Direct Whisper model implementation** (no workers needed)
+- **Multiple language support** (configured for English by default)
+- **Smooth animations and transitions**
+- **Progressive model loading** with visual feedback
+
+## 🚀 Technology Stack
+
+- **Next.js 14** - React framework with App Router
+- **TypeScript** - Type safety and better DX
+- **Transformers.js** - Run Whisper AI models directly in the browser
+- **SweetAlert2** - Beautiful alert dialogs
+- **CSS-in-JS** - Custom Matrix-themed styling
+
+## 📦 Installation
 
 ```bash
-npm install @susurro/whisper-nextjs
+# Clone the repository
+git clone https://github.com/yourusername/susurro.git
+cd susurro
+
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
 ```
 
-## Características
+Open [http://localhost:3000](http://localhost:3000) to see the application
 
-- 🔒 **100% Privado**: Tu voz nunca sale de tu dispositivo
-- ⚡ **Sin latencia**: Procesamiento local instantáneo
-- 🌐 **Funciona offline**: No necesita conexión a internet
-- 🤖 **Powered by Transformers.js**: Modelos de Hugging Face en el navegador
-- 📦 **Fácil integración**: Hook y componente listos para usar
+## 🎨 Features Breakdown
 
-## Uso
+### Voice Recording
+- Click the microphone button to start recording
+- Real-time waveform visualization
+- Automatic transcription when recording stops
 
-### Hook useWhisper
+### File Upload
+- Support for WAV audio files
+- Drag-and-drop or click to upload
+- Instant transcription processing
 
-```tsx
-import { useWhisper } from '@susurro/whisper-nextjs'
+### Sample Audio
+- Pre-loaded sample.wav for testing
+- One-click loading and transcription
 
-function MyComponent() {
-  const {
-    isRecording,
-    isTranscribing,
-    transcript,
-    error,
-    startRecording,
-    stopRecording,
-    transcribeAudio,
-    clearTranscript
-  } = useWhisper({
-    language: 'es',
-    temperature: 0.2
-  })
+## 🔧 Configuration
 
-  return (
-    <div>
-      <button onClick={isRecording ? stopRecording : startRecording}>
-        {isRecording ? 'Detener' : 'Grabar'}
-      </button>
-      {transcript && <p>{transcript}</p>}
-    </div>
-  )
-}
-```
-
-### Componente WhisperRecorder
-
-```tsx
-import { WhisperRecorder } from '@susurro/whisper-nextjs'
-import '@susurro/whisper-nextjs/styles.css'
-
-function MyApp() {
-  return (
-    <WhisperRecorder
-      config={{
-        language: 'es',
-        temperature: 0.2
-      }}
-      onTranscription={(text) => console.log(text)}
-    />
-  )
-}
-```
-
-## Configuración
-
-### Next.js Config
-
-Asegúrate de configurar Next.js para soportar Web Workers y WASM:
-
-```javascript
-// next.config.js
-const nextConfig = {
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      "sharp$": false,
-      "onnxruntime-node$": false,
-    }
-    return config
-  },
-}
-```
-
-## API
-
-### WhisperConfig
+The application uses the `Xenova/whisper-tiny` model for fast performance. You can modify the language settings in:
 
 ```typescript
-interface WhisperConfig {
-  language?: string // Idioma para la transcripción (ej: 'es', 'en')
-  model?: string // Modelo a usar (por defecto: 'Xenova/whisper-tiny')
-}
+// app/page.tsx
+const { transcribeAudio } = useWhisper({ language: 'english' })
 ```
 
-### useWhisper Return
+## 🏗️ Project Structure
 
-```typescript
-interface UseWhisperReturn {
-  isRecording: boolean
-  isTranscribing: boolean
-  transcript: string | null
-  error: Error | null
-  startRecording: () => Promise<void>
-  stopRecording: () => Promise<void>
-  transcribeAudio: (audioBlob: Blob) => Promise<TranscriptionResult | null>
-  clearTranscript: () => void
-  modelReady: boolean // Indica si el modelo está listo
-  loadingProgress: number // Progreso de carga del modelo (0-100)
-}
+```
+susurro/
+├── app/
+│   ├── page.tsx          # Main application page
+│   ├── layout.tsx        # Root layout
+│   └── globals.css       # Global styles
+├── src/
+│   ├── components/
+│   │   ├── WhisperRecorder.tsx    # Recording component
+│   │   └── styles.css             # Component styles
+│   ├── hooks/
+│   │   └── useWhisperDirect.ts    # Whisper hook implementation
+│   └── lib/
+│       └── types.ts               # TypeScript types
+├── public/
+│   └── sample.wav                 # Sample audio file
+└── package.json
 ```
 
-## Notas importantes
+## 🚢 Deployment
 
-- La primera vez que uses la aplicación, se descargará el modelo Whisper (~40MB)
-- El modelo se guarda en caché del navegador para uso futuro
-- Requiere un navegador moderno con soporte para Web Workers y WebAssembly
+The app is ready for deployment on Vercel:
 
-## Licencia
+```bash
+# Build for production
+npm run build
 
-MIT
+# Start production server
+npm start
+```
+
+Or deploy directly to Vercel:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/susurro)
+
+## 📄 License
+
+MIT License - feel free to use this project for your own purposes.
+
+## 🙏 Acknowledgments
+
+- OpenAI for the Whisper model
+- Xenova for Transformers.js
+- The Matrix for the UI inspiration
+
+---
+
+Made with 💚

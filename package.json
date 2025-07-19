@@ -1,0 +1,42 @@
+{
+  "name": "@susurro/whisper-nextjs",
+  "version": "1.0.0",
+  "description": "Integración de Whisper para transcripción de voz a texto en Next.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "npx tsc",
+    "dev": "npx tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "whisper",
+    "speech-to-text",
+    "nextjs",
+    "transcription",
+    "audio",
+    "react"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "next": ">=14.0.0"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.17.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "next": "^15.0.3"
+  }
+}

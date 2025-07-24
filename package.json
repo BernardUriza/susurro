@@ -1,7 +1,7 @@
 {
   "name": "susurro-whisper-nextjs",
   "version": "1.0.0",
-  "description": "Real-time voice transcription using Whisper AI with Transformers.js for Next.js",
+  "description": "WAV file transcription using Whisper AI with Transformers.js for Next.js",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -14,18 +14,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "build-lib": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && npm run copy-styles",
+    "build-lib": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types",
     "clean": "rmdir /s /q dist 2>nul || echo No dist folder",
     "build:esm": "esbuild src/index.ts --bundle --minify --format=esm --outfile=dist/index.mjs --external:react --external:react-dom --external:next --external:@xenova/transformers --external:sweetalert2",
     "build:cjs": "esbuild src/index.ts --bundle --minify --format=cjs --outfile=dist/index.js --external:react --external:react-dom --external:next --external:@xenova/transformers --external:sweetalert2",
     "build:types": "tsc --project tsconfig.lib.json --emitDeclarationOnly",
-    "copy-styles": "cp src/components/styles.css dist/styles.css 2>nul || copy src\\components\\styles.css dist\\styles.css",
     "prepublishOnly": "npm run build-lib"
   },
   "keywords": [
     "whisper",
     "speech-to-text",
-    "voice-recognition",
     "transformers",
     "nextjs",
     "react",
@@ -45,6 +43,7 @@
   },
   "dependencies": {
     "@xenova/transformers": "^2.17.2",
+    "murmuraba": "^2.1.0",
     "sweetalert2": "^11.22.2"
   },
   "devDependencies": {

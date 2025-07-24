@@ -28,12 +28,9 @@ export interface TranscriptionSegment {
 }
 
 export interface UseWhisperReturn {
-  isRecording: boolean
   isTranscribing: boolean
   transcript: string | null
   error: Error | null
-  startRecording: () => Promise<void>
-  stopRecording: () => Promise<void>
   transcribeAudio: (audioBlob: Blob) => Promise<TranscriptionResult | null>
   clearTranscript: () => void
   modelReady: boolean

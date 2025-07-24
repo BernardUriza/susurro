@@ -6,7 +6,6 @@ A sleek, Matrix-themed web application for real-time voice transcription using O
 
 ## 🎯 Features
 
-- **Real-time voice recording and transcription** in the browser
 - **WAV file upload and processing** support
 - **Matrix-inspired cyberpunk UI** with green-on-black aesthetics
 - **Direct Whisper model implementation** (no workers needed)
@@ -82,11 +81,6 @@ function MyComponent() {
 Open [http://localhost:3000](http://localhost:3000) to see the demo application
 
 ## 🎨 Features Breakdown
-
-### Voice Recording
-- Click the microphone button to start recording
-- Real-time waveform visualization
-- Automatic transcription when recording stops
 
 ### File Upload
 - Support for WAV audio files

@@ -22,7 +22,10 @@
       "Bash(del:*)",
       "Bash(ls:*)",
       "Bash(npm run clean:*)",
-      "Bash(npm publish:*)"
+      "Bash(npm publish:*)",
+      "Bash(gh codespace ports:*)",
+      "Bash(echo:*)",
+      "WebFetch(domain:www.npmjs.com)"
     ],
     "deny": []
   }

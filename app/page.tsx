@@ -1,6 +1,5 @@
 'use client'
 
-import '../src/components/styles.css'
 import { useState, useEffect } from 'react'
 import Swal from 'sweetalert2'
 import { useWhisper } from '../src/hooks/useWhisperDirect'

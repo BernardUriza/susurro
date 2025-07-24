@@ -38,7 +38,6 @@ class WhisperPipelineSingleton {
 }
 
 export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
-  const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [transcript, setTranscript] = useState<string | null>(null)
   const [error, setError] = useState<Error | null>(null)
@@ -46,8 +45,6 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [isLoadingFromCache] = useState(false)
   
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
   const pipelineRef = useRef<any>(null)
   const progressAlertRef = useRef<any>(null)
 
@@ -223,62 +220,6 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
     }
   }, [config, modelReady])
 
-  const startRecording = useCallback(async () => {
-    try {
-      setError(null)
-      audioChunksRef.current = []
-      
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000,
-          sampleSize: 16,
-          echoCancellation: true,
-          noiseSuppression: true,
-        } 
-      })
-      
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      })
-      
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data)
-        }
-      }
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        await transcribeAudio(audioBlob)
-        
-        stream.getTracks().forEach(track => track.stop())
-      }
-
-      mediaRecorderRef.current = mediaRecorder
-      mediaRecorder.start()
-      setIsRecording(true)
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to start recording')
-      setError(error)
-      
-      Swal.fire({
-        icon: 'error',
-        title: 'Microphone Error',
-        text: 'Could not access your microphone. Please check permissions.',
-        background: '#111',
-        color: '#fff',
-        confirmButtonColor: '#3b82f6'
-      })
-    }
-  }, [transcribeAudio])
-
-  const stopRecording = useCallback(async () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop()
-      setIsRecording(false)
-    }
-  }, [isRecording])
 
   const clearTranscript = useCallback(() => {
     setTranscript(null)
@@ -286,12 +227,9 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
   }, [])
 
   return {
-    isRecording,
     isTranscribing,
     transcript,
     error,
-    startRecording,
-    stopRecording,
     transcribeAudio,
     clearTranscript,
     modelReady,

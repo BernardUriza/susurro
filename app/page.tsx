@@ -1,6 +1,5 @@
 'use client'
 
-import { WhisperRecorder } from '../src/components/WhisperRecorder'
 import '../src/components/styles.css'
 import { useState, useEffect } from 'react'
 import Swal from 'sweetalert2'
@@ -203,20 +202,8 @@ export default function Home() {
 
         {/* Center Panel - Main Interface */}
         <section className="panel panel-center">
-          <div className="recorder-section">
-            <h2>🎙️ Live Audio Capture</h2>
-            <WhisperRecorder
-              config={{
-                language: 'es',
-              }}
-              onTranscription={handleTranscription}
-            />
-          </div>
-
-          <div className="divider"></div>
-
-          <div className="upload-section">
-            <h2>📁 WAV File Upload</h2>
+          <div className="upload-section" style={{ marginTop: '0', paddingTop: '2rem' }}>
+            <h2 style={{ fontSize: '2rem', marginBottom: '2rem' }}>📁 WAV File Upload</h2>
             
             {/* Demo Button */}
             <div className="demo-section">
@@ -285,7 +272,7 @@ export default function Home() {
             
             <div className="divider-small"></div>
             
-            <div className="file-upload">
+            <div className="file-upload" style={{ padding: '3rem', border: '3px dashed #00ff00', borderRadius: '12px', backgroundColor: 'rgba(0, 255, 0, 0.05)' }}>
               <input
                 type="file"
                 id="wav-upload"
@@ -293,12 +280,13 @@ export default function Home() {
                 onChange={handleFileUpload}
                 className="file-input"
               />
-              <label htmlFor="wav-upload" className="file-label">
+              <label htmlFor="wav-upload" className="file-label" style={{ fontSize: '1.2rem', padding: '1.5rem 3rem', cursor: 'pointer' }}>
                 {uploadedFile ? uploadedFile.name : 'Select WAV File'}
               </label>
               {uploadedFile && (
                 <button 
                   className="process-button"
+                  style={{ marginTop: '2rem', fontSize: '1.1rem', padding: '1rem 2.5rem' }}
                   onClick={() => {
                     Swal.fire({
                       title: '🎵 Procesando WAV',

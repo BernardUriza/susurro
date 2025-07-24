@@ -25,7 +25,12 @@
       "Bash(npm publish:*)",
       "Bash(gh codespace ports:*)",
       "Bash(echo:*)",
-      "WebFetch(domain:www.npmjs.com)"
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(mv:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": []
   }

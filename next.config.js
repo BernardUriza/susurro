@@ -1,11 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable React 19 features
-  experimental: {
-    reactCompiler: false, // Set to true if you want to use React Compiler
+  output: 'export',
+  images: {
+    unoptimized: true
   },
   
-  // Configure webpack for Transformers.js
+  // Configure webpack for Transformers.js and client-side only
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Alias node-specific modules to browser-compatible versions
@@ -37,9 +37,6 @@ const nextConfig = {
   // Optimize for production
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
-  
-  // Configure for static export if needed
-  output: process.env.BUILD_STANDALONE === 'true' ? 'export' : undefined,
 }
 
 module.exports = nextConfig

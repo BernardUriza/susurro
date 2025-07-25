@@ -1,5 +1,5 @@
-import { TranscriptionApp } from '../src/components/TranscriptionApp'
+import { TranscriptionAppMatrix } from '../src/components/TranscriptionAppMatrix'
 
 export default function Home() {
-  return <TranscriptionApp />
+  return <TranscriptionAppMatrix />
 }

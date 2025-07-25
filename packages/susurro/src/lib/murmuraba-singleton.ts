@@ -4,6 +4,10 @@ interface MurmurabaEngine {
   processFile: (file: ArrayBuffer, options: any) => Promise<any>
   processFileWithMetrics?: (file: ArrayBuffer, options: any) => Promise<any>
   analyzeVAD?: (file: File | Blob | ArrayBuffer) => Promise<any>
+  processStreamChunked?: (stream: ReadableStream | ArrayBuffer, options: {
+    chunkDuration?: number
+    onChunkProcessed?: (chunk: any) => void
+  }) => Promise<any>
   isInitialized: boolean
 }
 
@@ -160,6 +164,23 @@ class MurmurabaManager {
       console.error('[Murmuraba] Error processing file:', error)
       throw error
     }
+  }
+
+  async processStreamChunked(file: File | Blob, options: {
+    chunkDuration?: number
+    onChunkProcessed?: (chunk: any) => void
+  } = {}): Promise<any[]> {
+    await this.initialize()
+    const murmuraba = await this.getMurmuraba()
+    
+    if (!murmuraba.processStreamChunked) {
+      throw new Error('processStreamChunked not available in murmuraba')
+    }
+    
+    // Create a ReadableStream from the file
+    const stream = file.stream()
+    const result = await murmuraba.processStreamChunked(stream, options)
+    return result
   }
 
   async processFileWithMetrics(file: File | Blob, onFrameProcessed?: (metrics: any) => void): Promise<any> {

@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react'
 import { useWhisperDirect } from './useWhisperDirect'
-import { TranscriptionResult, AudioChunk } from '../lib/types'
+import { TranscriptionResult, AudioChunk, WhisperConfig } from '../lib/types'
 
 interface UseTranscriptionOptions {
   onTranscriptionComplete?: (result: TranscriptionResult) => void
   onStatusUpdate?: (status: Partial<TranscriptionStatus>) => void
+  whisperConfig?: WhisperConfig
 }
 
 interface TranscriptionStatus {
@@ -18,10 +19,15 @@ interface UseTranscriptionReturn {
   transcribe: (chunk: AudioChunk) => Promise<TranscriptionResult | null>
   isLoading: boolean
   status: TranscriptionStatus
+  // Whisper-specific methods and properties
+  whisperReady: boolean
+  whisperProgress: number
+  whisperError: any
+  transcribeWithWhisper: (blob: Blob) => Promise<TranscriptionResult | null>
 }
 
 export function useTranscription(options: UseTranscriptionOptions = {}): UseTranscriptionReturn {
-  const { onTranscriptionComplete, onStatusUpdate } = options
+  const { onTranscriptionComplete, onStatusUpdate, whisperConfig = {} } = options
   
   const [status, setStatus] = useState<TranscriptionStatus>({
     isProcessing: false,
@@ -30,7 +36,13 @@ export function useTranscription(options: UseTranscriptionOptions = {}): UseTran
     stage: 'idle'
   })
   
-  const { transcribe: whisperTranscribe, isTranscribing } = useWhisperDirect()
+  const { 
+    transcribe: whisperTranscribe, 
+    isTranscribing,
+    modelReady: whisperReady,
+    loadingProgress: whisperProgress,
+    error: whisperError
+  } = useWhisperDirect(whisperConfig)
   
   const transcribe = useCallback(async (chunk: AudioChunk): Promise<TranscriptionResult | null> => {
     try {
@@ -65,6 +77,11 @@ export function useTranscription(options: UseTranscriptionOptions = {}): UseTran
   return {
     transcribe,
     isLoading: isTranscribing || status.isProcessing,
-    status
+    status,
+    // Expose whisper-specific properties
+    whisperReady,
+    whisperProgress,
+    whisperError,
+    transcribeWithWhisper: whisperTranscribe
   }
 }

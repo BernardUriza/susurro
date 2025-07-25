@@ -256,13 +256,10 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
       setError(error)
       setIsTranscribing(false)
       
-      Swal.fire({
-        icon: 'error',
-        title: 'Transcription Error',
-        text: error.message,
-        background: '#111',
-        color: '#fff',
-        confirmButtonColor: '#3b82f6'
+      matrixAlert.show({
+        title: '[TRANSCRIPTION_ERROR]',
+        message: error.message,
+        type: 'error'
       })
       
       return null

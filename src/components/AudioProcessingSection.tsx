@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useWhisper } from '../hooks/useWhisperDirect'
 import Swal from 'sweetalert2'
 
@@ -12,18 +12,25 @@ interface AudioProcessingSectionProps {
 export function AudioProcessingSection({ uploadedFile, onTranscription }: AudioProcessingSectionProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const { transcribeAudio, isTranscribing, transcript, error, modelReady } = useWhisper()
+  const processedFileRef = useRef<string | null>(null)
+  const lastTranscriptRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (transcript) {
+    if (transcript && transcript !== lastTranscriptRef.current) {
+      lastTranscriptRef.current = transcript
       onTranscription(transcript)
     }
   }, [transcript, onTranscription])
 
   useEffect(() => {
-    if (uploadedFile && modelReady && !isProcessing) {
-      processAudioFile(uploadedFile)
-    }
-  }, [uploadedFile, modelReady])
+    if (!uploadedFile || !modelReady || isProcessing) return
+    
+    const fileId = `${uploadedFile.name}-${uploadedFile.size}-${uploadedFile.lastModified}`
+    if (processedFileRef.current === fileId) return
+    
+    processedFileRef.current = fileId
+    processAudioFile(uploadedFile)
+  }, [uploadedFile, modelReady, isProcessing])
 
   const processAudioFile = async (file: File) => {
     setIsProcessing(true)

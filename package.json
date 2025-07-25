@@ -17,6 +17,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "vitest run test/e2e",
+    "test:e2e:puppeteer": "vitest run test/e2e/puppeteer-transcription.test.ts",
     "test:unit": "vitest run test/unit",
     "coverage": "vitest run --coverage",
     "build-lib": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types",

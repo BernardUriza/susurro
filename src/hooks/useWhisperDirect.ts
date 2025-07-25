@@ -36,10 +36,14 @@ class WhisperPipelineSingleton {
 
     // Create pipeline instance if not exists
     if (!this.instance) {
+      console.log('🚀 [WhisperSingleton] Creando nueva instancia del pipeline...')
+      
       // Check cache first
       const cacheStatus = await cacheManager.getCacheStatus()
       if (cacheStatus.hasCache) {
-        console.log('[Whisper] Model found in cache')
+        console.log('💾 [WhisperSingleton] Modelo encontrado en cache!')
+      } else {
+        console.log('⬇️ [WhisperSingleton] Modelo NO está en cache, se descargará...')
       }
       
       // Request persistent storage for better caching
@@ -49,6 +53,10 @@ class WhisperPipelineSingleton {
         progress_callback,
         quantized: true 
       })
+      
+      console.log('✅ [WhisperSingleton] Pipeline creado exitosamente')
+    } else {
+      console.log('♻️ [WhisperSingleton] Reutilizando instancia existente del pipeline')
     }
     
     return this.instance
@@ -103,7 +111,7 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
         // Get pipeline instance with progress callback
         pipelineRef.current = await WhisperPipelineSingleton.getInstance((progress: any) => {
           const percent = progress.progress || 0
-          console.log('[useWhisper] Progress:', percent, progress.status)
+          console.log(`[useWhisper] ${progress.status === 'download' ? '⬇️' : progress.status === 'progress' ? '⏳' : progress.status === 'done' ? '✅' : '🔄'} Progress: ${percent.toFixed(1)}% - ${progress.status}`)
           setLoadingProgress(Math.max(1, percent))
           
           // Update progress alert
@@ -191,32 +199,48 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
   }
 
   const transcribeAudio = useCallback(async (audioBlob: Blob): Promise<TranscriptionResult | null> => {
+    console.log('🎤 [transcribeAudio] Iniciando transcripción...')
+    console.log(`📁 [transcribeAudio] Blob size: ${(audioBlob.size / 1024).toFixed(2)}KB, type: ${audioBlob.type}`)
+    
     if (!pipelineRef.current || !modelReady) {
+      console.error('❌ [transcribeAudio] Modelo no está listo!')
+      console.log(`   - pipelineRef.current: ${!!pipelineRef.current}`)
+      console.log(`   - modelReady: ${modelReady}`)
       setError(new Error('Model not ready'))
       return null
     }
 
+    console.log('✅ [transcribeAudio] Modelo listo, procesando audio...')
     setIsTranscribing(true)
     setError(null)
 
     try {
       // Convert blob to data URL
+      console.log('🔄 [transcribeAudio] Convirtiendo audio a base64...')
       const audioDataUrl = await audioToBase64(audioBlob)
+      console.log(`✅ [transcribeAudio] Audio convertido, longitud: ${audioDataUrl.length} caracteres`)
       
       // Perform transcription
+      console.log('🧠 [transcribeAudio] Ejecutando modelo Whisper...')
+      const startTime = Date.now()
+      
       const output = await pipelineRef.current(audioDataUrl, {
         chunk_length_s: 30,
         stride_length_s: 5,
-        language: config.language || 'spanish',
+        language: config.language || 'english',
         task: 'transcribe',
         return_timestamps: false,
       })
+      
+      const endTime = Date.now()
+      console.log(`⏱️ [transcribeAudio] Transcripción completada en ${(endTime - startTime) / 1000}s`)
 
       const result: TranscriptionResult = {
         text: output.text,
         segments: output.chunks
       }
 
+      console.log(`📝 [transcribeAudio] Resultado: "${result.text.substring(0, 50)}..."`)
       setTranscript(result.text)
       setIsTranscribing(false)
       return result

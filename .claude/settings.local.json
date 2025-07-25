@@ -41,7 +41,10 @@
       "Bash(npm run lint)",
       "Bash(find:*)",
       "Bash(npm run copy:wasm:*)",
-      "Bash(npm update:*)"
+      "Bash(npm update:*)",
+      "Bash(node:*)",
+      "Bash(curl:*)",
+      "Bash(timeout:*)"
     ],
     "deny": []
   }

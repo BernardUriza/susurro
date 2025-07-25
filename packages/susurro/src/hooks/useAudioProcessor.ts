@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { murmurabaManager } from '../lib/murmuraba-singleton'
 import { AudioChunk } from '../lib/types'
+import { useAudioWorklet } from './useAudioWorklet'
 
 interface UseAudioProcessorOptions {
   chunkDurationMs?: number
@@ -29,6 +30,15 @@ export function useAudioProcessor(options: UseAudioProcessorOptions = {}): UseAu
   const audioContextRef = useRef<AudioContext | null>(null)
   const startTimeRef = useRef<number>(0)
   
+  const { processAudioBuffer: processWithWorklet, initializeWorklet } = useAudioWorklet({
+    rmsThreshold: 0.01,
+    silenceThreshold: 0.005,
+    maxSilenceDuration: 0.5,
+    onStatusUpdate: (status) => {
+      console.log('[AudioProcessor] Worklet status:', status)
+    }
+  })
+  
   const createChunk = (blob: Blob, startTime: number, endTime: number): AudioChunk => ({
     id: `chunk-${Date.now()}-${Math.random()}`,
     blob,
@@ -39,13 +49,48 @@ export function useAudioProcessor(options: UseAudioProcessorOptions = {}): UseAu
   
   const processAudioFile = useCallback(async (file: File) => {
     try {
+      console.log('[AudioProcessor] Starting file processing...')
+      
+      // Step 1: Initialize Murmuraba
       await murmurabaManager.initialize()
+      console.log('[AudioProcessor] Murmuraba initialized')
       
-      const arrayBuffer = await file.arrayBuffer()
+      // Step 2: Process with Murmuraba to clean audio
+      console.log('[AudioProcessor] Processing with Murmuraba for audio cleaning...')
+      const cleanedResult = await murmurabaManager.processFile(file, {
+        enableAGC: true,
+        enableNoiseSuppression: true,
+        enableEchoCancellation: true,
+        enableVAD: enableVAD
+      })
+      
+      console.log('[AudioProcessor] Murmuraba processing complete, cleaned audio received')
+      
+      // Step 3: Initialize worklet for post-processing
+      await initializeWorklet()
+      
+      // Step 4: Decode the cleaned audio
       const audioContext = new AudioContext()
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+      let audioBuffer: AudioBuffer
       
-      const duration = audioBuffer.duration * 1000 // Convert to ms
+      if (cleanedResult.processedBuffer instanceof ArrayBuffer) {
+        audioBuffer = await audioContext.decodeAudioData(cleanedResult.processedBuffer)
+      } else if (cleanedResult.processedBuffer instanceof Blob) {
+        const arrayBuffer = await cleanedResult.processedBuffer.arrayBuffer()
+        audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+      } else {
+        // If it's already an AudioBuffer
+        audioBuffer = cleanedResult.processedBuffer
+      }
+      
+      console.log('[AudioProcessor] Cleaned audio decoded, duration:', audioBuffer.duration, 'seconds')
+      
+      // Step 5: Process cleaned audio through worklet
+      const processedBuffer = await processWithWorklet(audioBuffer)
+      console.log('[AudioProcessor] Worklet processing complete')
+      
+      // Step 6: Create chunks from processed audio
+      const duration = processedBuffer.duration * 1000 // Convert to ms
       const chunks: AudioChunk[] = []
       const chunkCount = Math.ceil(duration / chunkDurationMs)
       
@@ -53,18 +98,18 @@ export function useAudioProcessor(options: UseAudioProcessorOptions = {}): UseAu
         const startTime = i * chunkDurationMs
         const endTime = Math.min((i + 1) * chunkDurationMs, duration)
         
-        const startSample = Math.floor((startTime / 1000) * audioBuffer.sampleRate)
-        const endSample = Math.floor((endTime / 1000) * audioBuffer.sampleRate)
+        const startSample = Math.floor((startTime / 1000) * processedBuffer.sampleRate)
+        const endSample = Math.floor((endTime / 1000) * processedBuffer.sampleRate)
         const frameCount = endSample - startSample
         
         const chunkBuffer = audioContext.createBuffer(
-          audioBuffer.numberOfChannels,
+          processedBuffer.numberOfChannels,
           frameCount,
-          audioBuffer.sampleRate
+          processedBuffer.sampleRate
         )
         
-        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-          const channelData = audioBuffer.getChannelData(channel)
+        for (let channel = 0; channel < processedBuffer.numberOfChannels; channel++) {
+          const channelData = processedBuffer.getChannelData(channel)
           const chunkChannelData = chunkBuffer.getChannelData(channel)
           for (let j = 0; j < frameCount; j++) {
             chunkChannelData[j] = channelData[startSample + j]
@@ -75,13 +120,14 @@ export function useAudioProcessor(options: UseAudioProcessorOptions = {}): UseAu
         chunks.push(createChunk(wavBlob, startTime, endTime))
       }
       
+      console.log('[AudioProcessor] Created', chunks.length, 'chunks for transcription')
       setAudioChunks(chunks)
       audioContext.close()
     } catch (error) {
       console.error('Error processing audio file:', error)
       throw error
     }
-  }, [chunkDurationMs])
+  }, [chunkDurationMs, enableVAD, processWithWorklet, initializeWorklet])
   
   const startRecording = useCallback(async () => {
     try {

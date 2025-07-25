@@ -23,25 +23,44 @@ export const TranscriptionAppMatrix: React.FC = () => {
   
   const handleFileProcess = async (file: File) => {
     try {
-      setStatus('Procesando audio...')
+      setStatus('[INITIALIZING_NEURAL_PROCESSOR...]')
       setOriginalUrl(URL.createObjectURL(file))
       clearTranscriptions()
       
-      await processAudioFile(file)
-      setStatus('✅ Audio procesado y transcrito')
+      // Add timeout to prevent infinite hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Processing timeout')), 30000)
+      })
+      
+      await Promise.race([
+        processAudioFile(file),
+        timeoutPromise
+      ])
+      
+      setStatus('[PROCESSING_COMPLETE]')
       
       return true
     } catch (err) {
-      setStatus(`Error: ${err instanceof Error ? err.message : 'Error desconocido'}`)
+      console.error('File processing error:', err)
+      setStatus(`[ERROR] ${err instanceof Error ? err.message : 'Unknown error'}`)
       return false
     }
   }
   
   const loadExampleAudio = async () => {
-    const res = await fetch('/sample.wav')
-    const blob = await res.blob()
-    const file = new File([blob], 'sample.wav', { type: 'audio/wav' })
-    await handleFileProcess(file)
+    try {
+      setStatus('[LOADING_SAMPLE_AUDIO...]')
+      const res = await fetch('/sample.wav')
+      if (!res.ok) {
+        throw new Error(`Failed to load sample: ${res.status}`)
+      }
+      const blob = await res.blob()
+      const file = new File([blob], 'sample.wav', { type: 'audio/wav' })
+      await handleFileProcess(file)
+    } catch (error) {
+      console.error('Error loading sample:', error)
+      setStatus(`[ERROR] ${error instanceof Error ? error.message : 'Failed to load sample'}`)
+    }
   }
 
   return (
@@ -70,7 +89,11 @@ export const TranscriptionAppMatrix: React.FC = () => {
               cursor: 'pointer',
               marginBottom: 20
             }}
-            onClick={() => document.getElementById('file')?.click()}
+            onClick={() => {
+              if (!isProcessing) {
+                document.getElementById('file')?.click()
+              }
+            }}
           >
             <p style={{ margin: 0 }}>&gt; DRAG_DROP_AUDIO.WAV</p>
           </div>
@@ -89,10 +112,14 @@ export const TranscriptionAppMatrix: React.FC = () => {
           />
           
           <button 
-            onClick={loadExampleAudio}
+            onClick={() => {
+              if (!isProcessing) {
+                loadExampleAudio()
+              }
+            }}
             disabled={isProcessing}
             className="matrix-button"
-            style={{ width: '100%', marginBottom: 20 }}
+            style={{ width: '100%', marginBottom: 20, opacity: isProcessing ? 0.5 : 1 }}
           >
             {isProcessing ? '[PROCESSING...]' : '[LOAD_JFK_SAMPLE.WAV]'}
           </button>

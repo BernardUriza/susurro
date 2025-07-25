@@ -73,6 +73,7 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
   
   const pipelineRef = useRef<any>(null)
   const progressAlertRef = useRef<any>(null)
+  const transcriptionQueueRef = useRef<Promise<any>>(Promise.resolve())
 
   // Initialize Transformers.js
   useEffect(() => {
@@ -199,22 +200,29 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
   }
 
   const transcribe = useCallback(async (audioBlob: Blob): Promise<TranscriptionResult | null> => {
-    console.log('🎤 [transcribeAudio] Iniciando transcripción...')
-    console.log(`📁 [transcribeAudio] Blob size: ${(audioBlob.size / 1024).toFixed(2)}KB, type: ${audioBlob.type}`)
-    
-    if (!pipelineRef.current || !modelReady) {
-      console.error('❌ [transcribeAudio] Modelo no está listo!')
-      console.log(`   - pipelineRef.current: ${!!pipelineRef.current}`)
-      console.log(`   - modelReady: ${modelReady}`)
-      setError(new Error('Model not ready'))
-      return null
-    }
+    // Queue transcriptions to prevent concurrent calls
+    const transcriptionPromise = transcriptionQueueRef.current.then(async () => {
+      console.log('🎤 [transcribeAudio] Iniciando transcripción...')
+      console.log(`📁 [transcribeAudio] Blob size: ${(audioBlob.size / 1024).toFixed(2)}KB, type: ${audioBlob.type}`)
+      
+      if (isTranscribing) {
+        console.warn('⚠️ [transcribeAudio] Ya hay una transcripción en proceso, esperando...')
+        return null
+      }
+      
+      if (!pipelineRef.current || !modelReady) {
+        console.error('❌ [transcribeAudio] Modelo no está listo!')
+        console.log(`   - pipelineRef.current: ${!!pipelineRef.current}`)
+        console.log(`   - modelReady: ${modelReady}`)
+        setError(new Error('Model not ready'))
+        return null
+      }
 
-    console.log('✅ [transcribeAudio] Modelo listo, procesando audio...')
-    setIsTranscribing(true)
-    setError(null)
+      console.log('✅ [transcribeAudio] Modelo listo, procesando audio...')
+      setIsTranscribing(true)
+      setError(null)
 
-    try {
+      try {
       // Convert blob to data URL
       console.log('🔄 [transcribeAudio] Convirtiendo audio a base64...')
       const audioDataUrl = await audioToBase64(audioBlob)
@@ -262,7 +270,13 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
       
       return null
     }
-  }, [config, modelReady])
+    })
+
+    // Update queue reference
+    transcriptionQueueRef.current = transcriptionPromise.catch(() => {})
+    
+    return transcriptionPromise
+  }, [config, modelReady, isTranscribing])
 
 
   const clearTranscript = useCallback(() => {

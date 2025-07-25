@@ -59,18 +59,32 @@ class MurmurabaManager {
         
         if (!murmuraba.isInitialized) {
           console.log('[Murmuraba] Initializing audio engine...')
-          await murmuraba.initializeAudioEngine(config || {
-            enableAGC: true,
-            enableNoiseSuppression: true,
-            enableEchoCancellation: true,
-            enableVAD: true
+          
+          // Add timeout to prevent hanging
+          const initTimeout = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Murmuraba initialization timeout')), 10000)
           })
+          
+          await Promise.race([
+            murmuraba.initializeAudioEngine(config || {
+              enableAGC: true,
+              enableNoiseSuppression: true,
+              enableEchoCancellation: true,
+              enableVAD: true
+            }),
+            initTimeout
+          ])
+          
           console.log('[Murmuraba] Audio engine initialized successfully')
         }
       } catch (error: any) {
+        console.error('[Murmuraba] Initialization error:', error)
         if (error.message?.includes('already initialized')) {
           console.warn('[MurmurabaManager] Engine already initialized, continuing...')
         } else {
+          // Reset state on error to allow retry
+          this.initPromise = null
+          this.isInitializing = false
           throw error
         }
       } finally {
@@ -90,7 +104,13 @@ class MurmurabaManager {
   }
 
   async processFile(file: File | Blob, options: any): Promise<any> {
-    await this.initialize()
+    try {
+      await this.initialize()
+    } catch (error) {
+      console.error('[Murmuraba] Failed to initialize before processing:', error)
+      throw new Error('Audio engine initialization failed. Please refresh and try again.')
+    }
+    
     const murmuraba = await this.getMurmuraba()
     
     // Log for debugging
@@ -104,7 +124,24 @@ class MurmurabaManager {
     try {
       const arrayBuffer = await file.arrayBuffer()
       console.log('[Murmuraba] Converted to ArrayBuffer, size:', arrayBuffer.byteLength)
-      return await murmuraba.processFile(arrayBuffer, options)
+      
+      // Add timeout for processing
+      const processTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('File processing timeout')), 20000)
+      })
+      
+      const result = await Promise.race([
+        murmuraba.processFile(arrayBuffer, options),
+        processTimeout
+      ])
+      
+      // Ensure result has expected structure
+      return {
+        processedBuffer: result.processedAudio || result.processedBuffer || result,
+        vadScores: result.vadScores || [],
+        metrics: result.metrics || [],
+        averageVad: result.averageVad || 0
+      }
     } catch (error: any) {
       console.error('[Murmuraba] Error processing file:', error)
       throw error

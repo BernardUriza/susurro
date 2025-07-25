@@ -9,6 +9,7 @@ export const TranscriptionAppMatrix: React.FC = () => {
   const { 
     isProcessing,
     transcriptions,
+    audioChunks,
     processAudioFile,
     clearTranscriptions 
   } = useSusurro({
@@ -20,6 +21,29 @@ export const TranscriptionAppMatrix: React.FC = () => {
   const [processedUrl, setProcessedUrl] = React.useState('')
   const [vadScore, setVadScore] = React.useState(0)
   const [status, setStatus] = React.useState('')
+  
+  // Create processed audio URL from chunks
+  React.useEffect(() => {
+    if (audioChunks && audioChunks.length > 0) {
+      console.log('[TranscriptionAppMatrix] Creating processed URL from', audioChunks.length, 'chunks')
+      
+      // Combine all chunks into a single blob
+      const combinedBlob = new Blob(
+        audioChunks.map(chunk => chunk.blob),
+        { type: 'audio/wav' }
+      )
+      const url = URL.createObjectURL(combinedBlob)
+      setProcessedUrl(url)
+      
+      // Calculate average VAD score (placeholder for now)
+      setVadScore(0.85) // 85% voice activity
+      
+      return () => {
+        // Cleanup old URL
+        if (url) URL.revokeObjectURL(url)
+      }
+    }
+  }, [audioChunks])
   
   const handleFileProcess = async (file: File) => {
     try {
@@ -121,14 +145,21 @@ export const TranscriptionAppMatrix: React.FC = () => {
             className="matrix-button"
             style={{ width: '100%', marginBottom: 20, opacity: isProcessing ? 0.5 : 1 }}
           >
-            {isProcessing ? '[PROCESSING...]' : '[LOAD_JFK_SAMPLE.WAV]'}
+            {isProcessing ? '[MURMURABA_PROCESSING...]' : '[LOAD_JFK_SAMPLE.WAV]'}
           </button>
         </div>
         
         {/* Status */}
         {status && (
-          <div className={`matrix-status ${status.includes('Error') ? 'error' : ''}`}>
+          <div className={`matrix-status ${status.includes('ERROR') ? 'error' : ''}`}>
             &gt; {status}
+          </div>
+        )}
+        
+        {/* Processing Status */}
+        {isProcessing && (
+          <div className="matrix-status" style={{ marginTop: 10 }}>
+            &gt; [MURMURABA_PROCESSING] CLEANING_AUDIO...
           </div>
         )}
         
@@ -144,10 +175,13 @@ export const TranscriptionAppMatrix: React.FC = () => {
         {processedUrl && (
           <>
             <div className="matrix-audio-section">
-              <h3>&gt; PROCESSED_AUDIO_STREAM</h3>
+              <h3>&gt; MURMURABA_CLEANED_AUDIO</h3>
               <audio src={processedUrl} controls style={{ width: '100%' }} />
               <p className="matrix-vad-score" style={{ marginTop: 10, marginBottom: 0 }}>
-                &gt; VOICE_ACTIVITY_DETECTION: {(vadScore * 100).toFixed(1)}%
+                &gt; AUDIO_ENHANCEMENT: NOISE_REDUCTION | AGC | ECHO_CANCELLATION
+              </p>
+              <p className="matrix-vad-score" style={{ marginTop: 5, marginBottom: 0 }}>
+                &gt; CHUNKS_PROCESSED: {audioChunks.length} | DURATION: {audioChunks.reduce((acc, chunk) => acc + chunk.duration, 0) / 1000}s
               </p>
             </div>
             
@@ -156,9 +190,13 @@ export const TranscriptionAppMatrix: React.FC = () => {
               
               {transcriptions.length > 0 && (
                 <div className="matrix-transcript">
-                  &gt; TRANSCRIPT_OUTPUT:<br/>
+                  &gt; MURMURABA_OUTPUT:<br/>
                   <br/>
-                  {transcriptions.map((t) => t.text).join(' ')}
+                  {transcriptions.map((t, i) => (
+                    <div key={i}>
+                      [{new Date(t.timestamp).toLocaleTimeString()}] {t.text}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -174,15 +212,17 @@ export const TranscriptionAppMatrix: React.FC = () => {
         }}>
 {`> SYSTEM.IMPORT('murmuraba')
 
-// Initialize audio processor
-const result = await murmuraba.processFileWithMetrics(
-  audioFile,
-  (metrics) => console.log('[METRICS]', metrics)
-)
+// Audio cleaning pipeline
+const cleaned = await murmuraba.processFile(audioFile, {
+  enableAGC: true,
+  enableNoiseSuppression: true,
+  enableEchoCancellation: true,
+  enableVAD: true
+})
 
-// Output streams
-> result.processedBuffer // cleaned audio stream
-> result.averageVad     // voice activity score`}
+// Output: Neural-processed audio
+> cleaned.processedBuffer // ML-enhanced audio
+> [WHISPER_DISABLED] // Transcription temporarily offline`}
         </pre>
         
         <p style={{ 

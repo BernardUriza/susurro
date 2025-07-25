@@ -1,9 +1,1 @@
-// Export hooks
-export { useWhisper } from './hooks/useWhisperDirect'
-
-// Export types
-export type { 
-  WhisperConfig, 
-  TranscriptionResult, 
-  UseWhisperReturn
-} from './lib/types'
+// This file is no longer used - exports are handled by @susurro/core package

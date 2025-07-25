@@ -82,9 +82,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       isProcessing: true,
       currentChunk: 0,
       totalChunks: chunks.length,
-      stage: 'transcribing'
+      stage: 'processing'
     });
 
+    // WHISPER TRANSCRIPTION TEMPORARILY DISABLED
+    // TODO: Re-enable after optimizing performance
+    /*
     for (let i = 0; i < chunks.length; i++) {
       setProcessingStatus(prev => ({
         ...prev,
@@ -97,6 +100,16 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         setTranscriptions(prev => [...prev, result]);
       }
     }
+    */
+    
+    // For now, just show that audio was processed
+    console.log('[useSusurro] Audio chunks processed by Murmuraba:', chunks.length);
+    setTranscriptions([{
+      text: '[Audio procesado por Murmuraba - Transcripción deshabilitada temporalmente]',
+      segments: [],
+      chunkIndex: 0,
+      timestamp: Date.now()
+    }]);
 
     setProcessingStatus({
       isProcessing: false,
@@ -108,7 +121,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   useEffect(() => {
     if (audioChunks.length > 0 && !isRecording) {
-      processChunks(audioChunks);
+      // Add delay to ensure Murmuraba processing is complete
+      setTimeout(() => {
+        processChunks(audioChunks);
+      }, 100);
     }
   }, [audioChunks, isRecording, processChunks]);
 

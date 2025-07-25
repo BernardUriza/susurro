@@ -135,6 +135,20 @@ class MurmurabaManager {
         processTimeout
       ])
       
+      console.log('[Murmuraba] Processing result type:', typeof result)
+      console.log('[Murmuraba] Result keys:', result ? Object.keys(result) : 'null')
+      
+      // Handle different return formats from murmuraba
+      if (result instanceof ArrayBuffer) {
+        console.log('[Murmuraba] Result is ArrayBuffer, size:', result.byteLength)
+        return {
+          processedBuffer: result,
+          vadScores: [],
+          metrics: [],
+          averageVad: 0
+        }
+      }
+      
       // Ensure result has expected structure
       return {
         processedBuffer: result.processedAudio || result.processedBuffer || result,

@@ -2,13 +2,15 @@
 
 import { useState } from 'react'
 import { murmurabaManager } from '../src/lib/murmuraba-singleton'
+import { useWhisper } from '../src/hooks/useWhisperDirect'
 
 export default function Home() {
   const [status, setStatus] = useState('')
   const [originalUrl, setOriginalUrl] = useState('')
   const [processedUrl, setProcessedUrl] = useState('')
+  const [processedFile, setProcessedFile] = useState<File | null>(null)
   const [vadScore, setVadScore] = useState(0)
-  const [transcription, setTranscription] = useState('')
+  const { transcribeAudio, transcript, isTranscribing } = useWhisper()
 
   async function processAudio(file: File) {
     try {
@@ -25,7 +27,9 @@ export default function Home() {
       
       // Mostrar procesado
       const processedBlob = new Blob([result.processedBuffer], { type: 'audio/wav' })
+      const processedFileObj = new File([processedBlob], 'processed.wav', { type: 'audio/wav' })
       setProcessedUrl(URL.createObjectURL(processedBlob))
+      setProcessedFile(processedFileObj)
       setVadScore(result.averageVad || 0)
       
       setStatus('✅ Procesado')
@@ -34,13 +38,20 @@ export default function Home() {
     }
   }
 
-  async function transcribe() {
-    setStatus('Transcribiendo...')
-    // Mock transcription
-    setTimeout(() => {
-      setTranscription('Esta es una demostración del procesamiento de audio...')
-      setStatus('✅ Transcripción completada')
-    }, 2000)
+  async function handleTranscribe() {
+    if (!processedFile) return
+    
+    try {
+      setStatus('Transcribiendo con Whisper...')
+      const result = await transcribeAudio(processedFile)
+      if (result && result.text) {
+        setStatus('✅ Transcripción completada')
+      } else {
+        setStatus('No se pudo transcribir')
+      }
+    } catch (error: any) {
+      setStatus(`Error: ${error.message}`)
+    }
   }
 
   return (
@@ -116,22 +127,23 @@ export default function Home() {
       {processedUrl && (
         <div>
           <button 
-            onClick={transcribe}
+            onClick={handleTranscribe}
+            disabled={isTranscribing}
             style={{ 
               padding: '10px 20px',
-              background: '#4CAF50',
+              background: isTranscribing ? '#ccc' : '#4CAF50',
               color: 'white',
               border: 'none',
               borderRadius: 6,
-              cursor: 'pointer',
+              cursor: isTranscribing ? 'not-allowed' : 'pointer',
               marginBottom: 10
             }}
           >
-            🎯 Transcribir
+            {isTranscribing ? '⏳ Transcribiendo...' : '🎯 Transcribir'}
           </button>
-          {transcription && (
+          {transcript && (
             <p style={{ fontStyle: 'italic', background: '#f5f5f5', padding: 15, borderRadius: 6 }}>
-              {`"${transcription}"`}
+              {`"${transcript}"`}
             </p>
           )}
         </div>

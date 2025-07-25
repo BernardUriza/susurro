@@ -11,5 +11,6 @@ global.AudioContext = vi.fn().mockImplementation(() => ({
   close: vi.fn()
 }))
 
-global.MediaRecorder = vi.fn()
+global.MediaRecorder = vi.fn() as any
+global.MediaRecorder.isTypeSupported = vi.fn().mockReturnValue(true)
 global.URL.createObjectURL = vi.fn()

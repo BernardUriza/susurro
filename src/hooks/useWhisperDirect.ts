@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { WhisperConfig, TranscriptionResult, UseWhisperReturn } from '../lib/types'
+import { cacheManager } from '../lib/cache-manager'
 import Swal from 'sweetalert2'
 
 // Singleton pattern for Whisper pipeline
@@ -35,6 +36,15 @@ class WhisperPipelineSingleton {
 
     // Create pipeline instance if not exists
     if (!this.instance) {
+      // Check cache first
+      const cacheStatus = await cacheManager.getCacheStatus()
+      if (cacheStatus.hasCache) {
+        console.log('[Whisper] Model found in cache')
+      }
+      
+      // Request persistent storage for better caching
+      await cacheManager.requestPersistentStorage()
+      
       this.instance = await this.pipeline(this.task, this.model, { 
         progress_callback,
         quantized: true 

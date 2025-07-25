@@ -2,10 +2,14 @@
 
 import React from 'react'
 import { MatrixRain } from './MatrixRain'
-import { useSusurro } from '@susurro/core'
+import { useSusurro, useWhisperDirect } from '@susurro/core'
+import { FloatingLogs } from './FloatingLogs'
+import { BackgroundProcessor } from '../utils/backgroundProcessor'
 import '../styles/matrix-theme.css'
 
 export const TranscriptionAppMatrix: React.FC = () => {
+  const [chunkDuration, setChunkDuration] = React.useState(15) // Default 15 seconds
+  
   const { 
     isProcessing,
     transcriptions,
@@ -14,13 +18,46 @@ export const TranscriptionAppMatrix: React.FC = () => {
     processAudioFile,
     clearTranscriptions 
   } = useSusurro({
-    chunkDurationMs: 8000,
+    chunkDurationMs: chunkDuration * 1000, // Convert to milliseconds
     enableVAD: true
   })
   
   const [originalUrl, setOriginalUrl] = React.useState('')
   const [chunkUrls, setChunkUrls] = React.useState<string[]>([])
   const [status, setStatus] = React.useState('')
+  const [isTranscribing, setIsTranscribing] = React.useState(false)
+  const [whisperTranscriptions, setWhisperTranscriptions] = React.useState<string[]>([])
+  const [backgroundLogs, setBackgroundLogs] = React.useState<Array<{
+    id: string
+    timestamp: Date
+    message: string
+    type: 'info' | 'warning' | 'error' | 'success'
+  }>>([])
+  
+  // Background processor for non-blocking transcription
+  const backgroundProcessorRef = React.useRef<BackgroundProcessor>()
+  
+  React.useEffect(() => {
+    backgroundProcessorRef.current = new BackgroundProcessor((message, type) => {
+      setBackgroundLogs(prev => [...prev, {
+        id: `log-${Date.now()}-${Math.random()}`,
+        timestamp: new Date(),
+        message,
+        type
+      }])
+    })
+  }, [])
+  
+  // Initialize Whisper
+  const { 
+    modelReady: whisperReady, 
+    loadingProgress: whisperProgress,
+    transcribe: transcribeWhisper,
+    error: whisperError
+  } = useWhisperDirect({
+    model: 'Xenova/whisper-tiny',
+    language: 'en'
+  })
   
   // Create URLs for each audio chunk
   React.useEffect(() => {
@@ -83,14 +120,134 @@ export const TranscriptionAppMatrix: React.FC = () => {
   return (
     <div className="matrix-theme">
       <MatrixRain />
+      {/* Version indicator in top-left corner */}
+      <div style={{
+        position: 'fixed',
+        top: 20,
+        left: 20,
+        fontSize: '12px',
+        fontFamily: 'monospace',
+        color: '#00ff41',
+        opacity: 0.8,
+        zIndex: 1000,
+        textShadow: '0 0 10px rgba(0, 255, 65, 0.5)',
+        letterSpacing: '2px'
+      }}>
+        SUSURRO_MATRIX_v1.0
+      </div>
       <div className="matrix-container" style={{ 
         maxWidth: 600, 
         margin: '40px auto', 
         padding: 20
       }}>
-        <h1 className="matrix-title">
-          [SUSURRO_MATRIX_v1.0]
-        </h1>
+        {/* Banner with advanced transparency effects */}
+        <div style={{
+          position: 'relative',
+          width: '100%',
+          marginTop: 20,
+          marginBottom: 30,
+          overflow: 'hidden',
+          borderRadius: '8px'
+        }}>
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: `
+              radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0.8) 100%),
+              linear-gradient(to bottom, rgba(0, 255, 65, 0.1) 0%, transparent 50%, rgba(0, 255, 65, 0.1) 100%)
+            `,
+            pointerEvents: 'none',
+            zIndex: 2
+          }} />
+          
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            background: 'rgba(0, 0, 0, 0.5)',
+            padding: '20px',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            border: '1px solid rgba(0, 255, 65, 0.3)',
+            boxShadow: `
+              0 0 40px rgba(0, 255, 65, 0.2),
+              inset 0 0 40px rgba(0, 255, 65, 0.1),
+              0 0 80px rgba(0, 255, 65, 0.1)
+            `
+          }}>
+            <img 
+              src="/banner.png" 
+              alt="Susurro Banner"
+              style={{
+                width: '100%',
+                height: 'auto',
+                display: 'block',
+                opacity: 0.9,
+                filter: `
+                  contrast(1.2) 
+                  brightness(0.9) 
+                  saturate(1.5)
+                  drop-shadow(0 0 20px rgba(0, 255, 65, 0.5))
+                `,
+                mixBlendMode: 'screen',
+                maskImage: `
+                  linear-gradient(
+                    to right,
+                    transparent 0%,
+                    black 10%,
+                    black 90%,
+                    transparent 100%
+                  )
+                `,
+                WebkitMaskImage: `
+                  linear-gradient(
+                    to right,
+                    transparent 0%,
+                    black 10%,
+                    black 90%,
+                    transparent 100%
+                  )
+                `
+              }}
+              onLoad={(e) => {
+                const img = e.target as HTMLImageElement;
+                console.log('[Banner] Dimensions:', img.naturalWidth, 'x', img.naturalHeight);
+              }}
+            />
+          </div>
+          
+          {/* Animated scan line effect */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '2px',
+            background: 'linear-gradient(to right, transparent, #00ff41, transparent)',
+            animation: 'matrix-scan-horizontal 4s linear infinite',
+            zIndex: 3,
+            opacity: 0.6
+          }} />
+          
+          {/* Glitch effect overlay */}
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            opacity: 0.03,
+            mixBlendMode: 'overlay',
+            animation: 'matrix-glitch 10s infinite',
+            background: `
+              repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 255, 65, 0.03) 2px,
+                rgba(0, 255, 65, 0.03) 4px
+              )
+            `,
+            pointerEvents: 'none',
+            zIndex: 4
+          }} />
+        </div>
         <p style={{ marginBottom: 30, opacity: 0.8 }}>
           &gt; INITIALIZING AUDIO NEURAL PROCESSOR...
         </p>
@@ -204,8 +361,355 @@ export const TranscriptionAppMatrix: React.FC = () => {
               </p>
             </div>
             
+            {/* Chunk Duration Control - Only show after processing */}
+            {status === '[PROCESSING_COMPLETE]' && (
+              <div style={{
+                marginTop: 20,
+                marginBottom: 20,
+                padding: '20px',
+                background: 'rgba(0, 0, 0, 0.5)',
+                border: '1px solid rgba(0, 255, 65, 0.3)',
+                borderRadius: '0',
+                backdropFilter: 'blur(5px)',
+                position: 'relative',
+                overflow: 'hidden',
+                animation: 'fadeIn 0.5s ease-in'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '20px',
+                  flexWrap: 'wrap'
+                }}>
+                  <label style={{
+                    color: '#00ff41',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px'
+                  }}>
+                    &gt; CHUNK_DURATION_SEC:
+                  </label>
+                  
+                  <div style={{
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <button
+                      onClick={() => setChunkDuration(Math.max(1, chunkDuration - 1))}
+                      className="matrix-button"
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        padding: '0',
+                        fontSize: '20px',
+                        lineHeight: '1',
+                        borderRadius: '0',
+                        background: 'rgba(0, 0, 0, 0.8)',
+                        border: '1px solid #00ff41',
+                        color: '#00ff41',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#00ff41'
+                        e.currentTarget.style.color = '#000'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
+                        e.currentTarget.style.color = '#00ff41'
+                      }}
+                    >
+                      −
+                    </button>
+                    
+                    <div style={{
+                      position: 'relative',
+                      width: '120px',
+                      height: '50px'
+                    }}>
+                      <input
+                        type="number"
+                        value={chunkDuration}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 1
+                          setChunkDuration(Math.max(1, Math.min(60, val)))
+                        }}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          background: 'rgba(0, 0, 0, 0.9)',
+                          border: '2px solid #00ff41',
+                          color: '#00ff41',
+                          fontSize: '24px',
+                          fontWeight: 'bold',
+                          textAlign: 'center',
+                          fontFamily: 'monospace',
+                          borderRadius: '0',
+                          outline: 'none',
+                          padding: '0',
+                          boxShadow: `
+                            inset 0 0 20px rgba(0, 255, 65, 0.2),
+                            0 0 20px rgba(0, 255, 65, 0.3)
+                          `,
+                          transition: 'all 0.3s',
+                          letterSpacing: '2px'
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.boxShadow = `
+                            inset 0 0 30px rgba(0, 255, 65, 0.4),
+                            0 0 40px rgba(0, 255, 65, 0.5)
+                          `
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.boxShadow = `
+                            inset 0 0 20px rgba(0, 255, 65, 0.2),
+                            0 0 20px rgba(0, 255, 65, 0.3)
+                          `
+                        }}
+                        min="1"
+                        max="60"
+                      />
+                      
+                      {/* Digital display effect */}
+                      <div style={{
+                        position: 'absolute',
+                        top: '50%',
+                        right: '10px',
+                        transform: 'translateY(-50%)',
+                        fontSize: '10px',
+                        color: '#00ff41',
+                        opacity: 0.5,
+                        pointerEvents: 'none'
+                      }}>
+                        SEC
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => setChunkDuration(Math.min(60, chunkDuration + 1))}
+                      className="matrix-button"
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        padding: '0',
+                        fontSize: '20px',
+                        lineHeight: '1',
+                        borderRadius: '0',
+                        background: 'rgba(0, 0, 0, 0.8)',
+                        border: '1px solid #00ff41',
+                        color: '#00ff41',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#00ff41'
+                        e.currentTarget.style.color = '#000'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
+                        e.currentTarget.style.color = '#00ff41'
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
+                  
+                  {/* Preset buttons */}
+                  <div style={{
+                    display: 'flex',
+                    gap: '5px',
+                    flexWrap: 'wrap'
+                  }}>
+                    {[5, 10, 15, 30].map(preset => (
+                      <button
+                        key={preset}
+                        onClick={() => setChunkDuration(preset)}
+                        className="matrix-button"
+                        style={{
+                          padding: '5px 10px',
+                          fontSize: '12px',
+                          background: chunkDuration === preset ? '#00ff41' : 'rgba(0, 0, 0, 0.8)',
+                          color: chunkDuration === preset ? '#000' : '#00ff41',
+                          border: '1px solid #00ff41',
+                          borderRadius: '0',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (chunkDuration !== preset) {
+                            e.currentTarget.style.background = 'rgba(0, 255, 65, 0.2)'
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (chunkDuration !== preset) {
+                            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
+                          }
+                        }}
+                      >
+                        {preset}s
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Visual indicator bar */}
+                <div style={{
+                  marginTop: '15px',
+                  height: '4px',
+                  background: 'rgba(0, 255, 65, 0.1)',
+                  borderRadius: '2px',
+                  overflow: 'hidden',
+                  position: 'relative'
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    height: '100%',
+                    width: `${(chunkDuration / 60) * 100}%`,
+                    background: 'linear-gradient(to right, #00ff41, #00cc33)',
+                    boxShadow: '0 0 10px #00ff41',
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+                
+                <p style={{
+                  marginTop: '10px',
+                  fontSize: '11px',
+                  color: '#00ff41',
+                  opacity: 0.6,
+                  textAlign: 'center'
+                }}>
+                  &gt; AUDIO_CHUNK_SIZE: {chunkDuration}000ms | OPTIMAL_RANGE: 10-30s | [RECONFIGURE_FOR_NEXT_PROCESS]
+                </p>
+              </div>
+            )}
+            
+            {/* Whisper Transcription Button */}
+            <div style={{ marginTop: 20 }}>
+              {!whisperReady ? (
+                <div className="matrix-status" style={{ textAlign: 'center' }}>
+                  &gt; [WHISPER_MODEL_LOADING] {(whisperProgress * 100).toFixed(0)}%
+                  <div style={{ 
+                    width: '100%', 
+                    height: '20px', 
+                    background: '#001a00',
+                    border: '1px solid #00ff41',
+                    marginTop: 10,
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      width: `${whisperProgress * 100}%`,
+                      height: '100%',
+                      background: '#00ff41',
+                      transition: 'width 0.3s ease',
+                      boxShadow: '0 0 10px #00ff41'
+                    }} />
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    if (!isTranscribing && audioChunks.length > 0 && backgroundProcessorRef.current) {
+                      setIsTranscribing(true)
+                      setStatus('[WHISPER_BACKGROUND_PROCESSING_STARTED]')
+                      setWhisperTranscriptions([]) // Clear previous transcriptions
+                      
+                      // Add log
+                      setBackgroundLogs(prev => [...prev, {
+                        id: `log-${Date.now()}`,
+                        timestamp: new Date(),
+                        message: `Starting background transcription of ${audioChunks.length} chunks`,
+                        type: 'info'
+                      }])
+                      
+                      // Process each chunk in background
+                      audioChunks.forEach((chunk, index) => {
+                        backgroundProcessorRef.current!.processTranscriptionAsync(
+                          chunk.blob,
+                          transcribeWhisper,
+                          (progress) => {
+                            // Update progress log
+                            setBackgroundLogs(prev => [...prev, {
+                              id: `progress-${index}-${Date.now()}`,
+                              timestamp: new Date(),
+                              message: `Chunk ${index + 1}: ${progress}% complete`,
+                              type: 'info'
+                            }])
+                          }
+                        ).then((text) => {
+                          // Update transcriptions without blocking
+                          setWhisperTranscriptions(prev => {
+                            const newTranscriptions = [...prev]
+                            newTranscriptions[index] = text
+                            return newTranscriptions
+                          })
+                          
+                          // Add success log
+                          setBackgroundLogs(prev => [...prev, {
+                            id: `success-${index}-${Date.now()}`,
+                            timestamp: new Date(),
+                            message: `Chunk ${index + 1} transcribed: "${text.substring(0, 50)}..."`,
+                            type: 'success'
+                          }])
+                          
+                          // Check if all chunks are done
+                          if (index === audioChunks.length - 1) {
+                            setIsTranscribing(false)
+                            setStatus('[WHISPER_BACKGROUND_COMPLETE]')
+                          }
+                        }).catch((error) => {
+                          // Add error log
+                          setBackgroundLogs(prev => [...prev, {
+                            id: `error-${index}-${Date.now()}`,
+                            timestamp: new Date(),
+                            message: `Chunk ${index + 1} failed: ${error}`,
+                            type: 'error'
+                          }])
+                        })
+                      })
+                    }
+                  }}
+                  disabled={isTranscribing || audioChunks.length === 0}
+                  className="matrix-button"
+                  style={{ 
+                    width: '100%', 
+                    opacity: isTranscribing || audioChunks.length === 0 ? 0.5 : 1,
+                    fontSize: '1.2em',
+                    padding: '15px',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {isTranscribing ? (
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ 
+                        display: 'inline-block', 
+                        animation: 'pulse 1.5s infinite',
+                        marginRight: 10
+                      }}>⌛</span>
+                      [BACKGROUND_PROCESSING...]
+                    </span>
+                  ) : (
+                    '[ACTIVATE_WHISPER_BACKGROUND] 🚀'
+                  )}
+                </button>
+              )}
+              
+              {whisperError && (
+                <div className="matrix-status error" style={{ marginTop: 10 }}>
+                  &gt; [WHISPER_ERROR] {whisperError.message}
+                </div>
+              )}
+            </div>
+            
             {/* Transcription */}
             <div style={{ marginTop: 30 }}>
+              {/* Murmuraba Status */}
               
               {transcriptions.length > 0 && (
                 <div className="matrix-transcript">

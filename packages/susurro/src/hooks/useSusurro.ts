@@ -86,24 +86,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       totalChunks: chunks.length,
       stage: 'processing'
     });
-
-    // WHISPER TRANSCRIPTION TEMPORARILY DISABLED
-    // TODO: Re-enable after optimizing performance
-    /*
-    for (let i = 0; i < chunks.length; i++) {
-      setProcessingStatus(prev => ({
-        ...prev,
-        currentChunk: i + 1,
-        stage: 'transcribing'
-      }));
-
-      const result = await transcribe(chunks[i]);
-      if (result) {
-        setTranscriptions(prev => [...prev, result]);
-      }
-    }
-    */
-    
     // For now, just show that audio was processed
     console.log('[useSusurro] Audio chunks processed by Murmuraba:', chunks.length);
     setTranscriptions([{

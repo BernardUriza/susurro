@@ -1,0 +1,25 @@
+{
+  "name": "@susurro/core",
+  "version": "0.1.0",
+  "description": "Audio processing and transcription hook",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "murmuraba": ">=2.0.0",
+    "@xenova/transformers": ">=2.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/react-hooks": "^8.0.1",
+    "@types/react": "^18.0.0",
+    "tsup": "^8.0.0",
+    "vitest": "^1.0.0"
+  }
+}

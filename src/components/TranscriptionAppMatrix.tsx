@@ -1,35 +1,56 @@
 'use client'
 
 import React from 'react'
-import { AudioUploader } from './AudioUploader'
-import { AudioPlayer } from './AudioPlayer'
-import { TranscriptionResult } from './TranscriptionResult'
-import { StatusMessage } from './StatusMessage'
-import { CodeExample } from './CodeExample'
 import { MatrixRain } from './MatrixRain'
-import { useAudioProcessor } from '../hooks/useAudioProcessor'
-import { useTranscription } from '../hooks/useTranscription'
+import { useSusurro } from '../../packages/susurro/src'
 import '../styles/matrix-theme.css'
 
 export const TranscriptionAppMatrix: React.FC = () => {
-  const {
-    originalUrl,
-    processedUrl,
-    processedFile,
-    vadScore,
-    status: processingStatus,
-    processAudio,
-    loadExampleAudio
-  } = useAudioProcessor()
-
-  const {
-    transcript,
-    isTranscribing,
-    transcriptionStatus,
-    handleTranscribe
-  } = useTranscription()
-
-  const displayStatus = transcriptionStatus || processingStatus
+  const { cleanAudio, transcribe, cleaning, transcribing, error } = useSusurro()
+  
+  const [originalUrl, setOriginalUrl] = React.useState('')
+  const [processedUrl, setProcessedUrl] = React.useState('')
+  const [vadScore, setVadScore] = React.useState(0)
+  const [transcript, setTranscript] = React.useState('')
+  const [status, setStatus] = React.useState('')
+  
+  const handleFileProcess = async (file: File) => {
+    try {
+      setStatus('Procesando audio...')
+      setOriginalUrl(URL.createObjectURL(file))
+      
+      const { blob, vadScore: vad } = await cleanAudio(file)
+      setProcessedUrl(URL.createObjectURL(blob))
+      setVadScore(vad)
+      setStatus('✅ Audio procesado')
+      
+      return blob
+    } catch (err) {
+      setStatus(`Error: ${err.message}`)
+      return null
+    }
+  }
+  
+  const handleTranscribe = async (blob: Blob) => {
+    try {
+      setStatus('Transcribiendo...')
+      const text = await transcribe(blob)
+      setTranscript(text)
+      setStatus('✅ Transcripción completada')
+    } catch (err) {
+      setStatus(`Error: ${err.message}`)
+    }
+  }
+  
+  const loadExampleAudio = async () => {
+    const res = await fetch('/sample.wav')
+    const blob = await res.blob()
+    const file = new File([blob], 'sample.wav', { type: 'audio/wav' })
+    const processedBlob = await handleFileProcess(file)
+    if (processedBlob) {
+      await handleTranscribe(processedBlob)
+    }
+  }
 
   return (
     <div className="matrix-theme">
@@ -67,25 +88,29 @@ export const TranscriptionAppMatrix: React.FC = () => {
             type="file" 
             accept=".wav"
             style={{ display: 'none' }}
-            onChange={(e) => {
+            onChange={async (e) => {
               const file = e.target.files?.[0]
-              if (file) processAudio(file)
+              if (file) {
+                const blob = await handleFileProcess(file)
+                if (blob) await handleTranscribe(blob)
+              }
             }}
           />
           
           <button 
             onClick={loadExampleAudio}
+            disabled={cleaning || transcribing}
             className="matrix-button"
             style={{ width: '100%', marginBottom: 20 }}
           >
-            [LOAD_JFK_SAMPLE.WAV]
+            {cleaning ? '[CLEANING_AUDIO...]' : transcribing ? '[TRANSCRIBING...]' : '[LOAD_JFK_SAMPLE.WAV]'}
           </button>
         </div>
         
         {/* Status */}
-        {displayStatus && (
-          <div className={`matrix-status ${displayStatus.includes('Error') ? 'error' : ''}`}>
-            &gt; {displayStatus}
+        {(status || error) && (
+          <div className={`matrix-status ${(status.includes('Error') || error) ? 'error' : ''}`}>
+            &gt; {error ? error.message : status}
           </div>
         )}
         
@@ -110,14 +135,6 @@ export const TranscriptionAppMatrix: React.FC = () => {
             
             {/* Transcription */}
             <div style={{ marginTop: 30 }}>
-              <button 
-                onClick={() => handleTranscribe(processedFile)}
-                disabled={isTranscribing}
-                className="matrix-button"
-                style={{ width: '100%', marginBottom: 15 }}
-              >
-                {isTranscribing ? '[PROCESSING_NEURAL_NETWORK...]' : '[EXECUTE_WHISPER_AI]'}
-              </button>
               
               {transcript && (
                 <div className="matrix-transcript">

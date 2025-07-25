@@ -42,7 +42,8 @@ export default function AudioProcessor({ onProcessedAudio, uploadedFile }: Audio
         const result = await murmurabaManager.processFile(uploadedFile, {
           outputFormat: 'blob',
           enableTranscription: false,
-          enableVAD: true
+          enableVAD: true,
+          onFrameProcessed: () => {}
         });
         
         if (result && result.processedAudio) {

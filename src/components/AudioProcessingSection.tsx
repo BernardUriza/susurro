@@ -58,7 +58,8 @@ export function AudioProcessingSection({ uploadedFile, onTranscription }: AudioP
         const result = await murmurabaManager.processFile(file, {
           chunkDuration: 8,
           outputFormat: 'chunks',
-          enableVAD: true
+          enableVAD: true,
+          onFrameProcessed: () => {}
         })
 
         if (result && result.chunks) {

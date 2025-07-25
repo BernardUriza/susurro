@@ -1,9 +1,9 @@
 interface MurmurabaEngine {
   initializeAudioEngine: (config: any) => Promise<void>
   destroyEngine: () => Promise<void>
-  processFile: (file: File | Blob, options: any) => Promise<any>
-  processFileWithMetrics?: (file: File | Blob, options: any) => Promise<any>
-  analyzeVAD?: (file: File | Blob) => Promise<any>
+  processFile: (file: ArrayBuffer, options: any) => Promise<any>
+  processFileWithMetrics?: (file: ArrayBuffer, options: any) => Promise<any>
+  analyzeVAD?: (file: File | Blob | ArrayBuffer) => Promise<any>
   isInitialized: boolean
 }
 
@@ -100,8 +100,15 @@ class MurmurabaManager {
       fileType: file.type 
     })
     
-    // Simply pass the file as is - murmuraba should handle File objects
-    return await murmuraba.processFile(file, options)
+    // Convert File/Blob to ArrayBuffer as murmuraba expects ArrayBuffer
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      console.log('[Murmuraba] Converted to ArrayBuffer, size:', arrayBuffer.byteLength)
+      return await murmuraba.processFile(arrayBuffer, options)
+    } catch (error: any) {
+      console.error('[Murmuraba] Error processing file:', error)
+      throw error
+    }
   }
 
   async processFileWithMetrics(file: File | Blob, options: any): Promise<any> {
@@ -115,17 +122,32 @@ class MurmurabaManager {
       fileType: file.type 
     })
     
-    // Check if the method exists, otherwise fall back to processFile
-    if (murmuraba.processFileWithMetrics) {
-      return await murmuraba.processFileWithMetrics(file, options)
-    } else {
-      console.warn('[Murmuraba] processFileWithMetrics not available, using processFile')
-      const result = await murmuraba.processFile(file, options)
-      // Mock the metrics structure if not provided
-      return {
-        ...result,
-        metrics: result.vadScores ? result.vadScores.map((score: number) => ({ vadScore: score })) : []
+    // Convert File/Blob to ArrayBuffer as murmuraba expects ArrayBuffer
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      console.log('[Murmuraba] Converted to ArrayBuffer for metrics, size:', arrayBuffer.byteLength)
+      
+      // Check if the method exists, otherwise fall back to processFile
+      if (murmuraba.processFileWithMetrics) {
+        const result = await murmuraba.processFileWithMetrics(arrayBuffer, options)
+        console.log('[Murmuraba] processFileWithMetrics result:', { 
+          hasMetrics: !!result.metrics,
+          metricsLength: result.metrics?.length,
+          sampleMetric: result.metrics?.[0]
+        })
+        return result
+      } else {
+        console.warn('[Murmuraba] processFileWithMetrics not available, using processFile')
+        const result = await murmuraba.processFile(arrayBuffer, options)
+        // Mock the metrics structure if not provided
+        return {
+          ...result,
+          metrics: result.vadScores ? result.vadScores.map((score: number) => ({ vadScore: score })) : []
+        }
       }
+    } catch (error: any) {
+      console.error('[Murmuraba] Error processing file with metrics:', error)
+      throw error
     }
   }
 }

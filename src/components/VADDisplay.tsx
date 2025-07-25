@@ -26,7 +26,9 @@ export function VADDisplay({ audioFile, label, onVADCalculated }: VADDisplayProp
         const result = await murmurabaManager.processFileWithMetrics(audioFile as File, {
           enableVAD: true,
           enableTranscription: false,
-          outputFormat: 'blob'
+          outputFormat: 'blob',
+          // Add empty callback to avoid "onFrameProcessed is not a function" error
+          onFrameProcessed: () => {}
         });
         
         // Calcular promedio de VAD scores
@@ -47,7 +49,8 @@ export function VADDisplay({ audioFile, label, onVADCalculated }: VADDisplayProp
             await murmurabaManager.processFile(audioFile as File, {
               enableVAD: true,
               enableTranscription: false,
-              outputFormat: 'blob'
+              outputFormat: 'blob',
+              onFrameProcessed: () => {}
             });
             setVadScore(0);
           } catch (fallbackError) {

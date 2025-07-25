@@ -3,17 +3,45 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { WhisperConfig, TranscriptionResult, UseWhisperReturn } from '../lib/types'
 import { cacheManager } from '../lib/cache-manager'
-import Swal from 'sweetalert2'
+import { matrixAlert } from '../../../../src/components/MatrixAlert'
+import { matrixToast } from '../../../../src/components/MatrixToast'
 
 // Singleton pattern for Whisper pipeline
 class WhisperPipelineSingleton {
   static task = 'automatic-speech-recognition'
-  static model = 'Xenova/whisper-tiny'
+  static model = 'Xenova/whisper-medium'
   static instance: any = null
   static pipeline: any = null
   static env: any = null
+  static isLoading: boolean = false
+  static loadingPromise: Promise<any> | null = null
 
   static async getInstance(progress_callback: any = null) {
+    // If already loaded, return immediately
+    if (this.instance) {
+      console.log('♻️ [WhisperSingleton] Returning existing instance')
+      return this.instance
+    }
+
+    // If currently loading, wait for the existing loading promise
+    if (this.isLoading && this.loadingPromise) {
+      console.log('⏳ [WhisperSingleton] Already loading, waiting for completion...')
+      return this.loadingPromise
+    }
+
+    // Start loading
+    this.isLoading = true
+    this.loadingPromise = this.loadInstance(progress_callback)
+    
+    try {
+      this.instance = await this.loadingPromise
+      return this.instance
+    } finally {
+      this.isLoading = false
+    }
+  }
+
+  private static async loadInstance(progress_callback: any = null) {
     if (!this.pipeline) {
       // Dynamic import on first use
       const transformers = await import('@xenova/transformers')
@@ -34,9 +62,7 @@ class WhisperPipelineSingleton {
       }
     }
 
-    // Create pipeline instance if not exists
-    if (!this.instance) {
-      console.log('🚀 [WhisperSingleton] Creando nueva instancia del pipeline...')
+    console.log('🚀 [WhisperSingleton] Creando nueva instancia del pipeline...')
       
       // Check cache first
       const cacheStatus = await cacheManager.getCacheStatus()
@@ -55,9 +81,6 @@ class WhisperPipelineSingleton {
       })
       
       console.log('✅ [WhisperSingleton] Pipeline creado exitosamente')
-    } else {
-      console.log('♻️ [WhisperSingleton] Reutilizando instancia existente del pipeline')
-    }
     
     return this.instance
   }
@@ -80,31 +103,18 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
     const loadModel = async () => {
       console.log('[useWhisper] Starting model load...')
       
-      // Show loading alert
-      progressAlertRef.current = Swal.fire({
-        title: '🤖 Initializing AI Model',
-        html: `
-          <div style="margin: 20px 0;">
-            <div class="swal-loading-spinner" style="font-size: 3rem; margin-bottom: 20px;">🎙️</div>
-            <p style="font-size: 1.1rem; margin-bottom: 20px;">Loading Whisper AI model...</p>
-            <div style="background: #1a1a1a; border-radius: 10px; overflow: hidden; height: 10px; margin: 20px 0;">
-              <div id="swal-progress-bar" style="background: linear-gradient(90deg, #3b82f6, #8b5cf6); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
-            </div>
-            <p id="swal-progress-text" style="font-size: 0.9rem; color: #888;">Initializing...</p>
-          </div>
-        `,
-        allowOutsideClick: false,
-        showConfirmButton: false,
-        background: '#111',
-        color: '#fff',
-        customClass: {
-          popup: 'swal-dark-popup',
-          title: 'swal-dark-title'
-        },
-        didOpen: () => {
-          Swal.showLoading()
-        }
-      })
+      // Only show loading alert if not already loaded and not currently loading
+      const shouldShowAlert = !WhisperPipelineSingleton.instance && !WhisperPipelineSingleton.isLoading
+      
+      if (shouldShowAlert) {
+        // Show loading alert
+        progressAlertRef.current = matrixAlert.show({
+          title: '[WHISPER_AI_INITIALIZATION]',
+          message: 'Loading Whisper AI model...',
+          type: 'loading',
+          progress: 0
+        })
+      }
 
       try {
         console.log('[useWhisper] Loading model using Singleton pattern...')
@@ -116,15 +126,13 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
           setLoadingProgress(Math.max(1, percent))
           
           // Update progress alert
-          if (progressAlertRef.current && Swal.isVisible()) {
-            const progressBar = document.getElementById('swal-progress-bar')
-            const progressText = document.getElementById('swal-progress-text')
-            if (progressBar) progressBar.style.width = `${percent}%`
-            if (progressText) {
-              const status = progress.status || 'downloading'
-              const file = progress.file || 'model'
-              progressText.textContent = `${status} ${file}... ${Math.round(percent)}%`
-            }
+          if (progressAlertRef.current) {
+            const status = progress.status || 'downloading'
+            const file = progress.file || 'model'
+            progressAlertRef.current.update({
+              message: `${status} ${file}...`,
+              progress: percent
+            })
           }
         })
 
@@ -132,27 +140,12 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
         setModelReady(true)
         setLoadingProgress(100)
 
-        // Close loading alert and show success
-        if (progressAlertRef.current) {
-          Swal.close()
+        // Close loading alert and show success only if we showed it
+        if (progressAlertRef.current && shouldShowAlert) {
+          progressAlertRef.current.close()
           progressAlertRef.current = null
           
-          const Toast = Swal.mixin({
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3000,
-            timerProgressBar: true,
-            background: '#111',
-            color: '#fff',
-            iconColor: '#3b82f6'
-          })
-          
-          Toast.fire({
-            icon: 'success',
-            title: '🎉 AI Model Ready',
-            text: 'You can now start recording!'
-          })
+          matrixToast.success('[AI_MODEL_READY] You can now start recording!')
         }
       } catch (err) {
         console.error('[useWhisper] Error loading model:', err)
@@ -160,28 +153,32 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
         setError(new Error(errorMessage))
         
         if (progressAlertRef.current) {
-          Swal.close()
+          progressAlertRef.current.close()
           progressAlertRef.current = null
         }
         
-        Swal.fire({
-          icon: 'error',
-          title: 'Failed to Load Model',
-          text: errorMessage,
-          background: '#111',
-          color: '#fff',
-          confirmButtonColor: '#3b82f6'
+        matrixAlert.show({
+          title: '[MODEL_LOAD_ERROR]',
+          message: errorMessage,
+          type: 'error',
+          onClose: () => {}
         })
       }
     }
 
-    if (!pipelineRef.current && typeof window !== 'undefined') {
+    // Check if model is already loaded
+    if (WhisperPipelineSingleton.instance) {
+      pipelineRef.current = WhisperPipelineSingleton.instance
+      setModelReady(true)
+      setLoadingProgress(100)
+      console.log('[useWhisper] Model already loaded, using existing instance')
+    } else if (!pipelineRef.current && typeof window !== 'undefined') {
       loadModel()
     }
 
     return () => {
       if (progressAlertRef.current) {
-        Swal.close()
+        progressAlertRef.current.close()
         progressAlertRef.current = null
       }
     }

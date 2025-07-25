@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAudioProcessor } from './useAudioProcessor';
 import { useTranscription } from './useTranscription';
 import { useWhisperDirect } from './useWhisperDirect';
-import { MurmurabaSingleton } from '../lib/murmuraba-singleton';
+import { murmurabaManager } from '../lib/murmuraba-singleton';
 import type { AudioChunk, ProcessingStatus, TranscriptionResult } from '../lib/types';
 
 export interface UseSusurroOptions {
@@ -41,6 +40,11 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     whisperConfig = {}
   } = options;
 
+  // State management
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [audioChunks, setAudioChunks] = useState<AudioChunk[]>([]);
+  const [averageVad, setAverageVad] = useState(0);
   const [transcriptions, setTranscriptions] = useState<TranscriptionResult[]>([]);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>({
     isProcessing: false,
@@ -49,23 +53,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     stage: 'idle'
   });
 
-  const murmurabaSingleton = MurmurabaSingleton.getInstance();
+  // Refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const startTimeRef = useRef<number>(0);
 
-  const {
-    isRecording,
-    isPaused,
-    audioChunks,
-    averageVad,
-    startRecording: startAudioRecording,
-    stopRecording: stopAudioRecording,
-    pauseRecording: pauseAudioRecording,
-    resumeRecording: resumeAudioRecording,
-    processAudioFile: processFile
-  } = useAudioProcessor({
-    chunkDurationMs,
-    enableVAD
-  });
-
+  // Use existing hooks
   const { transcribe, isLoading: isTranscribing } = useTranscription({
     onTranscriptionComplete: (result) => {
       setTranscriptions(prev => [...prev, result]);
@@ -85,10 +78,118 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     loadingProgress: whisperProgress,
     error: whisperError
   } = useWhisperDirect({
-    model: (whisperConfig.model || 'Xenova/whisper-tiny') as any,
     language: whisperConfig.language || 'en'
   });
 
+  // Helper functions
+  const createChunk = (blob: Blob, startTime: number, endTime: number): AudioChunk => ({
+    id: `chunk-${Date.now()}-${Math.random()}`,
+    blob,
+    duration: endTime - startTime,
+    startTime,
+    endTime
+  });
+
+  // Process audio file with Murmuraba
+  const processAudioFile = useCallback(async (file: File) => {
+    try {
+      console.log('[useSusurro] Starting file processing...');
+      setTranscriptions([]);
+      
+      // Step 1: Initialize Murmuraba
+      await murmurabaManager.initialize();
+      console.log('[useSusurro] Murmuraba initialized');
+      
+      // Step 2: Process with Murmuraba to clean audio with metrics
+      console.log('[useSusurro] Processing with Murmuraba for audio cleaning...');
+      const cleanedResult = await murmurabaManager.processFileWithMetrics(file, (metrics) => {
+        console.log('[useSusurro] Frame metrics:', metrics);
+      });
+      
+      console.log('[useSusurro] Murmuraba processing complete, cleaned audio received');
+      console.log('[useSusurro] Murmuraba result:', {
+        hasProcessedBuffer: !!cleanedResult.processedBuffer,
+        hasVadScores: !!cleanedResult.vadScores,
+        averageVad: cleanedResult.averageVad
+      });
+      
+      // Step 3: Decode the cleaned audio
+      const audioContext = new AudioContext();
+      let audioBuffer: AudioBuffer;
+      
+      if (cleanedResult.processedBuffer instanceof ArrayBuffer) {
+        audioBuffer = await audioContext.decodeAudioData(cleanedResult.processedBuffer);
+      } else if (cleanedResult.processedBuffer instanceof Blob) {
+        const arrayBuffer = await cleanedResult.processedBuffer.arrayBuffer();
+        audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      } else {
+        // If it's already an AudioBuffer
+        audioBuffer = cleanedResult.processedBuffer;
+      }
+      
+      console.log('[useSusurro] Cleaned audio decoded, duration:', audioBuffer.duration, 'seconds');
+      
+      // Step 4: Create chunks from cleaned audio
+      const duration = audioBuffer.duration * 1000; // Convert to ms
+      const chunks: AudioChunk[] = [];
+      const chunkCount = Math.ceil(duration / chunkDurationMs);
+      
+      for (let i = 0; i < chunkCount; i++) {
+        const startTime = i * chunkDurationMs;
+        const endTime = Math.min((i + 1) * chunkDurationMs, duration);
+        
+        const startSample = Math.floor((startTime / 1000) * audioBuffer.sampleRate);
+        const endSample = Math.floor((endTime / 1000) * audioBuffer.sampleRate);
+        const frameCount = endSample - startSample;
+        
+        const chunkBuffer = audioContext.createBuffer(
+          audioBuffer.numberOfChannels,
+          frameCount,
+          audioBuffer.sampleRate
+        );
+        
+        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+          const channelData = audioBuffer.getChannelData(channel);
+          const chunkChannelData = chunkBuffer.getChannelData(channel);
+          for (let j = 0; j < frameCount; j++) {
+            chunkChannelData[j] = channelData[startSample + j];
+          }
+        }
+        
+        const wavBlob = await audioBufferToWav(chunkBuffer);
+        chunks.push(createChunk(wavBlob, startTime, endTime));
+      }
+      
+      console.log('[useSusurro] Created', chunks.length, 'chunks for transcription');
+      
+      // Store VAD score from Murmuraba
+      const avgVad = cleanedResult.averageVad || 0;
+      console.log('[useSusurro] Average VAD score:', avgVad);
+      setAverageVad(avgVad);
+      
+      // Add VAD scores to chunks if available
+      if (cleanedResult.metrics && cleanedResult.metrics.length > 0) {
+        console.log('[useSusurro] Processing', cleanedResult.metrics.length, 'VAD metrics for', chunks.length, 'chunks');
+        const metricsPerChunk = cleanedResult.metrics.length / chunks.length;
+        chunks.forEach((chunk, index) => {
+          const startIdx = Math.floor(index * metricsPerChunk);
+          const endIdx = Math.floor((index + 1) * metricsPerChunk);
+          const chunkMetrics = cleanedResult.metrics.slice(startIdx, endIdx);
+          const vadScores = chunkMetrics.map((m: any) => m.vad || 0);
+          chunk.vadScore = vadScores.reduce((a: number, b: number) => a + b, 0) / vadScores.length;
+          console.log(`[useSusurro] Chunk ${index + 1} VAD:`, chunk.vadScore);
+        });
+      }
+      
+      setAudioChunks(chunks);
+      audioContext.close();
+    } catch (error) {
+      console.error('[useSusurro] Error processing audio file:', error);
+      throw error;
+    }
+  }, [chunkDurationMs, enableVAD]);
+
+  // Process chunks for transcription
   const processChunks = useCallback(async (chunks: AudioChunk[]) => {
     setProcessingStatus({
       isProcessing: true,
@@ -96,14 +197,29 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       totalChunks: chunks.length,
       stage: 'processing'
     });
-    // For now, just show that audio was processed
-    console.log('[useSusurro] Audio chunks processed by Murmuraba:', chunks.length);
-    setTranscriptions([{
-      text: '[Audio procesado por Murmuraba - Transcripción deshabilitada temporalmente]',
-      segments: [],
-      chunkIndex: 0,
-      timestamp: Date.now()
-    }]);
+    
+    // Process each chunk with Whisper
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      setProcessingStatus(prev => ({
+        ...prev,
+        currentChunk: i + 1
+      }));
+      
+      try {
+        const result = await transcribeWhisper(chunk.blob);
+        if (result) {
+          setTranscriptions(prev => [...prev, {
+            text: result.text,
+            segments: result.segments || [],
+            chunkIndex: i,
+            timestamp: Date.now()
+          }]);
+        }
+      } catch (error) {
+        console.error(`[useSusurro] Error transcribing chunk ${i + 1}:`, error);
+      }
+    }
 
     setProcessingStatus({
       isProcessing: false,
@@ -111,30 +227,75 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       totalChunks: 0,
       stage: 'complete'
     });
-  }, [transcribe]);
+  }, [transcribeWhisper]);
 
-  useEffect(() => {
-    if (audioChunks.length > 0 && !isRecording) {
-      // Add delay to ensure Murmuraba processing is complete
-      setTimeout(() => {
-        processChunks(audioChunks);
-      }, 100);
-    }
-  }, [audioChunks, isRecording, processChunks]);
-
+  // Recording functions
   const startRecording = useCallback(async () => {
-    setTranscriptions([]);
-    await startAudioRecording();
-  }, [startAudioRecording]);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const audioFile = new File([blob], 'recording.webm', { type: 'audio/webm' });
+        await processAudioFile(audioFile);
+      };
+      
+      mediaRecorderRef.current = mediaRecorder;
+      startTimeRef.current = Date.now();
+      mediaRecorder.start(chunkDurationMs);
+      setIsRecording(true);
+      setAudioChunks([]);
+      setTranscriptions([]);
+    } catch (error) {
+      console.error('[useSusurro] Error starting recording:', error);
+      throw error;
+    }
+  }, [chunkDurationMs, processAudioFile]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
+      setIsPaused(false);
+    }
+  }, [isRecording]);
+
+  const pauseRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording && !isPaused) {
+      mediaRecorderRef.current.pause();
+      setIsPaused(true);
+    }
+  }, [isRecording, isPaused]);
+
+  const resumeRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording && isPaused) {
+      mediaRecorderRef.current.resume();
+      setIsPaused(false);
+    }
+  }, [isRecording, isPaused]);
 
   const clearTranscriptions = useCallback(() => {
     setTranscriptions([]);
   }, []);
 
-  const processAudioFile = useCallback(async (file: File) => {
-    setTranscriptions([]);
-    await processFile(file);
-  }, [processFile]);
+  // Auto-process chunks when ready
+  useEffect(() => {
+    if (audioChunks.length > 0 && !isRecording && whisperReady) {
+      // Add delay to ensure Murmuraba processing is complete
+      setTimeout(() => {
+        processChunks(audioChunks);
+      }, 100);
+    }
+  }, [audioChunks, isRecording, whisperReady, processChunks]);
 
   return {
     isRecording,
@@ -144,9 +305,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     processingStatus,
     averageVad,
     startRecording,
-    stopRecording: stopAudioRecording,
-    pauseRecording: pauseAudioRecording,
-    resumeRecording: resumeAudioRecording,
+    stopRecording,
+    pauseRecording,
+    resumeRecording,
     clearTranscriptions,
     processAudioFile,
     // Whisper-related properties
@@ -155,4 +316,52 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     whisperError,
     transcribeWithWhisper: transcribeWhisper
   };
+}
+
+// Helper function to convert AudioBuffer to WAV
+async function audioBufferToWav(audioBuffer: AudioBuffer): Promise<Blob> {
+  const length = audioBuffer.length * audioBuffer.numberOfChannels * 2;
+  const buffer = new ArrayBuffer(44 + length);
+  const view = new DataView(buffer);
+  
+  const writeString = (offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  
+  const floatTo16BitPCM = (output: DataView, offset: number, input: Float32Array) => {
+    for (let i = 0; i < input.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, input[i]));
+      output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+  };
+  
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + length, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, audioBuffer.numberOfChannels, true);
+  view.setUint32(24, audioBuffer.sampleRate, true);
+  view.setUint32(28, audioBuffer.sampleRate * audioBuffer.numberOfChannels * 2, true);
+  view.setUint16(32, audioBuffer.numberOfChannels * 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, length, true);
+  
+  const offset = 44;
+  const interleaved = new Float32Array(audioBuffer.length * audioBuffer.numberOfChannels);
+  
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const channelData = audioBuffer.getChannelData(channel);
+    for (let i = 0; i < channelData.length; i++) {
+      interleaved[i * audioBuffer.numberOfChannels + channel] = channelData[i];
+    }
+  }
+  
+  floatTo16BitPCM(view, offset, interleaved);
+  
+  return new Blob([buffer], { type: 'audio/wav' });
 }

@@ -1,5 +1,5 @@
 export { useSusurro } from './hooks/useSusurro';
-export { useAudioProcessor } from './hooks/useAudioProcessor';
+// useAudioProcessor is now integrated into useSusurro
 export { useTranscription } from './hooks/useTranscription';
 // useWhisperDirect is not exported - use whisper through useSusurro
 export { MurmurabaSingleton } from './lib/murmuraba-singleton';

@@ -5,6 +5,7 @@ import { MatrixRain } from './MatrixRain'
 import { useSusurro } from '@susurro/core'
 import { FloatingLogs } from './FloatingLogs'
 import { BackgroundProcessor } from '../utils/backgroundProcessor'
+import { ChunkDurationSelector } from './ChunkDurationSelector'
 import '../styles/matrix-theme.css'
 
 export const TranscriptionAppMatrix: React.FC = () => {

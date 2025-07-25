@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { useSusurro } from '@susurro/core'
+import { ChunkDurationSelector } from './ChunkDurationSelector'
 
 interface ChunkProcessorProps {
   onBack: () => void
@@ -123,34 +124,12 @@ export const ChunkProcessor: React.FC<ChunkProcessorProps> = ({ onBack }) => {
         )}
         
         {/* Chunk Duration Control */}
-        <div style={{
-          marginBottom: '30px',
-          padding: '20px',
-          background: 'rgba(0, 255, 65, 0.05)',
-          border: '1px solid rgba(0, 255, 65, 0.3)'
-        }}>
-          <label style={{ fontSize: '1.1rem' }}>&gt; CHUNK_DURATION_SEC: </label>
-          <input
-            type="number"
-            value={chunkDuration}
-            onChange={(e) => setChunkDuration(Math.max(1, Math.min(60, parseInt(e.target.value) || 1)))}
-            min="1"
-            max="60"
-            style={{
-              background: 'rgba(0, 0, 0, 0.5)',
-              color: '#00ff41',
-              border: '1px solid #00ff41',
-              padding: '8px',
-              marginLeft: '10px',
-              width: '80px',
-              fontSize: '1.1rem',
-              textAlign: 'center'
-            }}
-          />
-          <span style={{ marginLeft: '20px', opacity: 0.7 }}>
-            OVERLAP: {overlapDuration}s FIXED
-          </span>
-        </div>
+        <ChunkDurationSelector
+          value={chunkDuration}
+          onChange={setChunkDuration}
+          showOverlap={true}
+          overlapDuration={overlapDuration}
+        />
         
         {/* Recording Controls */}
         <div style={{ marginBottom: '30px', textAlign: 'center' }}>

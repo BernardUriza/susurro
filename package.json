@@ -10,9 +10,8 @@
     "README.md"
   ],
   "scripts": {
-    "dev": "npm run copy:wasm && next dev",
-    "build": "npm run copy:wasm && next build",
-    "copy:wasm": "cp node_modules/murmuraba/dist/rnnoise.wasm public/rnnoise.wasm",
+    "dev": "next dev",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest",

@@ -39,7 +39,9 @@
       "Bash(npm test:*)",
       "Bash(npx vite:*)",
       "Bash(npm run lint)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm run copy:wasm:*)",
+      "Bash(npm update:*)"
     ],
     "deny": []
   }

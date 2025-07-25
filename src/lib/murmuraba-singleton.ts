@@ -111,7 +111,7 @@ class MurmurabaManager {
     }
   }
 
-  async processFileWithMetrics(file: File | Blob, options: any): Promise<any> {
+  async processFileWithMetrics(file: File | Blob, onFrameProcessed?: (metrics: any) => void): Promise<any> {
     await this.initialize()
     const murmuraba = await this.getMurmuraba()
     
@@ -127,14 +127,11 @@ class MurmurabaManager {
       const arrayBuffer = await file.arrayBuffer()
       console.log('[Murmuraba] Converted to ArrayBuffer for metrics, size:', arrayBuffer.byteLength)
       
-      // Extract callback from options if present
-      const { onFrameProcessed, ...restOptions } = options || {}
-      
       // Check if the method exists, otherwise fall back to processFile
       if (murmuraba.processFileWithMetrics) {
         const result = await murmuraba.processFileWithMetrics(
           arrayBuffer, 
-          onFrameProcessed || (() => {})  // Pass callback as second param only
+          onFrameProcessed  // Pass callback as second param
         )
         console.log('[Murmuraba] processFileWithMetrics result:', { 
           hasMetrics: !!result.metrics,
@@ -144,11 +141,18 @@ class MurmurabaManager {
         return result
       } else {
         console.warn('[Murmuraba] processFileWithMetrics not available, using processFile')
-        const result = await murmuraba.processFile(arrayBuffer, restOptions)
+        const result = await murmuraba.processFile(arrayBuffer, {})
         // Mock the metrics structure if not provided
         return {
           ...result,
-          metrics: result.vadScores ? result.vadScores.map((score: number) => ({ vadScore: score })) : []
+          processedBuffer: result.processedAudio || result,
+          metrics: result.vadScores ? result.vadScores.map((score: number, index: number) => ({ 
+            vad: score,
+            frame: index,
+            timestamp: Date.now(),
+            rms: 0
+          })) : [],
+          averageVad: 0
         }
       }
     } catch (error: any) {

@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const webpack = require('webpack');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 const nextConfig = {
   output: 'export',
@@ -41,6 +42,15 @@ const nextConfig = {
           'global': 'window',
         })
       )
+      
+      // Intercept rnnoise.wasm requests
+      config.module.rules.push({
+        test: /rnnoise\.wasm$/,
+        type: 'asset/resource',
+        generator: {
+          filename: 'static/chunks/[name][ext]'
+        }
+      })
     }
     
     // Exclude murmuraba from server-side rendering

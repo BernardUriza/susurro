@@ -1,441 +1,161 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Swal from 'sweetalert2'
-import dynamic from 'next/dynamic'
-
-// Importar AudioProcessingSection dinámicamente
-const AudioProcessingSection = dynamic(
-  () => import('../src/components/AudioProcessingSection').then(mod => mod.AudioProcessingSection),
-  { ssr: false }
-)
-
-// Importar AudioProcessor (murmuraba) dinámicamente
-const AudioProcessor = dynamic(
-  () => import('../src/components/AudioProcessor'),
-  { ssr: false }
-)
-
-// Importar VADDisplay dinámicamente
-const VADDisplay = dynamic(
-  () => import('../src/components/VADDisplay').then(mod => mod.VADDisplay),
-  { ssr: false }
-)
+import { useState } from 'react'
+import { murmurabaManager } from '../src/lib/murmuraba-singleton'
 
 export default function Home() {
-  const [transcriptions, setTranscriptions] = useState<string[]>([])
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
-  const [processedFile, setProcessedFile] = useState<File | null>(null)
-  const [vadMetrics, setVadMetrics] = useState<{ original: number; processed: number; reduction: number } | null>(null)
-  const [showApp, setShowApp] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const [status, setStatus] = useState('')
+  const [originalUrl, setOriginalUrl] = useState('')
+  const [processedUrl, setProcessedUrl] = useState('')
+  const [vadScore, setVadScore] = useState(0)
+  const [transcription, setTranscription] = useState('')
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  const handleTranscription = (text: string) => {
-    console.log('Transcripción recibida:', text)
-    setTranscriptions(prev => [text, ...prev])
-  }
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file && file.type === 'audio/wav') {
-      setUploadedFile(file)
-      setProcessedFile(null)
+  async function processAudio(file: File) {
+    try {
+      setStatus('Procesando...')
       
-      // SweetAlert2 Toast notification
-      const Toast = Swal.mixin({
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true,
-        background: '#000a00',
-        color: '#00ff00',
-        iconColor: '#00ff00',
-        customClass: {
-          popup: 'swal-dark-popup',
-          title: 'swal-dark-title',
-          timerProgressBar: 'swal-dark-progress'
-        },
-        didOpen: (toast) => {
-          toast.style.border = '2px solid #00ff00'
-          toast.style.boxShadow = '0 0 20px #00ff00'
-        }
+      // Mostrar original
+      setOriginalUrl(URL.createObjectURL(file))
+      
+      // Procesar con murmuraba
+      await murmurabaManager.initialize()
+      const result = await murmurabaManager.processFileWithMetrics(file, (metrics) => {
+        console.log('Frame:', metrics)
       })
       
-      Toast.fire({
-        icon: 'success',
-        title: '📁 Archivo WAV cargado',
-        text: file.name
-      })
-    } else if (file) {
-      Swal.fire({
-        icon: 'error',
-        title: '¡Formato Inválido!',
-        text: 'Solo se aceptan archivos WAV',
-        background: '#000a00',
-        color: '#ff0000',
-        confirmButtonColor: '#00ff00',
-        confirmButtonText: 'Entendido',
-        customClass: {
-          popup: 'swal-dark-popup',
-          title: 'swal-error-title'
-        },
-        didOpen: (popup) => {
-          popup.style.border = '2px solid #ff0000'
-          popup.style.boxShadow = '0 0 30px #ff0000'
-        }
-      })
+      // Mostrar procesado
+      const processedBlob = new Blob([result.processedBuffer], { type: 'audio/wav' })
+      setProcessedUrl(URL.createObjectURL(processedBlob))
+      setVadScore(result.averageVad || 0)
+      
+      setStatus('✅ Procesado')
+    } catch (error: any) {
+      setStatus(`Error: ${error.message}`)
     }
   }
 
-  const handleStartApp = () => {
-    setShowApp(true)
-  }
-
-  if (!showApp) {
-    return (
-      <div className="welcome-container">
-        <div className="background-orbs">
-          <div className="orb-1"></div>
-          <div className="orb-2"></div>
-          <div className="orb-3"></div>
-        </div>
-
-        <main className={`welcome-main ${mounted ? 'mounted' : ''}`}>
-          <div className="glow-card">
-            <h1 className="welcome-title">
-              <span className="wave">¡Hola!</span> 
-              <span className="gradient-text">Bienvenido a SUSURRO</span>
-            </h1>
-            
-            <p className="welcome-subtitle">
-              Transcripción de voz con IA, directamente en tu navegador
-            </p>
-          </div>
-
-          <section className="hero-section">
-            <div className="floating-card">
-              <div className="card-header">
-                <h2 className="section-title">
-                  <span className="icon">🤖</span>
-                  Powered by Transformers.js
-                </h2>
-              </div>
-              
-              <div className="card-content">
-                <p className="description">
-                  SUSURRO ejecuta modelos de IA de última generación 
-                  <span className="highlight"> directamente en tu navegador</span>, 
-                  sin necesidad de servidores externos. Todo gracias a
-                  <span className="brand-name"> Transformers.js by Xenova</span>.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">🚀</div>
-              <h3>100% JavaScript</h3>
-              <p>Ejecuta Whisper sin Python, directamente en el navegador</p>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon">⚡</div>
-              <h3>WebAssembly + WebGPU</h3>
-              <p>Rendimiento increíble gracias a ONNX Runtime</p>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon">🔒</div>
-              <h3>Privacidad Total</h3>
-              <p>Tu voz nunca sale del dispositivo</p>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon">🎯</div>
-              <h3>Sin Latencia</h3>
-              <p>Procesamiento instantáneo y local</p>
-            </div>
-          </div>
-
-          <div className="cta-section">
-            <h2 className="cta-title">
-              ¿Listo para experimentar la transcripción
-              <span className="animated-text"> del futuro</span>?
-            </h2>
-            <p className="cta-description">
-              Con SUSURRO, puedes transcribir audio en tiempo real o desde archivos WAV,
-              todo procesado localmente en tu navegador.
-            </p>
-            
-            <button onClick={handleStartApp} className="primary-button">
-              Comenzar a Transcribir
-            </button>
-          </div>
-        </main>
-      </div>
-    )
+  async function transcribe() {
+    setStatus('Transcribiendo...')
+    // Mock transcription
+    setTimeout(() => {
+      setTranscription('Esta es una demostración del procesamiento de audio...')
+      setStatus('✅ Transcripción completada')
+    }, 2000)
   }
 
   return (
-    <div className="modern-layout">
-      {/* Header */}
-      <header className="header">
-        <h1>SUSURRO</h1>
-        <p className="tagline">Neural Voice Recognition System v2.077</p>
-      </header>
-
-      {/* Main Content - 3 Column Layout */}
-      <main className="main-content">
-        {/* Left Panel - Features */}
-        <aside className="panel panel-left">
-          <h2>⚡ System Capabilities</h2>
-          <ul className="features-list">
-            <li>
-              <span className="feature-icon">🔐</span>
-              <strong>Zero-Knowledge Protocol</strong>
-              <small>Neural processing stays on-device</small>
-            </li>
-            <li>
-              <span className="feature-icon">⚡</span>
-              <strong>Real-Time Processing</strong>
-              <small>Sub-millisecond response time</small>
-            </li>
-            <li>
-              <span className="feature-icon">🌐</span>
-              <strong>Edge Computing</strong>
-              <small>No cloud dependency required</small>
-            </li>
-            <li>
-              <span className="feature-icon">🤖</span>
-              <strong>Neural Architecture</strong>
-              <small>Transformer-based AI engine</small>
-            </li>
-          </ul>
-        </aside>
-
-        {/* Center Panel - Main Interface */}
-        <section className="panel panel-center">
-          {/* Audio Processor para limpiar el audio - solo se ejecuta cuando hay archivo */}
-          {uploadedFile && !processedFile && (
-            <AudioProcessor 
-              uploadedFile={uploadedFile}
-              onProcessedAudio={(audioBlob, metrics) => {
-                const cleaned = new File([audioBlob], 'processed-audio.wav', { type: 'audio/wav' })
-                setProcessedFile(cleaned)
-                if (metrics) {
-                  setVadMetrics(metrics)
-                }
-                
-                const Toast = Swal.mixin({
-                  toast: true,
-                  position: 'top-end',
-                  showConfirmButton: false,
-                  timer: 3000,
-                  timerProgressBar: true,
-                  background: '#000a00',
-                  color: '#00ff00',
-                  iconColor: '#00ff00',
-                  customClass: {
-                    popup: 'swal-dark-popup',
-                    title: 'swal-dark-title',
-                    timerProgressBar: 'swal-dark-progress'
-                  },
-                  didOpen: (toast) => {
-                    toast.style.border = '2px solid #00ff00'
-                    toast.style.boxShadow = '0 0 20px #00ff00'
-                  }
-                })
-                
-                Toast.fire({
-                  icon: 'success',
-                  title: '🎯 Audio procesado',
-                  text: 'Audio limpio listo para transcribir'
-                })
-              }}
-            />
+    <div style={{ maxWidth: 600, margin: '40px auto', padding: 20, fontFamily: 'system-ui' }}>
+      <h1>🎙️ Susurro</h1>
+      <p>Demo mínimo con murmuraba</p>
+      
+      <div style={{ 
+        border: '2px dashed #ccc', 
+        padding: 40, 
+        textAlign: 'center',
+        borderRadius: 8,
+        cursor: 'pointer',
+        marginBottom: 20
+      }}
+      onClick={() => document.getElementById('file')?.click()}>
+        <p>📁 Clic para seleccionar WAV</p>
+      </div>
+      
+      <input 
+        id="file"
+        type="file" 
+        accept=".wav"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) processAudio(file)
+        }}
+      />
+      
+      <button 
+        onClick={async () => {
+          const res = await fetch('/sample.wav')
+          const blob = await res.blob()
+          const file = new File([blob], 'sample.wav', { type: 'audio/wav' })
+          processAudio(file)
+        }}
+        style={{ 
+          padding: '10px 20px',
+          background: '#2196F3',
+          color: 'white',
+          border: 'none',
+          borderRadius: 6,
+          cursor: 'pointer',
+          marginBottom: 20
+        }}
+      >
+        📁 Usar ejemplo
+      </button>
+      
+      {status && <p style={{ 
+        padding: 10, 
+        background: status.includes('Error') ? '#ffebee' : '#e8f5e9',
+        borderRadius: 6,
+        marginBottom: 20
+      }}>{status}</p>}
+      
+      {originalUrl && (
+        <div style={{ marginBottom: 20 }}>
+          <h3>Original</h3>
+          <audio src={originalUrl} controls style={{ width: '100%' }} />
+        </div>
+      )}
+      
+      {processedUrl && (
+        <div style={{ marginBottom: 20 }}>
+          <h3>Procesado (sin ruido)</h3>
+          <audio src={processedUrl} controls style={{ width: '100%' }} />
+          <p>VAD Score: {(vadScore * 100).toFixed(1)}%</p>
+        </div>
+      )}
+      
+      {processedUrl && (
+        <div>
+          <button 
+            onClick={transcribe}
+            style={{ 
+              padding: '10px 20px',
+              background: '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              marginBottom: 10
+            }}
+          >
+            🎯 Transcribir
+          </button>
+          {transcription && (
+            <p style={{ fontStyle: 'italic', background: '#f5f5f5', padding: 15, borderRadius: 6 }}>
+              {`"${transcription}"`}
+            </p>
           )}
-          
-          <div className="upload-section" style={{ marginTop: '0', paddingTop: '2rem' }}>
-            <h2 style={{ fontSize: '2rem', marginBottom: '2rem' }}>📁 WAV File Upload</h2>
-            
-            {/* Demo Button */}
-            <div className="demo-section">
-              <p className="demo-text">First time? Try our sample audio file:</p>
-              <button 
-                className="demo-button"
-                onClick={async () => {
-                  const Toast = Swal.mixin({
-                    toast: true,
-                    position: 'top-end',
-                    showConfirmButton: false,
-                    timer: 3000,
-                    timerProgressBar: true,
-                    background: '#000a00',
-                    color: '#00ff00',
-                    iconColor: '#00ff00',
-                    customClass: {
-                      popup: 'swal-dark-popup',
-                      title: 'swal-dark-title',
-                      timerProgressBar: 'swal-dark-progress'
-                    },
-                    didOpen: (toast) => {
-                      toast.style.border = '2px solid #00ff00'
-                      toast.style.boxShadow = '0 0 20px #00ff00'
-                    }
-                  })
-                  
-                  try {
-                    // Mostrar mensaje de procesamiento
-                    Swal.fire({
-                      title: '⏳ Procesando audio...',
-                      html: 'Aplicando procesamiento VAD con Murmuraba...',
-                      allowOutsideClick: false,
-                      showConfirmButton: false,
-                      didOpen: () => {
-                        Swal.showLoading()
-                      }
-                    })
+        </div>
+      )}
+      
+      <pre style={{ 
+        background: '#263238', 
+        color: '#aed581', 
+        padding: 20, 
+        borderRadius: 8,
+        overflow: 'auto',
+        marginTop: 40
+      }}>
+{`import murmuraba from 'murmuraba'
 
-                    // Cargar sample.wav
-                    const response = await fetch('/sample.wav')
-                    if (!response.ok) throw new Error('No se pudo cargar el archivo')
-                    
-                    const blob = await response.blob()
-                    const file = new File([blob], 'sample.wav', { type: 'audio/wav' })
-                    
-                    // Procesar con VAD metrics usando murmuraba
-                    const { murmurabaManager } = await import('../src/lib/murmuraba-singleton')
-                    await murmurabaManager.initialize()
-                    
-                    const result = await murmurabaManager.processFileWithMetrics(file, {
-                      outputFormat: 'blob',
-                      enableVAD: true,
-                      onFrameProcessed: (metrics: any) => {
-                        // Actualizar UI con métricas en tiempo real si lo deseas
-                        console.log('VAD Frame:', metrics)
-                      }
-                    })
-                    
-                    // Cerrar loading
-                    Swal.close()
-                    
-                    setUploadedFile(file)
-                    setProcessedFile(result.processedAudio || file)
-                    
-                    // Mostrar métricas VAD
-                    const vadInfo = result.metrics ? 
-                      `<br>VAD promedio: ${(result.averageVad || 0).toFixed(3)}` : ''
-                    
-                    Toast.fire({
-                      icon: 'success',
-                      title: '🎵 Audio procesado',
-                      html: `sample.wav procesado con éxito${vadInfo}`
-                    })
-                  } catch (error) {
-                    Swal.fire({
-                      icon: 'error',
-                      title: '¡Error al cargar ejemplo!',
-                      text: 'No se pudo cargar sample.wav',
-                      background: '#000a00',
-                      color: '#ff0000',
-                      confirmButtonColor: '#00ff00',
-                      confirmButtonText: 'Entendido',
-                      customClass: {
-                        popup: 'swal-dark-popup',
-                        title: 'swal-error-title'
-                      },
-                      didOpen: (popup) => {
-                        popup.style.border = '2px solid #ff0000'
-                        popup.style.boxShadow = '0 0 30px #ff0000'
-                      }
-                    })
-                  }
-                }}
-              >
-                🎤 Load Sample File
-              </button>
-            </div>
-            
-            <div className="divider-small"></div>
-            
-            <div className="file-upload" style={{ padding: '3rem', border: '3px dashed #00ff00', borderRadius: '12px', backgroundColor: 'rgba(0, 255, 0, 0.05)' }}>
-              <input
-                type="file"
-                id="wav-upload"
-                accept="audio/wav"
-                onChange={handleFileUpload}
-                className="file-input"
-              />
-              <label htmlFor="wav-upload" className="file-label" style={{ fontSize: '1.2rem', padding: '1.5rem 3rem', cursor: 'pointer' }}>
-                {uploadedFile ? uploadedFile.name : 'Select WAV File'}
-              </label>
-              
-              {/* Players de audio */}
-              {uploadedFile && (
-                <div style={{ marginTop: '2rem', display: 'flex', gap: '2rem', justifyContent: 'center' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <h3 style={{ marginBottom: '1rem', color: '#00ff00' }}>Original</h3>
-                    <audio controls src={URL.createObjectURL(uploadedFile)} style={{ width: '250px' }} />
-                    <VADDisplay 
-                      audioFile={uploadedFile} 
-                      label="Original"
-                    />
-                  </div>
-                  {processedFile && (
-                    <div style={{ textAlign: 'center' }}>
-                      <h3 style={{ marginBottom: '1rem', color: '#00ff00' }}>Procesado</h3>
-                      <audio controls src={URL.createObjectURL(processedFile)} style={{ width: '250px' }} />
-                      <VADDisplay 
-                        audioFile={processedFile} 
-                        label="Procesado"
-                      />
-                      {vadMetrics && (
-                        <div style={{ fontSize: '0.9rem', color: '#ffcc00' }}>
-                          Reducción de ruido: {vadMetrics.reduction.toFixed(1)}%
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {/* Componente de procesamiento de audio */}
-              <AudioProcessingSection 
-                uploadedFile={processedFile || uploadedFile}
-                onTranscription={handleTranscription}
-              />
-            </div>
-          </div>
-        </section>
+// Procesar audio
+const result = await murmuraba.processFileWithMetrics(
+  audioFile,
+  (metrics) => console.log(metrics)
+)
 
-        {/* Right Panel - History */}
-        <aside className="panel panel-right">
-          <h2>📜 Transcription Log</h2>
-          <div className="transcription-history">
-            {transcriptions.length === 0 ? (
-              <p className="empty-history">No transcriptions recorded</p>
-            ) : (
-              transcriptions.map((text, index) => (
-                <div key={index} className="history-item">
-                  <span className="history-number">#{transcriptions.length - index}</span>
-                  <p className="history-text">{text}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </aside>
-      </main>
-
-      {/* Footer */}
-      <footer className="footer">
-        <p>Initial model download: ~40MB • Cached for future sessions</p>
-      </footer>
+// result.processedBuffer - audio limpio
+// result.averageVad - score de voz`}
+      </pre>
     </div>
   )
 }

@@ -1,25 +1,51 @@
 {
   "name": "@susurro/core",
-  "version": "0.1.0",
-  "description": "Audio processing and transcription hook",
+  "version": "1.0.0",
+  "description": "Audio processing and transcription library for web applications",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "test": "vitest",
     "test:watch": "vitest --watch",
-    "build": "tsup",
-    "dev": "tsup --watch"
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "prepublishOnly": "npm run build"
   },
+  "keywords": [
+    "audio",
+    "transcription",
+    "whisper",
+    "speech-to-text",
+    "web-audio",
+    "murmuraba",
+    "vad"
+  ],
+  "author": "Bernard Uriza Orozco",
+  "license": "MIT",
   "peerDependencies": {
     "react": ">=18.0.0",
     "murmuraba": ">=2.0.0",
     "@xenova/transformers": ">=2.0.0"
   },
+  "dependencies": {
+    "@ricky0123/vad-web": "^0.0.19"
+  },
   "devDependencies": {
-    "@testing-library/react-hooks": "^8.0.1",
-    "@types/react": "^18.0.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.0.0",
     "tsup": "^8.0.0",
-    "vitest": "^1.0.0"
+    "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/susurro"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

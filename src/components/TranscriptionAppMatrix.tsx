@@ -2,43 +2,38 @@
 
 import React from 'react'
 import { MatrixRain } from './MatrixRain'
-import { useSusurro } from '../../packages/susurro/src'
+import { useSusurro } from '@susurro/core'
 import '../styles/matrix-theme.css'
 
 export const TranscriptionAppMatrix: React.FC = () => {
-  const { cleanAudio, transcribe, cleaning, transcribing, error } = useSusurro()
+  const { 
+    isProcessing,
+    transcriptions,
+    processAudioFile,
+    clearTranscriptions 
+  } = useSusurro({
+    chunkDurationMs: 8000,
+    enableVAD: true
+  })
   
   const [originalUrl, setOriginalUrl] = React.useState('')
   const [processedUrl, setProcessedUrl] = React.useState('')
   const [vadScore, setVadScore] = React.useState(0)
-  const [transcript, setTranscript] = React.useState('')
   const [status, setStatus] = React.useState('')
   
   const handleFileProcess = async (file: File) => {
     try {
       setStatus('Procesando audio...')
       setOriginalUrl(URL.createObjectURL(file))
+      clearTranscriptions()
       
-      const { blob, vadScore: vad } = await cleanAudio(file)
-      setProcessedUrl(URL.createObjectURL(blob))
-      setVadScore(vad)
-      setStatus('✅ Audio procesado')
+      await processAudioFile(file)
+      setStatus('✅ Audio procesado y transcrito')
       
-      return blob
+      return true
     } catch (err) {
-      setStatus(`Error: ${err.message}`)
-      return null
-    }
-  }
-  
-  const handleTranscribe = async (blob: Blob) => {
-    try {
-      setStatus('Transcribiendo...')
-      const text = await transcribe(blob)
-      setTranscript(text)
-      setStatus('✅ Transcripción completada')
-    } catch (err) {
-      setStatus(`Error: ${err.message}`)
+      setStatus(`Error: ${err instanceof Error ? err.message : 'Error desconocido'}`)
+      return false
     }
   }
   
@@ -46,10 +41,7 @@ export const TranscriptionAppMatrix: React.FC = () => {
     const res = await fetch('/sample.wav')
     const blob = await res.blob()
     const file = new File([blob], 'sample.wav', { type: 'audio/wav' })
-    const processedBlob = await handleFileProcess(file)
-    if (processedBlob) {
-      await handleTranscribe(processedBlob)
-    }
+    await handleFileProcess(file)
   }
 
   return (
@@ -91,26 +83,25 @@ export const TranscriptionAppMatrix: React.FC = () => {
             onChange={async (e) => {
               const file = e.target.files?.[0]
               if (file) {
-                const blob = await handleFileProcess(file)
-                if (blob) await handleTranscribe(blob)
+                await handleFileProcess(file)
               }
             }}
           />
           
           <button 
             onClick={loadExampleAudio}
-            disabled={cleaning || transcribing}
+            disabled={isProcessing}
             className="matrix-button"
             style={{ width: '100%', marginBottom: 20 }}
           >
-            {cleaning ? '[CLEANING_AUDIO...]' : transcribing ? '[TRANSCRIBING...]' : '[LOAD_JFK_SAMPLE.WAV]'}
+            {isProcessing ? '[PROCESSING...]' : '[LOAD_JFK_SAMPLE.WAV]'}
           </button>
         </div>
         
         {/* Status */}
-        {(status || error) && (
-          <div className={`matrix-status ${(status.includes('Error') || error) ? 'error' : ''}`}>
-            &gt; {error ? error.message : status}
+        {status && (
+          <div className={`matrix-status ${status.includes('Error') ? 'error' : ''}`}>
+            &gt; {status}
           </div>
         )}
         
@@ -136,11 +127,11 @@ export const TranscriptionAppMatrix: React.FC = () => {
             {/* Transcription */}
             <div style={{ marginTop: 30 }}>
               
-              {transcript && (
+              {transcriptions.length > 0 && (
                 <div className="matrix-transcript">
                   &gt; TRANSCRIPT_OUTPUT:<br/>
                   <br/>
-                  {transcript}
+                  {transcriptions.map((t) => t.text).join(' ')}
                 </div>
               )}
             </div>

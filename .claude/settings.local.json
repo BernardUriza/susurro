@@ -44,7 +44,8 @@
       "Bash(npm update:*)",
       "Bash(node:*)",
       "Bash(curl:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

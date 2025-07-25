@@ -21,6 +21,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@susurro/core": [
+        "./packages/susurro/src"
       ]
     },
     "plugins": [
@@ -33,7 +36,8 @@
     "**/*.ts",
     "**/*.tsx",
     "next-env.d.ts",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    "packages/**/*"
   ],
   "exclude": [
     "node_modules"

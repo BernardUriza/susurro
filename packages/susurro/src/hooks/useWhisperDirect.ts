@@ -63,7 +63,7 @@ class WhisperPipelineSingleton {
   }
 }
 
-export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
+export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [transcript, setTranscript] = useState<string | null>(null)
   const [error, setError] = useState<Error | null>(null)
@@ -198,7 +198,7 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
     })
   }
 
-  const transcribeAudio = useCallback(async (audioBlob: Blob): Promise<TranscriptionResult | null> => {
+  const transcribe = useCallback(async (audioBlob: Blob): Promise<TranscriptionResult | null> => {
     console.log('🎤 [transcribeAudio] Iniciando transcripción...')
     console.log(`📁 [transcribeAudio] Blob size: ${(audioBlob.size / 1024).toFixed(2)}KB, type: ${audioBlob.type}`)
     
@@ -237,7 +237,9 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
 
       const result: TranscriptionResult = {
         text: output.text,
-        segments: output.chunks
+        segments: output.chunks,
+        chunkIndex: 0,
+        timestamp: Date.now()
       }
 
       console.log(`📝 [transcribeAudio] Resultado: "${result.text.substring(0, 50)}..."`)
@@ -272,7 +274,7 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
     isTranscribing,
     transcript,
     error,
-    transcribeAudio,
+    transcribe,
     clearTranscript,
     modelReady,
     loadingProgress,

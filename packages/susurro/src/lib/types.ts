@@ -12,6 +12,23 @@ export interface TranscriptionResult {
   language?: string
   duration?: number
   segments?: TranscriptionSegment[]
+  chunkIndex: number
+  timestamp: number
+}
+
+export interface AudioChunk {
+  id: string
+  blob: Blob
+  duration: number
+  startTime: number
+  endTime: number
+}
+
+export interface ProcessingStatus {
+  isProcessing: boolean
+  currentChunk: number
+  totalChunks: number
+  stage: 'idle' | 'recording' | 'processing' | 'transcribing' | 'complete' | 'error'
 }
 
 export interface TranscriptionSegment {
@@ -31,7 +48,7 @@ export interface UseWhisperReturn {
   isTranscribing: boolean
   transcript: string | null
   error: Error | null
-  transcribeAudio: (audioBlob: Blob) => Promise<TranscriptionResult | null>
+  transcribe: (audioBlob: Blob) => Promise<TranscriptionResult | null>
   clearTranscript: () => void
   modelReady: boolean
   loadingProgress: number

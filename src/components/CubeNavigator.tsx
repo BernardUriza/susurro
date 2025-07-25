@@ -1,106 +1,78 @@
 'use client'
 
-import React, { useState } from 'react'
-import { TranscriptionAppMatrix } from './TranscriptionAppMatrix'
-import { ChunkProcessor } from './ChunkProcessor'
-import '../styles/cube-flip.css'
-
-type CubeFace = 'front' | 'right' | 'back' | 'left'
+import React, { useRef, useEffect } from 'react'
+import * as THREE from 'three'
 
 export const CubeNavigator: React.FC = () => {
-  const [currentFace, setCurrentFace] = useState<CubeFace>('front')
-  
-  const rotateTo = (face: CubeFace) => {
-    setCurrentFace(face)
-  }
-  
-  const getCubeClass = () => {
-    switch (currentFace) {
-      case 'right':
-        return 'cube rotate-to-right'
-      case 'back':
-        return 'cube rotate-to-back'
-      case 'left':
-        return 'cube rotate-to-left'
-      default:
-        return 'cube'
+  const mountRef = useRef<HTMLDivElement>(null)
+  const cubeRef = useRef<THREE.Mesh>()
+
+  useEffect(() => {
+    const width = window.innerWidth
+    const height = window.innerHeight
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    renderer.setClearColor(0x000000)
+    renderer.setSize(width, height)
+    mountRef.current!.appendChild(renderer.domElement)
+
+    // Scene & Camera
+    const scene = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100)
+    camera.position.z = 5
+
+    // Cube
+    const geometry = new THREE.BoxGeometry(2, 2, 2)
+    const materials = [
+      new THREE.MeshBasicMaterial({ color: 0x00ff41 }),
+      new THREE.MeshBasicMaterial({ color: 0x009900 }),
+      new THREE.MeshBasicMaterial({ color: 0x222 }),
+      new THREE.MeshBasicMaterial({ color: 0x00ff41 }),
+      new THREE.MeshBasicMaterial({ color: 0x111 }),
+      new THREE.MeshBasicMaterial({ color: 0x009900 }),
+    ]
+    const cube = new THREE.Mesh(geometry, materials)
+    cubeRef.current = cube
+    scene.add(cube)
+
+    // Animation
+    let targetY = 0
+    const animate = () => {
+      cube.rotation.y += (targetY - cube.rotation.y) * 0.1
+      renderer.render(scene, camera)
+      requestAnimationFrame(animate)
     }
-  }
-  
+    animate()
+
+    // Click to rotate
+    const handleClick = () => {
+      targetY -= Math.PI / 2
+    }
+    window.addEventListener('click', handleClick)
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('click', handleClick)
+      mountRef.current?.removeChild(renderer.domElement)
+      renderer.dispose()
+    }
+  }, [])
+
   return (
-    <div className="cube-container">
-      <div className={getCubeClass()}>
-        {/* Front face - Main App */}
-        <div className="cube-face cube-face-front">
-          <TranscriptionAppMatrix />
-          
-          {/* Navigation button */}
-          <button
-            style={{
-              position: 'fixed',
-              bottom: 20,
-              right: 20,
-              background: 'transparent',
-              border: '1px solid #00ff41',
-              color: '#00ff41',
-              padding: '12px 24px',
-              fontFamily: 'Courier New, monospace',
-              cursor: 'pointer',
-              transition: 'all 0.3s',
-              textTransform: 'uppercase',
-              zIndex: 1000
-            }}
-            onClick={() => rotateTo('right')}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = '#00ff41'
-              e.currentTarget.style.color = '#000'
-              e.currentTarget.style.boxShadow = '0 0 20px #00ff41'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.color = '#00ff41'
-              e.currentTarget.style.boxShadow = 'none'
-            }}
-          >
-            [CHUNK_PROCESSOR →]
-          </button>
-        </div>
-        
-        {/* Right face - Chunk Processor */}
-        <div className="cube-face cube-face-right">
-          <ChunkProcessor onBack={() => rotateTo('front')} />
-        </div>
-        
-        {/* Back face - Empty for now */}
-        <div className="cube-face cube-face-back">
-          <div style={{ 
-            background: '#000', 
-            height: '100%', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            color: '#00ff41',
-            fontFamily: 'Courier New, monospace'
-          }}>
-            [RESERVED]
-          </div>
-        </div>
-        
-        {/* Left face - Empty for now */}
-        <div className="cube-face cube-face-left">
-          <div style={{ 
-            background: '#000', 
-            height: '100%', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            color: '#00ff41',
-            fontFamily: 'Courier New, monospace'
-          }}>
-            [RESERVED]
-          </div>
-        </div>
-      </div>
-    </div>
+    <div
+      ref={mountRef}
+      style={{
+        width: '100vw',
+        height: '100vh',
+        overflow: 'hidden',
+        margin: 0,
+        padding: 0,
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        background: '#000'
+      }}
+    />
   )
 }

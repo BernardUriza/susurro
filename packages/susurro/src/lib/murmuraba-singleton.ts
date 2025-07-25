@@ -163,3 +163,4 @@ class MurmurabaManager {
 }
 
 export const murmurabaManager = MurmurabaManager.getInstance()
+export const MurmurabaSingleton = MurmurabaManager

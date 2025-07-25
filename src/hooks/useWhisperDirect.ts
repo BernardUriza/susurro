@@ -23,6 +23,14 @@ class WhisperPipelineSingleton {
       this.env.allowLocalModels = true
       this.env.useBrowserCache = true
       this.env.useCustomCache = true
+      this.env.remoteURL = 'https://huggingface.co/'
+      this.env.backends = {
+        onnx: {
+          wasm: {
+            wasmPaths: '/'
+          }
+        }
+      }
     }
 
     // Create pipeline instance if not exists
@@ -89,7 +97,7 @@ export function useWhisper(config: WhisperConfig = {}): UseWhisperReturn {
           setLoadingProgress(Math.max(1, percent))
           
           // Update progress alert
-          if (progressAlertRef.current) {
+          if (progressAlertRef.current && Swal.isVisible()) {
             const progressBar = document.getElementById('swal-progress-bar')
             const progressText = document.getElementById('swal-progress-text')
             if (progressBar) progressBar.style.width = `${percent}%`

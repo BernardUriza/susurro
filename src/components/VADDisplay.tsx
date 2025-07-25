@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { murmurabaManager } from '../lib/murmuraba-singleton';
 
 interface VADDisplayProps {
   audioFile: File | Blob;
@@ -18,32 +19,44 @@ export function VADDisplay({ audioFile, label, onVADCalculated }: VADDisplayProp
       
       setIsCalculating(true);
       try {
-        const murmuraba = await import('murmuraba');
+        // Initialize murmuraba if needed
+        await murmurabaManager.initialize();
         
-        // Asegurar que el motor esté inicializado
-        try {
-          if (!murmuraba.isInitialized) {
-            await murmuraba.initializeAudioEngine({
-              enableAGC: true,
-              enableNoiseSuppression: true,
-              enableEchoCancellation: true
-            });
-          }
-        } catch (err) {
-          // Ignorar si ya está inicializado
-        }
-
-        // Analizar VAD
-        const result = await murmuraba.analyzeVAD(audioFile);
-        const score = result?.score || 0;
+        // Procesar archivo con métricas directamente
+        const result = await murmurabaManager.processFileWithMetrics(audioFile as File, {
+          enableVAD: true,
+          enableTranscription: false,
+          outputFormat: 'blob'
+        });
+        
+        // Calcular promedio de VAD scores
+        const vadScores = result.metrics?.map((m: any) => m.vadScore || 0) || [];
+        const score = vadScores.length > 0 
+          ? vadScores.reduce((a: number, b: number) => a + b) / vadScores.length 
+          : 0;
         
         setVadScore(score);
         if (onVADCalculated) {
           onVADCalculated(score);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error(`Error calculating VAD for ${label}:`, error);
-        setVadScore(0);
+        // Si el error es porque murmuraba no soporta processFileWithMetrics, usar processFile
+        if (error.message?.includes('processFileWithMetrics')) {
+          try {
+            await murmurabaManager.processFile(audioFile as File, {
+              enableVAD: true,
+              enableTranscription: false,
+              outputFormat: 'blob'
+            });
+            setVadScore(0);
+          } catch (fallbackError) {
+            console.error('Fallback processing also failed:', fallbackError);
+            setVadScore(0);
+          }
+        } else {
+          setVadScore(0);
+        }
       } finally {
         setIsCalculating(false);
       }
@@ -51,6 +64,12 @@ export function VADDisplay({ audioFile, label, onVADCalculated }: VADDisplayProp
 
     calculateVAD();
   }, [audioFile, label, onVADCalculated]);
+
+  useEffect(() => {
+    return () => {
+      murmurabaManager.destroy();
+    };
+  }, []);
 
   if (isCalculating) {
     return (

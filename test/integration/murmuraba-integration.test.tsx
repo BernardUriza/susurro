@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import puppeteer, { Browser, Page } from 'puppeteer'
 
 describe('Murmuraba Integration Tests', () => {
@@ -7,7 +7,7 @@ describe('Murmuraba Integration Tests', () => {
 
   beforeAll(async () => {
     browser = await puppeteer.launch({ 
-      headless: 'new',
+      headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     })
   }, 30000)
@@ -113,9 +113,11 @@ describe('Murmuraba Integration Tests', () => {
     `)
 
     // Simular carga de archivo
-    const input = await page.$('#fileInput')
+    const input = await page.$('#fileInput') as any
     const filePath = process.cwd() + '/public/sample.wav'
-    await input!.uploadFile(filePath)
+    if (input) {
+      await input.uploadFile(filePath)
+    }
 
     // Esperar procesamiento
     await new Promise(resolve => setTimeout(resolve, 2000))

@@ -10,8 +10,9 @@
     "README.md"
   ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "npm run copy:wasm && next dev",
+    "build": "npm run copy:wasm && next build",
+    "copy:wasm": "cp node_modules/murmuraba/dist/rnnoise.wasm public/rnnoise.wasm",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest",
@@ -39,7 +40,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/susurro.git"
+    "url": "https://github.com/BernardUriza/susurro.git"
   },
   "peerDependencies": {
     "next": ">=13.0.0",
@@ -61,12 +62,14 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.7.0",
+    "copy-webpack-plugin": "^13.0.0",
     "esbuild": "^0.19.12",
     "eslint": "^8.57.0",
     "eslint-config-next": "^15.0.3",
     "next": "^15.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "vite": "^7.0.6"
   }
 }

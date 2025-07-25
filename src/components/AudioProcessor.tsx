@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { murmurabaManager } from '../lib/murmuraba-singleton';
 
 interface AudioProcessorProps {
   onProcessedAudio: (audioBlob: Blob, vadMetrics?: { original: number; processed: number; reduction: number }) => void;
@@ -15,23 +16,16 @@ if (typeof window !== 'undefined' && typeof global === 'undefined') {
 export default function AudioProcessor({ onProcessedAudio, uploadedFile }: AudioProcessorProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [murmuraba, setMurmuraba] = useState<any>(null);
   const processedFileRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const m = await import('murmuraba');
-        setMurmuraba(m);
-      } catch (err) {
-        setError('Error loading audio processor');
-      }
+    return () => {
+      murmurabaManager.destroy();
     };
-    load();
   }, []);
 
   useEffect(() => {
-    if (!uploadedFile || !murmuraba || isProcessing) return;
+    if (!uploadedFile || isProcessing) return;
     
     // Evitar reprocesar el mismo archivo
     const fileId = `${uploadedFile.name}-${uploadedFile.size}-${uploadedFile.lastModified}`;
@@ -42,24 +36,10 @@ export default function AudioProcessor({ onProcessedAudio, uploadedFile }: Audio
       setError(null);
       
       try {
-        // Inicializar el motor si es necesario
-        try {
-          if (!murmuraba.isInitialized) {
-            await murmuraba.initializeAudioEngine({
-              enableAGC: true,
-              enableNoiseSuppression: true,
-              enableEchoCancellation: true
-            });
-          }
-        } catch (initError: any) {
-          // Si ya está inicializado, continuar
-          if (!initError.message?.includes('already initialized')) {
-            throw initError;
-          }
-        }
+        // Initialize murmuraba if needed
+        await murmurabaManager.initialize();
         
-        const { processFile, analyzeVAD } = murmuraba;
-        const result = await processFile(uploadedFile, {
+        const result = await murmurabaManager.processFile(uploadedFile, {
           outputFormat: 'blob',
           enableTranscription: false,
           enableVAD: true
@@ -73,15 +53,18 @@ export default function AudioProcessor({ onProcessedAudio, uploadedFile }: Audio
           
           try {
             // Analizar VAD del archivo original
-            const originalVAD = await analyzeVAD(uploadedFile);
-            // Analizar VAD del archivo procesado
-            const processedVAD = await analyzeVAD(result.processedAudio);
-            
-            vadMetrics = {
-              original: originalVAD?.score || 0,
-              processed: processedVAD?.score || 0,
-              reduction: result.noiseRemoved || 0
-            };
+            const murmuraba = await murmurabaManager.getMurmuraba();
+            if (murmuraba.analyzeVAD) {
+              const originalVAD = await murmuraba.analyzeVAD(uploadedFile);
+              // Analizar VAD del archivo procesado
+              const processedVAD = await murmuraba.analyzeVAD(result.processedAudio);
+              
+              vadMetrics = {
+                original: originalVAD?.score || 0,
+                processed: processedVAD?.score || 0,
+                reduction: result.noiseRemoved || 0
+              };
+            }
           } catch (err) {
             console.error('Error calculating VAD metrics:', err);
           }
@@ -91,17 +74,18 @@ export default function AudioProcessor({ onProcessedAudio, uploadedFile }: Audio
           // Si no hay audio procesado, usar el original
           onProcessedAudio(uploadedFile);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Murmuraba error:', err);
         // En caso de error, usar el archivo original
         onProcessedAudio(uploadedFile);
+        setError(`Audio processing failed: ${err.message || 'Unknown error'}`);
       } finally {
         setIsProcessing(false);
       }
     };
     
     process();
-  }, [uploadedFile, murmuraba, onProcessedAudio, isProcessing]);
+  }, [uploadedFile, onProcessedAudio, isProcessing]);
 
   if (error) return <div className="text-red-500">{error}</div>;
   if (isProcessing) return <div>Processing audio...</div>;

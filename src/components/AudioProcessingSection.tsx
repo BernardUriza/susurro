@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useWhisper } from '../hooks/useWhisperDirect'
 import Swal from 'sweetalert2'
+import { murmurabaManager } from '../lib/murmuraba-singleton'
 
 interface AudioProcessingSectionProps {
   uploadedFile: File | null
@@ -21,24 +22,14 @@ export function AudioProcessingSection({ uploadedFile, onTranscription }: AudioP
   const [chunks, setChunks] = useState<ChunkInfo[]>([])
   const [vadScores, setVadScores] = useState<number[]>([])
   const [voiceDetected, setVoiceDetected] = useState(false)
-  const [murmuraba, setMurmuraba] = useState<any>(null)
   const { transcribeAudio, isTranscribing, transcript, error, modelReady } = useWhisper()
   const processedFileRef = useRef<string | null>(null)
   const lastTranscriptRef = useRef<string | null>(null)
 
   useEffect(() => {
-    const loadMurmuraba = async () => {
-      try {
-        const m = await import('murmuraba')
-        setMurmuraba(m)
-        if (typeof window !== 'undefined') {
-          (window as any).murmuraba = m
-        }
-      } catch (err) {
-        console.error('Error loading murmuraba:', err)
-      }
+    return () => {
+      murmurabaManager.destroy()
     }
-    loadMurmuraba()
   }, [])
 
   useEffect(() => {
@@ -56,29 +47,15 @@ export function AudioProcessingSection({ uploadedFile, onTranscription }: AudioP
     
     processedFileRef.current = fileId
     processAudioFile(uploadedFile)
-  }, [uploadedFile, modelReady, isProcessing])
+  }, [uploadedFile, modelReady, isProcessing, onTranscription])
 
   const processAudioFile = async (file: File) => {
     setIsProcessing(true)
     
     try {
-      // Simular procesamiento con murmuraba para tests
-      if (murmuraba && murmuraba.processFile) {
-        try {
-          // Verificar si el motor está inicializado
-          if (!murmuraba.isInitialized) {
-            await murmuraba.initializeAudioEngine({
-              enableAGC: true,
-              enableNoiseSuppression: true,
-              enableEchoCancellation: true
-            });
-          }
-        } catch (initError: any) {
-          console.error('Error initializing murmuraba:', initError);
-          // Continuar si ya está inicializado
-        }
-
-        const result = await murmuraba.processFile(file, {
+      // Procesar con murmuraba singleton
+      try {
+        const result = await murmurabaManager.processFile(file, {
           chunkDuration: 8,
           outputFormat: 'chunks',
           enableVAD: true
@@ -109,6 +86,8 @@ export function AudioProcessingSection({ uploadedFile, onTranscription }: AudioP
           setChunks(chunkInfos)
           setVadScores(scores)
         }
+      } catch (murmurabaError) {
+        console.error('[AudioProcessingSection] Murmuraba processing error:', murmurabaError)
       }
       
       // Transcribir con Whisper

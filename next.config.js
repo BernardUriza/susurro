@@ -16,6 +16,7 @@ const nextConfig = {
       "onnxruntime-node$": false,
     }
     
+    
     if (!isServer) {
       // Add rule for WebAssembly
       config.module.rules.push({

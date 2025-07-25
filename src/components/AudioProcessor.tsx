@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 interface AudioProcessorProps {
-  onProcessedAudio: (audioBlob: Blob) => void;
+  onProcessedAudio: (audioBlob: Blob, vadMetrics?: { original: number; processed: number; reduction: number }) => void;
   uploadedFile: File | null;
 }
 
@@ -42,18 +42,52 @@ export default function AudioProcessor({ onProcessedAudio, uploadedFile }: Audio
       setError(null);
       
       try {
-        const { processFile } = murmuraba;
+        // Inicializar el motor si es necesario
+        if (!murmuraba.isInitialized) {
+          await murmuraba.initializeAudioEngine({
+            enableAGC: true,
+            enableNoiseSuppression: true,
+            enableEchoCancellation: true
+          });
+        }
+        
+        const { processFile, analyzeVAD } = murmuraba;
         const result = await processFile(uploadedFile, {
           outputFormat: 'blob',
-          enableTranscription: false
+          enableTranscription: false,
+          enableVAD: true
         });
         
-        if (result.processedAudio) {
+        if (result && result.processedAudio) {
           processedFileRef.current = fileId;
-          onProcessedAudio(result.processedAudio);
+          
+          // Calcular métricas VAD
+          let vadMetrics = { original: 0, processed: 0, reduction: 0 };
+          
+          try {
+            // Analizar VAD del archivo original
+            const originalVAD = await analyzeVAD(uploadedFile);
+            // Analizar VAD del archivo procesado
+            const processedVAD = await analyzeVAD(result.processedAudio);
+            
+            vadMetrics = {
+              original: originalVAD?.score || 0,
+              processed: processedVAD?.score || 0,
+              reduction: result.noiseRemoved || 0
+            };
+          } catch (err) {
+            console.error('Error calculating VAD metrics:', err);
+          }
+          
+          onProcessedAudio(result.processedAudio, vadMetrics);
+        } else {
+          // Si no hay audio procesado, usar el original
+          onProcessedAudio(uploadedFile);
         }
       } catch (err) {
-        setError('Processing failed');
+        console.error('Murmuraba error:', err);
+        // En caso de error, usar el archivo original
+        onProcessedAudio(uploadedFile);
       } finally {
         setIsProcessing(false);
       }

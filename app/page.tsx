@@ -20,6 +20,7 @@ export default function Home() {
   const [transcriptions, setTranscriptions] = useState<string[]>([])
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [processedFile, setProcessedFile] = useState<File | null>(null)
+  const [vadMetrics, setVadMetrics] = useState<{ original: number; processed: number; reduction: number } | null>(null)
   const [showApp, setShowApp] = useState(false)
   const [mounted, setMounted] = useState(false)
 
@@ -218,9 +219,12 @@ export default function Home() {
           {uploadedFile && !processedFile && (
             <AudioProcessor 
               uploadedFile={uploadedFile}
-              onProcessedAudio={(audioBlob) => {
+              onProcessedAudio={(audioBlob, metrics) => {
                 const cleaned = new File([audioBlob], 'processed-audio.wav', { type: 'audio/wav' })
                 setProcessedFile(cleaned)
+                if (metrics) {
+                  setVadMetrics(metrics)
+                }
                 
                 const Toast = Swal.mixin({
                   toast: true,
@@ -340,11 +344,23 @@ export default function Home() {
                   <div style={{ textAlign: 'center' }}>
                     <h3 style={{ marginBottom: '1rem', color: '#00ff00' }}>Original</h3>
                     <audio controls src={URL.createObjectURL(uploadedFile)} style={{ width: '250px' }} />
+                    {vadMetrics && (
+                      <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#00ff00' }}>
+                        VAD Score: {(vadMetrics.original * 100).toFixed(1)}%
+                      </div>
+                    )}
                   </div>
                   {processedFile && (
                     <div style={{ textAlign: 'center' }}>
                       <h3 style={{ marginBottom: '1rem', color: '#00ff00' }}>Procesado</h3>
                       <audio controls src={URL.createObjectURL(processedFile)} style={{ width: '250px' }} />
+                      {vadMetrics && (
+                        <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#00ff00' }}>
+                          VAD Score: {(vadMetrics.processed * 100).toFixed(1)}%
+                          <br />
+                          <span style={{ color: '#ffcc00' }}>Reducción: {vadMetrics.reduction.toFixed(1)}%</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

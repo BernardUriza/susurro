@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useSusurro, useWhisperDirect } from '@susurro/core'
+import { useSusurro } from '@susurro/core'
 
 interface ChunkProcessorProps {
   onBack: () => void
@@ -10,8 +10,6 @@ interface ChunkProcessorProps {
 export const ChunkProcessor: React.FC<ChunkProcessorProps> = ({ onBack }) => {
   const [chunkDuration, setChunkDuration] = React.useState(15)
   const [overlapDuration] = React.useState(3)
-  const [realTimeTranscription, setRealTimeTranscription] = React.useState<string[]>([])
-  const [currentChunkIndex, setCurrentChunkIndex] = React.useState(0)
   const [micPermissionStatus, setMicPermissionStatus] = React.useState<'prompt' | 'granted' | 'denied' | 'checking'>('prompt')
   const [status, setStatus] = React.useState('')
   
@@ -22,19 +20,13 @@ export const ChunkProcessor: React.FC<ChunkProcessorProps> = ({ onBack }) => {
     averageVad,
     startRecording,
     stopRecording,
-    clearTranscriptions
+    clearTranscriptions,
+    whisperReady,
+    whisperProgress,
+    transcriptions
   } = useSusurro({
     chunkDurationMs: chunkDuration * 1000,
     enableVAD: true
-  })
-  
-  const {
-    modelReady: whisperReady,
-    loadingProgress: whisperProgress,
-    transcribe: transcribeWhisper
-  } = useWhisperDirect({
-    model: 'Xenova/whisper-tiny',
-    language: 'en'
   })
   
   React.useEffect(() => {
@@ -56,18 +48,6 @@ export const ChunkProcessor: React.FC<ChunkProcessorProps> = ({ onBack }) => {
     }
   }
   
-  React.useEffect(() => {
-    if (audioChunks.length > currentChunkIndex && whisperReady && isRecording) {
-      const newChunk = audioChunks[currentChunkIndex]
-      
-      transcribeWhisper(newChunk.blob).then((transcription) => {
-        setRealTimeTranscription(prev => [...prev, transcription])
-        setCurrentChunkIndex(prev => prev + 1)
-      }).catch(error => {
-        console.error('Transcription error:', error)
-      })
-    }
-  }, [audioChunks, currentChunkIndex, whisperReady, transcribeWhisper, isRecording])
   
   const handleStartRecording = async () => {
     try {
@@ -78,8 +58,6 @@ export const ChunkProcessor: React.FC<ChunkProcessorProps> = ({ onBack }) => {
       
       setStatus('[INITIALIZING_MICROPHONE...]')
       clearTranscriptions()
-      setRealTimeTranscription([])
-      setCurrentChunkIndex(0)
       await startRecording()
       setStatus('[RECORDING_ACTIVE]')
     } catch (error) {
@@ -215,7 +193,7 @@ export const ChunkProcessor: React.FC<ChunkProcessorProps> = ({ onBack }) => {
         )}
         
         {/* Real-time Transcription */}
-        {realTimeTranscription.length > 0 && (
+        {transcriptions.length > 0 && (
           <div style={{
             marginTop: '20px',
             padding: '20px',
@@ -226,7 +204,7 @@ export const ChunkProcessor: React.FC<ChunkProcessorProps> = ({ onBack }) => {
           }}>
             <h3 style={{ marginBottom: '15px' }}>&gt; REAL_TIME_TRANSCRIPTION:</h3>
             <div style={{ fontFamily: 'monospace', lineHeight: '1.6' }}>
-              {realTimeTranscription.map((text, index) => (
+              {transcriptions.map((transcription, index) => (
                 <div key={index} style={{ 
                   marginBottom: '15px',
                   padding: '10px',
@@ -239,9 +217,9 @@ export const ChunkProcessor: React.FC<ChunkProcessorProps> = ({ onBack }) => {
                     display: 'block',
                     marginBottom: '5px'
                   }}>
-                    [CHUNK_{index + 1} @ {((index + 1) * chunkDuration)}s]
+                    [CHUNK_{transcription.chunkIndex || index + 1} @ {((transcription.chunkIndex || index + 1) * chunkDuration)}s]
                   </span>
-                  {text}
+                  {transcription.text}
                 </div>
               ))}
             </div>

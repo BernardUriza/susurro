@@ -27,6 +27,11 @@ export interface UseSusurroReturn {
   resumeRecording: () => void;
   clearTranscriptions: () => void;
   processAudioFile: (file: File) => Promise<void>;
+  // Whisper-related properties
+  whisperReady: boolean;
+  whisperProgress: number;
+  whisperError: any;
+  transcribeWithWhisper: (blob: Blob) => Promise<any>;
 }
 
 export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
@@ -74,7 +79,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     }
   });
 
-  const { transcribe: transcribeWhisper } = useWhisperDirect({
+  const { 
+    transcribe: transcribeWhisper,
+    modelReady: whisperReady,
+    loadingProgress: whisperProgress,
+    error: whisperError
+  } = useWhisperDirect({
     model: (whisperConfig.model || 'Xenova/whisper-tiny') as any,
     language: whisperConfig.language || 'en'
   });
@@ -138,6 +148,11 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     pauseRecording: pauseAudioRecording,
     resumeRecording: resumeAudioRecording,
     clearTranscriptions,
-    processAudioFile
+    processAudioFile,
+    // Whisper-related properties
+    whisperReady,
+    whisperProgress,
+    whisperError,
+    transcribeWithWhisper: transcribeWhisper
   };
 }

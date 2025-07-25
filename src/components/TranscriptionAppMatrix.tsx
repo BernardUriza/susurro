@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { MatrixRain } from './MatrixRain'
-import { useSusurro, useWhisperDirect } from '@susurro/core'
+import { useSusurro } from '@susurro/core'
 import { FloatingLogs } from './FloatingLogs'
 import { BackgroundProcessor } from '../utils/backgroundProcessor'
 import '../styles/matrix-theme.css'
@@ -16,7 +16,11 @@ export const TranscriptionAppMatrix: React.FC = () => {
     audioChunks,
     averageVad,
     processAudioFile,
-    clearTranscriptions 
+    clearTranscriptions,
+    whisperReady,
+    whisperProgress,
+    whisperError,
+    transcribeWithWhisper
   } = useSusurro({
     chunkDurationMs: chunkDuration * 1000, // Convert to milliseconds
     enableVAD: true
@@ -35,7 +39,7 @@ export const TranscriptionAppMatrix: React.FC = () => {
   }>>([])
   
   // Background processor for non-blocking transcription
-  const backgroundProcessorRef = React.useRef<BackgroundProcessor>()
+  const backgroundProcessorRef = React.useRef<BackgroundProcessor | null>(null)
   
   React.useEffect(() => {
     backgroundProcessorRef.current = new BackgroundProcessor((message, type) => {
@@ -48,16 +52,6 @@ export const TranscriptionAppMatrix: React.FC = () => {
     })
   }, [])
   
-  // Initialize Whisper
-  const { 
-    modelReady: whisperReady, 
-    loadingProgress: whisperProgress,
-    transcribe: transcribeWhisper,
-    error: whisperError
-  } = useWhisperDirect({
-    model: 'Xenova/whisper-tiny',
-    language: 'en'
-  })
   
   // Create URLs for each audio chunk
   React.useEffect(() => {
@@ -631,7 +625,7 @@ export const TranscriptionAppMatrix: React.FC = () => {
                       audioChunks.forEach((chunk, index) => {
                         backgroundProcessorRef.current!.processTranscriptionAsync(
                           chunk.blob,
-                          transcribeWhisper,
+                          transcribeWithWhisper,
                           (progress) => {
                             // Update progress log
                             setBackgroundLogs(prev => [...prev, {
@@ -722,6 +716,182 @@ export const TranscriptionAppMatrix: React.FC = () => {
                   ))}
                 </div>
               )}
+              
+              {/* Whisper Transcriptions - SUPER HIGHLIGHTED */}
+              {whisperTranscriptions.length > 0 && (
+                <div style={{
+                  marginTop: 30,
+                  position: 'relative',
+                  animation: 'whisperGlow 2s ease-in-out infinite'
+                }}>
+                  {/* Glowing border effect */}
+                  <div style={{
+                    position: 'absolute',
+                    inset: '-2px',
+                    background: 'linear-gradient(45deg, #00ff41, #00cc33, #00ff41, #00cc33)',
+                    backgroundSize: '400% 400%',
+                    animation: 'gradientShift 3s ease infinite',
+                    borderRadius: '0',
+                    opacity: 0.8,
+                    filter: 'blur(4px)'
+                  }} />
+                  
+                  {/* Main content container */}
+                  <div className="matrix-transcript" style={{
+                    position: 'relative',
+                    background: 'rgba(0, 0, 0, 0.95)',
+                    border: '2px solid #00ff41',
+                    padding: '30px',
+                    boxShadow: `
+                      0 0 40px rgba(0, 255, 65, 0.6),
+                      inset 0 0 40px rgba(0, 255, 65, 0.2),
+                      0 0 80px rgba(0, 255, 65, 0.3)
+                    `,
+                    overflow: 'hidden'
+                  }}>
+                    {/* Animated header */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      marginBottom: 20,
+                      position: 'relative'
+                    }}>
+                      <span style={{
+                        fontSize: '24px',
+                        fontWeight: 'bold',
+                        color: '#00ff41',
+                        textShadow: '0 0 20px #00ff41',
+                        letterSpacing: '3px',
+                        animation: 'textGlitch 4s infinite'
+                      }}>
+                        &gt; WHISPER_TRANSCRIPTION
+                      </span>
+                      <span style={{
+                        marginLeft: 15,
+                        fontSize: '20px',
+                        animation: 'pulse 1s infinite'
+                      }}>
+                        🎙️
+                      </span>
+                      
+                      {/* Status indicator */}
+                      <div style={{
+                        position: 'absolute',
+                        right: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}>
+                        <div style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: '#00ff41',
+                          boxShadow: '0 0 10px #00ff41',
+                          animation: 'blink 1s infinite'
+                        }} />
+                        <span style={{
+                          fontSize: '12px',
+                          color: '#00ff41',
+                          opacity: 0.8
+                        }}>
+                          [DECODED]
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Scanning line effect */}
+                    <div style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      height: '2px',
+                      background: 'linear-gradient(to right, transparent, #00ff41 50%, transparent)',
+                      animation: 'scanLine 3s linear infinite',
+                      opacity: 0.6
+                    }} />
+                    
+                    {/* Transcription content with typing effect */}
+                    <div style={{
+                      position: 'relative',
+                      background: 'rgba(0, 255, 65, 0.05)',
+                      padding: '20px',
+                      border: '1px solid rgba(0, 255, 65, 0.2)',
+                      marginTop: '10px'
+                    }}>
+                      {whisperTranscriptions.map((text, i) => (
+                        <div key={i} style={{
+                          marginBottom: 20,
+                          position: 'relative',
+                          paddingLeft: '30px',
+                          animation: `slideIn ${0.5 + i * 0.2}s ease-out`
+                        }}>
+                          {/* Chunk indicator */}
+                          <div style={{
+                            position: 'absolute',
+                            left: 0,
+                            top: 0,
+                            width: '20px',
+                            height: '20px',
+                            background: 'rgba(0, 255, 65, 0.2)',
+                            border: '1px solid #00ff41',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '10px',
+                            fontWeight: 'bold'
+                          }}>
+                            {i + 1}
+                          </div>
+                          
+                          <div>
+                            <span style={{
+                              color: '#00ff41',
+                              opacity: 0.9,
+                              fontSize: '12px',
+                              textTransform: 'uppercase',
+                              letterSpacing: '2px'
+                            }}>
+                              &gt; CHUNK_{i + 1}_DECODED:
+                            </span>
+                            <div style={{
+                              marginTop: '8px',
+                              color: '#00ff41',
+                              fontSize: '14px',
+                              lineHeight: '1.6',
+                              textShadow: '0 0 3px rgba(0, 255, 65, 0.5)',
+                              opacity: 0.95
+                            }}>
+                              {text}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Matrix rain effect overlay */}
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      opacity: 0.03,
+                      pointerEvents: 'none',
+                      background: `
+                        repeating-linear-gradient(
+                          90deg,
+                          transparent,
+                          transparent 10px,
+                          rgba(0, 255, 65, 0.1) 10px,
+                          rgba(0, 255, 65, 0.1) 11px
+                        )
+                      `,
+                      animation: 'matrixRain 20s linear infinite'
+                    }} />
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -733,18 +903,25 @@ export const TranscriptionAppMatrix: React.FC = () => {
           overflow: 'auto',
           marginTop: 40
         }}>
-{`> SYSTEM.IMPORT('murmuraba')
+{`> SYSTEM.IMPORT('@susurro/core')
 
-// Audio cleaning pipeline
-const cleaned = await murmuraba.processFile(audioFile, {
-  enableAGC: true,
-  enableNoiseSuppression: true,
-  enableEchoCancellation: true,
+// Initialize audio processing hook
+const { 
+  processAudioFile, 
+  audioChunks, 
+  averageVad,
+  isProcessing 
+} = useSusurro({
+  chunkDurationMs: ${chunkDuration * 1000},
   enableVAD: true
 })
 
-// Output: Neural-processed audio
-> cleaned.processedBuffer // ML-enhanced audio
+// Process audio with Murmuraba pipeline
+await processAudioFile(audioFile)
+
+// Output streams
+> audioChunks    // Cleaned audio chunks
+> averageVad     // Voice activity detection score
 > [WHISPER_DISABLED] // Transcription temporarily offline`}
         </pre>
         
@@ -757,6 +934,11 @@ const cleaned = await murmuraba.processFile(audioFile, {
           [SYSTEM.READY] - MATRIX_AUDIO_PROCESSOR_ONLINE
         </p>
       </div>
+      
+      {/* Floating logs for background processing */}
+      {backgroundLogs.length > 0 && (
+        <FloatingLogs logs={backgroundLogs} maxLogs={15} />
+      )}
     </div>
   )
 }

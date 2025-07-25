@@ -3,11 +3,9 @@ import { render, waitFor } from '@testing-library/react'
 import AudioProcessor from '../../src/components/AudioProcessor'
 
 vi.mock('murmuraba', () => ({
-  default: {
-    isInitialized: false,
-    initializeAudioEngine: vi.fn(),
-    processFile: vi.fn()
-  }
+  isInitialized: false,
+  initializeAudioEngine: vi.fn(),
+  processFile: vi.fn()
 }))
 
 describe('AudioProcessor Unit Tests', () => {
@@ -38,7 +36,7 @@ describe('AudioProcessor Unit Tests', () => {
     const murmuraba = await import('murmuraba')
     const processedBlob = new Blob(['processed'], { type: 'audio/wav' })
     
-    vi.mocked(murmuraba.default.processFile).mockResolvedValue({
+    vi.mocked(murmuraba.processFile).mockResolvedValue({
       processedAudio: processedBlob,
       vadScores: [0.8, 0.9, 0.7]
     })
@@ -51,7 +49,7 @@ describe('AudioProcessor Unit Tests', () => {
     )
 
     await waitFor(() => {
-      expect(murmuraba.default.initializeAudioEngine).toHaveBeenCalledWith({
+      expect(murmuraba.initializeAudioEngine).toHaveBeenCalledWith({
         enableAGC: true,
         enableNoiseSuppression: true,
         enableEchoCancellation: true
@@ -59,7 +57,7 @@ describe('AudioProcessor Unit Tests', () => {
     })
 
     await waitFor(() => {
-      expect(murmuraba.default.processFile).toHaveBeenCalledWith(mockFile, {
+      expect(murmuraba.processFile).toHaveBeenCalledWith(mockFile, {
         outputFormat: 'blob',
         enableTranscription: false
       })
@@ -72,7 +70,7 @@ describe('AudioProcessor Unit Tests', () => {
 
   it('debe usar archivo original si processFile falla', async () => {
     const murmuraba = await import('murmuraba')
-    vi.mocked(murmuraba.default.processFile).mockRejectedValue(new Error('Processing failed'))
+    vi.mocked(murmuraba.processFile).mockRejectedValue(new Error('Processing failed'))
 
     render(
       <AudioProcessor 
@@ -96,7 +94,7 @@ describe('AudioProcessor Unit Tests', () => {
     )
 
     await waitFor(() => {
-      expect(murmuraba.default.processFile).toHaveBeenCalledTimes(1)
+      expect(murmuraba.processFile).toHaveBeenCalledTimes(1)
     })
 
     rerender(
@@ -107,7 +105,7 @@ describe('AudioProcessor Unit Tests', () => {
     )
 
     await waitFor(() => {
-      expect(murmuraba.default.processFile).toHaveBeenCalledTimes(1)
+      expect(murmuraba.processFile).toHaveBeenCalledTimes(1)
     })
   })
 })

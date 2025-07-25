@@ -291,19 +291,51 @@ export default function Home() {
                   })
                   
                   try {
+                    // Mostrar mensaje de procesamiento
+                    Swal.fire({
+                      title: '⏳ Procesando audio...',
+                      html: 'Aplicando procesamiento VAD con Murmuraba...',
+                      allowOutsideClick: false,
+                      showConfirmButton: false,
+                      didOpen: () => {
+                        Swal.showLoading()
+                      }
+                    })
+
                     // Cargar sample.wav
                     const response = await fetch('/sample.wav')
                     if (!response.ok) throw new Error('No se pudo cargar el archivo')
                     
                     const blob = await response.blob()
                     const file = new File([blob], 'sample.wav', { type: 'audio/wav' })
+                    
+                    // Procesar con VAD metrics usando murmuraba
+                    const { murmurabaManager } = await import('../src/lib/murmuraba-singleton')
+                    await murmurabaManager.initialize()
+                    
+                    const result = await murmurabaManager.processFileWithMetrics(file, {
+                      outputFormat: 'blob',
+                      enableVAD: true,
+                      onFrameProcessed: (metrics: any) => {
+                        // Actualizar UI con métricas en tiempo real si lo deseas
+                        console.log('VAD Frame:', metrics)
+                      }
+                    })
+                    
+                    // Cerrar loading
+                    Swal.close()
+                    
                     setUploadedFile(file)
-                    setProcessedFile(null)
+                    setProcessedFile(result.processedAudio || file)
+                    
+                    // Mostrar métricas VAD
+                    const vadInfo = result.metrics ? 
+                      `<br>VAD promedio: ${(result.averageVad || 0).toFixed(3)}` : ''
                     
                     Toast.fire({
                       icon: 'success',
-                      title: '🎵 Archivo de ejemplo cargado',
-                      text: 'sample.wav listo para procesar'
+                      title: '🎵 Audio procesado',
+                      html: `sample.wav procesado con éxito${vadInfo}`
                     })
                   } catch (error) {
                     Swal.fire({

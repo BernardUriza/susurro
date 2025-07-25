@@ -127,9 +127,15 @@ class MurmurabaManager {
       const arrayBuffer = await file.arrayBuffer()
       console.log('[Murmuraba] Converted to ArrayBuffer for metrics, size:', arrayBuffer.byteLength)
       
+      // Extract callback from options if present
+      const { onFrameProcessed, ...restOptions } = options || {}
+      
       // Check if the method exists, otherwise fall back to processFile
       if (murmuraba.processFileWithMetrics) {
-        const result = await murmuraba.processFileWithMetrics(arrayBuffer, options)
+        const result = await murmuraba.processFileWithMetrics(
+          arrayBuffer, 
+          onFrameProcessed || (() => {})  // Pass callback as second param only
+        )
         console.log('[Murmuraba] processFileWithMetrics result:', { 
           hasMetrics: !!result.metrics,
           metricsLength: result.metrics?.length,
@@ -138,7 +144,7 @@ class MurmurabaManager {
         return result
       } else {
         console.warn('[Murmuraba] processFileWithMetrics not available, using processFile')
-        const result = await murmuraba.processFile(arrayBuffer, options)
+        const result = await murmuraba.processFile(arrayBuffer, restOptions)
         // Mock the metrics structure if not provided
         return {
           ...result,

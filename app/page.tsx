@@ -2,14 +2,26 @@
 
 import { useState, useEffect } from 'react'
 import Swal from 'sweetalert2'
-import { useWhisper } from '../src/hooks/useWhisperDirect'
+import dynamic from 'next/dynamic'
+
+// Importar AudioProcessingSection dinámicamente
+const AudioProcessingSection = dynamic(
+  () => import('../src/components/AudioProcessingSection').then(mod => mod.AudioProcessingSection),
+  { ssr: false }
+)
+
+// Importar AudioProcessor (murmuraba) dinámicamente
+const AudioProcessor = dynamic(
+  () => import('../src/components/AudioProcessor'),
+  { ssr: false }
+)
 
 export default function Home() {
   const [transcriptions, setTranscriptions] = useState<string[]>([])
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [processedFile, setProcessedFile] = useState<File | null>(null)
   const [showApp, setShowApp] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const { transcribeAudio } = useWhisper({ language: 'english' })
 
   useEffect(() => {
     setMounted(true)
@@ -24,6 +36,7 @@ export default function Home() {
     const file = event.target.files?.[0]
     if (file && file.type === 'audio/wav') {
       setUploadedFile(file)
+      setProcessedFile(null)
       
       // SweetAlert2 Toast notification
       const Toast = Swal.mixin({
@@ -201,6 +214,43 @@ export default function Home() {
 
         {/* Center Panel - Main Interface */}
         <section className="panel panel-center">
+          {/* Audio Processor para limpiar el audio - solo se ejecuta cuando hay archivo */}
+          {uploadedFile && !processedFile && (
+            <AudioProcessor 
+              uploadedFile={uploadedFile}
+              onProcessedAudio={(audioBlob) => {
+                const cleaned = new File([audioBlob], 'processed-audio.wav', { type: 'audio/wav' })
+                setProcessedFile(cleaned)
+                
+                const Toast = Swal.mixin({
+                  toast: true,
+                  position: 'top-end',
+                  showConfirmButton: false,
+                  timer: 3000,
+                  timerProgressBar: true,
+                  background: '#000a00',
+                  color: '#00ff00',
+                  iconColor: '#00ff00',
+                  customClass: {
+                    popup: 'swal-dark-popup',
+                    title: 'swal-dark-title',
+                    timerProgressBar: 'swal-dark-progress'
+                  },
+                  didOpen: (toast) => {
+                    toast.style.border = '2px solid #00ff00'
+                    toast.style.boxShadow = '0 0 20px #00ff00'
+                  }
+                })
+                
+                Toast.fire({
+                  icon: 'success',
+                  title: '🎯 Audio procesado',
+                  text: 'Audio limpio listo para transcribir'
+                })
+              }}
+            />
+          )}
+          
           <div className="upload-section" style={{ marginTop: '0', paddingTop: '2rem' }}>
             <h2 style={{ fontSize: '2rem', marginBottom: '2rem' }}>📁 WAV File Upload</h2>
             
@@ -238,6 +288,7 @@ export default function Home() {
                     const blob = await response.blob()
                     const file = new File([blob], 'sample.wav', { type: 'audio/wav' })
                     setUploadedFile(file)
+                    setProcessedFile(null)
                     
                     Toast.fire({
                       icon: 'success',
@@ -282,97 +333,28 @@ export default function Home() {
               <label htmlFor="wav-upload" className="file-label" style={{ fontSize: '1.2rem', padding: '1.5rem 3rem', cursor: 'pointer' }}>
                 {uploadedFile ? uploadedFile.name : 'Select WAV File'}
               </label>
+              
+              {/* Players de audio */}
               {uploadedFile && (
-                <button 
-                  className="process-button"
-                  style={{ marginTop: '2rem', fontSize: '1.1rem', padding: '1rem 2.5rem' }}
-                  onClick={() => {
-                    Swal.fire({
-                      title: '🎵 Procesando WAV',
-                      html: '<div class="swal-loading-spinner">🎶</div><br>Analizando archivo de audio...',
-                      allowOutsideClick: false,
-                      showConfirmButton: false,
-                      background: '#000a00',
-                      color: '#00ff00',
-                      customClass: {
-                        popup: 'swal-dark-popup'
-                      },
-                      didOpen: (popup) => {
-                        popup.style.border = '2px solid #00ff00'
-                        popup.style.boxShadow = '0 0 30px #00ff00'
-                        Swal.showLoading()
-                        
-                        // Procesar archivo WAV con Whisper
-                        setTimeout(async () => {
-                          try {
-                            if (uploadedFile) {
-                              const result = await transcribeAudio(uploadedFile)
-                              if (result) {
-                                handleTranscription(result.text)
-                                Swal.close()
-                                const Toast = Swal.mixin({
-                                  toast: true,
-                                  position: 'top-end',
-                                  showConfirmButton: false,
-                                  timer: 3000,
-                                  timerProgressBar: true,
-                                  background: '#000a00',
-                                  color: '#00ff00',
-                                  iconColor: '#00ff00',
-                                  customClass: {
-                                    popup: 'swal-dark-popup',
-                                    title: 'swal-dark-title',
-                                    timerProgressBar: 'swal-dark-progress'
-                                  },
-                                  didOpen: (toast) => {
-                                    toast.style.border = '1px solid #00ff00'
-                                    toast.style.boxShadow = '0 0 20px #00ff00'
-                                  }
-                                })
-                                Toast.fire({
-                                  icon: 'success',
-                                  title: '✅ Transcripción completada'
-                                })
-                              } else {
-                                throw new Error('No se pudo transcribir el audio')
-                              }
-                            }
-                          } catch (error) {
-                            Swal.close()
-                            const Toast = Swal.mixin({
-                              toast: true,
-                              position: 'top-end',
-                              showConfirmButton: false,
-                              timer: 3000,
-                              timerProgressBar: true,
-                              background: '#000a00',
-                              color: '#ff0000',
-                              iconColor: '#ff0000',
-                              customClass: {
-                                popup: 'swal-dark-popup',
-                                title: 'swal-dark-title',
-                                timerProgressBar: 'swal-dark-progress'
-                              },
-                              didOpen: (toast) => {
-                                toast.style.border = '1px solid #ff0000'
-                                toast.style.boxShadow = '0 0 20px #ff0000'
-                              }
-                            })
-                            
-                            Toast.fire({
-                              icon: 'error',
-                              title: '❌ Error al procesar',
-                              text: error instanceof Error ? error.message : 'Error desconocido'
-                            })
-                          }
-                        }, 100)
-                      }
-                    })
-                  }}
-                >
-                  Process File
-                </button>
+                <div style={{ marginTop: '2rem', display: 'flex', gap: '2rem', justifyContent: 'center' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <h3 style={{ marginBottom: '1rem', color: '#00ff00' }}>Original</h3>
+                    <audio controls src={URL.createObjectURL(uploadedFile)} style={{ width: '250px' }} />
+                  </div>
+                  {processedFile && (
+                    <div style={{ textAlign: 'center' }}>
+                      <h3 style={{ marginBottom: '1rem', color: '#00ff00' }}>Procesado</h3>
+                      <audio controls src={URL.createObjectURL(processedFile)} style={{ width: '250px' }} />
+                    </div>
+                  )}
+                </div>
               )}
+              
+              {/* Componente de procesamiento de audio */}
+              <AudioProcessingSection 
+                uploadedFile={processedFile || uploadedFile}
+                onTranscription={handleTranscription}
+              />
             </div>
           </div>
         </section>

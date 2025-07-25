@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const webpack = require('webpack');
+
 const nextConfig = {
   output: 'export',
   images: {
@@ -7,20 +9,19 @@ const nextConfig = {
   
   // Configure webpack for Transformers.js and client-side only
   webpack: (config, { isServer }) => {
+    // Alias node-specific modules to browser-compatible versions
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "sharp$": false,
+      "onnxruntime-node$": false,
+    }
+    
     if (!isServer) {
-      // Alias node-specific modules to browser-compatible versions
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        "sharp$": false,
-        "onnxruntime-node$": false,
-      }
-      
       // Add rule for WebAssembly
       config.module.rules.push({
         test: /\.wasm$/,
         type: 'asset/resource',
       })
-      
       
       // Ignore node-specific modules
       config.resolve.fallback = {
@@ -28,7 +29,22 @@ const nextConfig = {
         fs: false,
         path: false,
         crypto: false,
+        global: false,
+        process: false,
+        buffer: false,
       }
+      
+      // Define global for browser compatibility
+      config.plugins.push(
+        new webpack.DefinePlugin({
+          'global': 'window',
+        })
+      )
+    }
+    
+    // Exclude murmuraba from server-side rendering
+    if (isServer) {
+      config.externals = [...(config.externals || []), 'murmuraba']
     }
 
     return config

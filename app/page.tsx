@@ -1,5 +1,5 @@
-import { TranscriptionAppMatrix } from '../src/components/TranscriptionAppMatrix'
+import { CubeNavigator } from '../src/components/CubeNavigator'
 
 export default function Home() {
-  return <TranscriptionAppMatrix />
+  return <CubeNavigator />
 }

@@ -20,6 +20,7 @@ export interface UseSusurroReturn {
   transcriptions: TranscriptionResult[];
   audioChunks: AudioChunk[];
   processingStatus: ProcessingStatus;
+  averageVad: number;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   pauseRecording: () => void;
@@ -49,6 +50,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     isRecording,
     isPaused,
     audioChunks,
+    averageVad,
     startRecording: startAudioRecording,
     stopRecording: stopAudioRecording,
     pauseRecording: pauseAudioRecording,
@@ -148,6 +150,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     transcriptions,
     audioChunks,
     processingStatus,
+    averageVad,
     startRecording,
     stopRecording: stopAudioRecording,
     pauseRecording: pauseAudioRecording,

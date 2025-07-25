@@ -10,6 +10,7 @@ export const TranscriptionAppMatrix: React.FC = () => {
     isProcessing,
     transcriptions,
     audioChunks,
+    averageVad,
     processAudioFile,
     clearTranscriptions 
   } = useSusurro({
@@ -18,29 +19,21 @@ export const TranscriptionAppMatrix: React.FC = () => {
   })
   
   const [originalUrl, setOriginalUrl] = React.useState('')
-  const [processedUrl, setProcessedUrl] = React.useState('')
-  const [vadScore, setVadScore] = React.useState(0)
+  const [chunkUrls, setChunkUrls] = React.useState<string[]>([])
   const [status, setStatus] = React.useState('')
   
-  // Create processed audio URL from chunks
+  // Create URLs for each audio chunk
   React.useEffect(() => {
     if (audioChunks && audioChunks.length > 0) {
-      console.log('[TranscriptionAppMatrix] Creating processed URL from', audioChunks.length, 'chunks')
+      console.log('[TranscriptionAppMatrix] Creating URLs for', audioChunks.length, 'chunks')
       
-      // Combine all chunks into a single blob
-      const combinedBlob = new Blob(
-        audioChunks.map(chunk => chunk.blob),
-        { type: 'audio/wav' }
-      )
-      const url = URL.createObjectURL(combinedBlob)
-      setProcessedUrl(url)
-      
-      // Calculate average VAD score (placeholder for now)
-      setVadScore(0.85) // 85% voice activity
+      // Create URL for each chunk
+      const urls = audioChunks.map(chunk => URL.createObjectURL(chunk.blob))
+      setChunkUrls(urls)
       
       return () => {
-        // Cleanup old URL
-        if (url) URL.revokeObjectURL(url)
+        // Cleanup old URLs
+        urls.forEach(url => URL.revokeObjectURL(url))
       }
     }
   }, [audioChunks])
@@ -171,17 +164,43 @@ export const TranscriptionAppMatrix: React.FC = () => {
           </div>
         )}
         
-        {/* Processed Audio */}
-        {processedUrl && (
+        {/* Processed Audio Chunks */}
+        {chunkUrls.length > 0 && (
           <>
-            <div className="matrix-audio-section">
-              <h3>&gt; MURMURABA_CLEANED_AUDIO</h3>
-              <audio src={processedUrl} controls style={{ width: '100%' }} />
-              <p className="matrix-vad-score" style={{ marginTop: 10, marginBottom: 0 }}>
+            <div className="matrix-audio-section" style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 style={{ margin: 0 }}>&gt; MURMURABA_CLEANED_AUDIO</h3>
+                <div style={{ 
+                  fontSize: '2.5em', 
+                  color: '#00ff41',
+                  fontWeight: 'bold',
+                  textShadow: '0 0 10px #00ff41',
+                  marginRight: 20
+                }}>
+                  VAD: {(averageVad * 100).toFixed(1)}%
+                </div>
+              </div>
+              
+              <p className="matrix-vad-score" style={{ marginTop: 10, marginBottom: 10 }}>
                 &gt; AUDIO_ENHANCEMENT: NOISE_REDUCTION | AGC | ECHO_CANCELLATION
               </p>
-              <p className="matrix-vad-score" style={{ marginTop: 5, marginBottom: 0 }}>
-                &gt; CHUNKS_PROCESSED: {audioChunks.length} | DURATION: {audioChunks.reduce((acc, chunk) => acc + chunk.duration, 0) / 1000}s
+              
+              {/* Individual chunk players */}
+              {audioChunks.map((chunk, index) => (
+                <div key={chunk.id} style={{ marginBottom: 15 }}>
+                  <p style={{ margin: '5px 0', fontSize: '0.9em', opacity: 0.8 }}>
+                    &gt; CHUNK_{index + 1} | DURATION: {(chunk.duration / 1000).toFixed(2)}s | VAD: {chunk.vadScore ? (chunk.vadScore * 100).toFixed(1) : 'N/A'}%
+                  </p>
+                  <audio 
+                    src={chunkUrls[index]} 
+                    controls 
+                    style={{ width: '100%', height: '35px' }} 
+                  />
+                </div>
+              ))}
+              
+              <p className="matrix-vad-score" style={{ marginTop: 10, marginBottom: 0, opacity: 0.7 }}>
+                &gt; TOTAL_CHUNKS: {audioChunks.length} | TOTAL_DURATION: {(audioChunks.reduce((acc, chunk) => acc + chunk.duration, 0) / 1000).toFixed(2)}s
               </p>
             </div>
             

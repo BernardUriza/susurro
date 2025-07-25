@@ -22,6 +22,7 @@ export interface AudioChunk {
   duration: number
   startTime: number
   endTime: number
+  vadScore?: number
 }
 
 export interface ProcessingStatus {

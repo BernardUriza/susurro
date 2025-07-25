@@ -12,6 +12,7 @@ interface UseAudioProcessorReturn {
   isRecording: boolean
   isPaused: boolean
   audioChunks: AudioChunk[]
+  averageVad: number
   startRecording: () => Promise<void>
   stopRecording: () => void
   pauseRecording: () => void
@@ -25,6 +26,7 @@ export function useAudioProcessor(options: UseAudioProcessorOptions = {}): UseAu
   const [isRecording, setIsRecording] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [audioChunks, setAudioChunks] = useState<AudioChunk[]>([])
+  const [averageVad, setAverageVad] = useState(0)
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -58,13 +60,10 @@ export function useAudioProcessor(options: UseAudioProcessorOptions = {}): UseAu
       await murmurabaManager.initialize()
       console.log('[AudioProcessor] Murmuraba initialized')
       
-      // Step 2: Process with Murmuraba to clean audio
+      // Step 2: Process with Murmuraba to clean audio with metrics
       console.log('[AudioProcessor] Processing with Murmuraba for audio cleaning...')
-      const cleanedResult = await murmurabaManager.processFile(file, {
-        enableAGC: true,
-        enableNoiseSuppression: true,
-        enableEchoCancellation: true,
-        enableVAD: enableVAD
+      const cleanedResult = await murmurabaManager.processFileWithMetrics(file, (metrics) => {
+        console.log('[AudioProcessor] Frame metrics:', metrics)
       })
       
       console.log('[AudioProcessor] Murmuraba processing complete, cleaned audio received')
@@ -122,6 +121,26 @@ export function useAudioProcessor(options: UseAudioProcessorOptions = {}): UseAu
       }
       
       console.log('[AudioProcessor] Created', chunks.length, 'chunks for transcription')
+      
+      // Store VAD score from Murmuraba
+      const avgVad = cleanedResult.averageVad || 0
+      console.log('[AudioProcessor] Average VAD score:', avgVad)
+      setAverageVad(avgVad)
+      
+      // Add VAD scores to chunks if available
+      if (cleanedResult.metrics && cleanedResult.metrics.length > 0) {
+        console.log('[AudioProcessor] Processing', cleanedResult.metrics.length, 'VAD metrics for', chunks.length, 'chunks')
+        const metricsPerChunk = cleanedResult.metrics.length / chunks.length
+        chunks.forEach((chunk, index) => {
+          const startIdx = Math.floor(index * metricsPerChunk)
+          const endIdx = Math.floor((index + 1) * metricsPerChunk)
+          const chunkMetrics = cleanedResult.metrics.slice(startIdx, endIdx)
+          const vadScores = chunkMetrics.map((m: any) => m.vad || 0)
+          chunk.vadScore = vadScores.reduce((a: number, b: number) => a + b, 0) / vadScores.length
+          console.log(`[AudioProcessor] Chunk ${index + 1} VAD:`, chunk.vadScore)
+        })
+      }
+      
       setAudioChunks(chunks)
       audioContext.close()
     } catch (error) {
@@ -186,6 +205,7 @@ export function useAudioProcessor(options: UseAudioProcessorOptions = {}): UseAu
     isRecording,
     isPaused,
     audioChunks,
+    averageVad,
     startRecording,
     stopRecording,
     pauseRecording,

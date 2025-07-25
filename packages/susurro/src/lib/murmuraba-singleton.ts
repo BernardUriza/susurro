@@ -187,23 +187,41 @@ class MurmurabaManager {
         console.log('[Murmuraba] processFileWithMetrics result:', { 
           hasMetrics: !!result.metrics,
           metricsLength: result.metrics?.length,
+          averageVad: result.averageVad,
           sampleMetric: result.metrics?.[0]
         })
+        
+        // Log some VAD values for debugging
+        if (result.metrics && result.metrics.length > 0) {
+          const vadValues = result.metrics.slice(0, 10).map((m: any) => m.vad)
+          console.log('[Murmuraba] First 10 VAD values:', vadValues)
+        }
+        
         return result
       } else {
         console.warn('[Murmuraba] processFileWithMetrics not available, using processFile')
-        const result = await murmuraba.processFile(arrayBuffer, {})
-        // Mock the metrics structure if not provided
+        const result = await murmuraba.processFile(arrayBuffer, {
+          enableVAD: true
+        })
+        
+        // Try to analyze VAD if available
+        let vadData = null
+        if (murmuraba.analyzeVAD) {
+          console.log('[Murmuraba] Analyzing VAD separately...')
+          try {
+            vadData = await murmuraba.analyzeVAD(arrayBuffer)
+            console.log('[Murmuraba] VAD analysis result:', vadData)
+          } catch (err) {
+            console.error('[Murmuraba] VAD analysis failed:', err)
+          }
+        }
+        
+        // Return combined result
         return {
-          ...result,
-          processedBuffer: result.processedAudio || result,
-          metrics: result.vadScores ? result.vadScores.map((score: number, index: number) => ({ 
-            vad: score,
-            frame: index,
-            timestamp: Date.now(),
-            rms: 0
-          })) : [],
-          averageVad: 0
+          processedBuffer: result.processedAudio || result.processedBuffer || result,
+          metrics: vadData?.metrics || [],
+          averageVad: vadData?.averageVad || vadData?.average || 0,
+          vadScores: vadData?.scores || result.vadScores || []
         }
       }
     } catch (error: any) {

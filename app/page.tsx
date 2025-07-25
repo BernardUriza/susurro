@@ -16,6 +16,12 @@ const AudioProcessor = dynamic(
   { ssr: false }
 )
 
+// Importar VADDisplay dinámicamente
+const VADDisplay = dynamic(
+  () => import('../src/components/VADDisplay').then(mod => mod.VADDisplay),
+  { ssr: false }
+)
+
 export default function Home() {
   const [transcriptions, setTranscriptions] = useState<string[]>([])
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
@@ -344,21 +350,22 @@ export default function Home() {
                   <div style={{ textAlign: 'center' }}>
                     <h3 style={{ marginBottom: '1rem', color: '#00ff00' }}>Original</h3>
                     <audio controls src={URL.createObjectURL(uploadedFile)} style={{ width: '250px' }} />
-                    {vadMetrics && (
-                      <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#00ff00' }}>
-                        VAD Score: {(vadMetrics.original * 100).toFixed(1)}%
-                      </div>
-                    )}
+                    <VADDisplay 
+                      audioFile={uploadedFile} 
+                      label="Original"
+                    />
                   </div>
                   {processedFile && (
                     <div style={{ textAlign: 'center' }}>
                       <h3 style={{ marginBottom: '1rem', color: '#00ff00' }}>Procesado</h3>
                       <audio controls src={URL.createObjectURL(processedFile)} style={{ width: '250px' }} />
+                      <VADDisplay 
+                        audioFile={processedFile} 
+                        label="Procesado"
+                      />
                       {vadMetrics && (
-                        <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#00ff00' }}>
-                          VAD Score: {(vadMetrics.processed * 100).toFixed(1)}%
-                          <br />
-                          <span style={{ color: '#ffcc00' }}>Reducción: {vadMetrics.reduction.toFixed(1)}%</span>
+                        <div style={{ fontSize: '0.9rem', color: '#ffcc00' }}>
+                          Reducción de ruido: {vadMetrics.reduction.toFixed(1)}%
                         </div>
                       )}
                     </div>

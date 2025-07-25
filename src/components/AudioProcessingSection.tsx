@@ -64,6 +64,20 @@ export function AudioProcessingSection({ uploadedFile, onTranscription }: AudioP
     try {
       // Simular procesamiento con murmuraba para tests
       if (murmuraba && murmuraba.processFile) {
+        try {
+          // Verificar si el motor está inicializado
+          if (!murmuraba.isInitialized) {
+            await murmuraba.initializeAudioEngine({
+              enableAGC: true,
+              enableNoiseSuppression: true,
+              enableEchoCancellation: true
+            });
+          }
+        } catch (initError: any) {
+          console.error('Error initializing murmuraba:', initError);
+          // Continuar si ya está inicializado
+        }
+
         const result = await murmuraba.processFile(file, {
           chunkDuration: 8,
           outputFormat: 'chunks',

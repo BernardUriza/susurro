@@ -43,12 +43,19 @@ export default function AudioProcessor({ onProcessedAudio, uploadedFile }: Audio
       
       try {
         // Inicializar el motor si es necesario
-        if (!murmuraba.isInitialized) {
-          await murmuraba.initializeAudioEngine({
-            enableAGC: true,
-            enableNoiseSuppression: true,
-            enableEchoCancellation: true
-          });
+        try {
+          if (!murmuraba.isInitialized) {
+            await murmuraba.initializeAudioEngine({
+              enableAGC: true,
+              enableNoiseSuppression: true,
+              enableEchoCancellation: true
+            });
+          }
+        } catch (initError: any) {
+          // Si ya está inicializado, continuar
+          if (!initError.message?.includes('already initialized')) {
+            throw initError;
+          }
         }
         
         const { processFile, analyzeVAD } = murmuraba;

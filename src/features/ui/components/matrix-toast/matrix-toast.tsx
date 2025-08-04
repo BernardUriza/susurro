@@ -1,5 +1,6 @@
 'use client'
 
+// React and external libraries
 import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom'
 

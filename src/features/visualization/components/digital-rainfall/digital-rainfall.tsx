@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export const MatrixRain: React.FC = () => {
+export const DigitalRainfall: React.FC = () => {
   const [columns, setColumns] = useState<Array<{ left: string; delay: string; duration: string; chars: string }>>([])
   
   useEffect(() => {

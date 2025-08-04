@@ -1,37 +1,46 @@
 'use client'
 
+// React and external libraries
 import React from 'react'
-import { MatrixRain } from './MatrixRain'
-import { useSusurro } from '@susurro/core'
-import { FloatingLogs } from './FloatingLogs'
-import { BackgroundProcessor } from '../utils/backgroundProcessor'
-import { ChunkDurationSelector } from './ChunkDurationSelector'
-import '../styles/matrix-theme.css'
 
-export const TranscriptionAppMatrix: React.FC = () => {
-  const [chunkDuration, setChunkDuration] = React.useState(15) // Default 15 seconds
+// Absolute imports
+import { useWhisperOrchestrator } from '../../../../shared/hooks'
+
+// Relative imports - components
+import { DigitalRainfall } from '../../../visualization/components'
+import { WhisperEchoLogs } from '../../../visualization/components'
+import { TemporalSegmentSelector } from '../temporal-segment-selector'
+
+// Relative imports - utilities
+import { SilentThreadProcessor } from '../../../../shared/services'
+
+// Styles (last)
+import '../../../styles/matrix-theme.css'
+
+export const WhisperMatrixTerminal: React.FC = () => {
+  const [temporalSegmentDuration, setTemporalSegmentDuration] = React.useState(15) // Default 15 seconds
   
   const { 
     isProcessing,
-    transcriptions,
-    audioChunks,
-    averageVad,
+    revelations,
+    audioFragments,
+    averageResonance,
     processAudioFile,
-    clearTranscriptions,
+    clearRevelations,
     whisperReady,
     whisperProgress,
     whisperError,
     transcribeWithWhisper
-  } = useSusurro({
-    chunkDurationMs: chunkDuration * 1000, // Convert to milliseconds
-    enableVAD: true
+  } = useWhisperOrchestrator({
+    temporalSegmentMs: temporalSegmentDuration * 1000, // Convert to milliseconds
+    enableVoiceResonance: true
   })
   
   const [originalUrl, setOriginalUrl] = React.useState('')
-  const [chunkUrls, setChunkUrls] = React.useState<string[]>([])
+  const [fragmentUrls, setFragmentUrls] = React.useState<string[]>([])
   const [status, setStatus] = React.useState('')
-  const [isTranscribing, setIsTranscribing] = React.useState(false)
-  const [whisperTranscriptions, setWhisperTranscriptions] = React.useState<string[]>([])
+  const [isDecoding, setIsDecoding] = React.useState(false)
+  const [whisperRevelations, setWhisperRevelations] = React.useState<string[]>([])
   const [backgroundLogs, setBackgroundLogs] = React.useState<Array<{
     id: string
     timestamp: Date
@@ -39,11 +48,11 @@ export const TranscriptionAppMatrix: React.FC = () => {
     type: 'info' | 'warning' | 'error' | 'success'
   }>>([])
   
-  // Background processor for non-blocking transcription
-  const backgroundProcessorRef = React.useRef<BackgroundProcessor | null>(null)
+  // Silent thread processor for non-blocking transcription
+  const silentThreadProcessorRef = React.useRef<SilentThreadProcessor | null>(null)
   
   React.useEffect(() => {
-    backgroundProcessorRef.current = new BackgroundProcessor((message, type) => {
+    silentThreadProcessorRef.current = new SilentThreadProcessor((message, type) => {
       setBackgroundLogs(prev => [...prev, {
         id: `log-${Date.now()}-${Math.random()}`,
         timestamp: new Date(),
@@ -54,14 +63,14 @@ export const TranscriptionAppMatrix: React.FC = () => {
   }, [])
   
   
-  // Create URLs for each audio chunk
+  // Create URLs for each audio fragment
   React.useEffect(() => {
-    if (audioChunks && audioChunks.length > 0) {
-      console.log('[TranscriptionAppMatrix] Creating URLs for', audioChunks.length, 'chunks')
+    if (audioFragments && audioFragments.length > 0) {
+      console.log('[WhisperMatrixTerminal] Creating URLs for', audioFragments.length, 'fragments')
       
-      // Create URL for each chunk
-      const urls = audioChunks.map(chunk => URL.createObjectURL(chunk.blob))
-      setChunkUrls(urls)
+      // Create URL for each fragment
+      const urls = audioFragments.map(fragment => URL.createObjectURL(fragment.audioEssence))
+      setFragmentUrls(urls)
       
       return () => {
         // Cleanup old URLs
@@ -74,7 +83,7 @@ export const TranscriptionAppMatrix: React.FC = () => {
     try {
       setStatus('[INITIALIZING_NEURAL_PROCESSOR...]')
       setOriginalUrl(URL.createObjectURL(file))
-      clearTranscriptions()
+      clearRevelations()
       
       // Add timeout to prevent infinite hanging
       const timeoutPromise = new Promise((_, reject) => {
@@ -114,7 +123,7 @@ export const TranscriptionAppMatrix: React.FC = () => {
 
   return (
     <div className="matrix-theme">
-      <MatrixRain />
+      <DigitalRainfall />
       {/* Version indicator in top-left corner */}
       <div style={{
         position: 'fixed',
@@ -609,7 +618,7 @@ export const TranscriptionAppMatrix: React.FC = () => {
               ) : (
                 <button
                   onClick={() => {
-                    if (!isTranscribing && audioChunks.length > 0 && backgroundProcessorRef.current) {
+                    if (!isTranscribing && audioChunks.length > 0 && silentThreadProcessorRef.current) {
                       setIsTranscribing(true)
                       setStatus('[WHISPER_BACKGROUND_PROCESSING_STARTED]')
                       setWhisperTranscriptions([]) // Clear previous transcriptions
@@ -624,7 +633,7 @@ export const TranscriptionAppMatrix: React.FC = () => {
                       
                       // Process each chunk in background
                       audioChunks.forEach((chunk, index) => {
-                        backgroundProcessorRef.current!.processTranscriptionAsync(
+                        silentThreadProcessorRef.current!.processTranscriptionAsync(
                           chunk.blob,
                           transcribeWithWhisper,
                           (progress) => {
@@ -938,7 +947,7 @@ await processAudioFile(audioFile)
       
       {/* Floating logs for background processing */}
       {backgroundLogs.length > 0 && (
-        <FloatingLogs logs={backgroundLogs} maxLogs={15} />
+        <WhisperEchoLogs logs={backgroundLogs} maxLogs={15} />
       )}
     </div>
   )

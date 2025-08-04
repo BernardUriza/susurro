@@ -1,4 +1,4 @@
-import React from 'react'
+// React and external libraries\nimport React from 'react'
 
 interface LogEntry {
   id: string
@@ -7,12 +7,12 @@ interface LogEntry {
   type: 'info' | 'warning' | 'error' | 'success'
 }
 
-interface FloatingLogsProps {
+interface WhisperEchoLogsProps {
   logs: LogEntry[]
   maxLogs?: number
 }
 
-export const FloatingLogs: React.FC<FloatingLogsProps> = ({ logs, maxLogs = 10 }) => {
+export const WhisperEchoLogs: React.FC<WhisperEchoLogsProps> = ({ logs, maxLogs = 10 }) => {
   const displayLogs = logs.slice(-maxLogs) // Show only last N logs
   
   return (
@@ -42,7 +42,7 @@ export const FloatingLogs: React.FC<FloatingLogsProps> = ({ logs, maxLogs = 10 }
         alignItems: 'center',
         justifyContent: 'space-between'
       }}>
-        <span>&gt; BACKGROUND_PROCESS_LOG</span>
+        <span>&gt; WHISPER_ECHO_LOG</span>
         <span style={{ 
           fontSize: '10px', 
           opacity: 0.7,

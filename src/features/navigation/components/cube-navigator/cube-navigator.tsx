@@ -1,9 +1,11 @@
 'use client'
 
+// React and external libraries
 import React, { useRef, useEffect, useState } from 'react'
 import * as THREE from 'three'
-import { TranscriptionAppMatrix } from './TranscriptionAppMatrix'
-import { ChunkProcessor } from './ChunkProcessor'
+
+// Relative imports - components
+import { WhisperMatrixTerminal, AudioFragmentProcessor } from '../../../audio-processing/components'
 
 type CubeFace = 'front' | 'right' | 'back' | 'left' | 'top' | 'bottom'
 
@@ -24,13 +26,13 @@ export const CubeNavigator: React.FC = () => {
   // Face configurations
   const faceContents: Record<CubeFace, FaceContent> = {
     front: {
-      component: <TranscriptionAppMatrix />,
-      title: '[SUSURRO_MATRIX]',
+      component: <WhisperMatrixTerminal />,
+      title: '[WHISPER_MATRIX_TERMINAL]',
       color: '#00ff41'
     },
     right: {
-      component: <ChunkProcessor onBack={() => rotateTo('front')} />,
-      title: '[CHUNK_PROCESSOR]',
+      component: <AudioFragmentProcessor onBack={() => rotateTo('front')} />,
+      title: '[AUDIO_FRAGMENT_PROCESSOR]',
       color: '#ff9900'
     },
     back: {

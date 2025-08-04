@@ -1,8 +1,9 @@
 'use client'
 
+// React and external libraries
 import React from 'react'
 
-interface ChunkDurationSelectorProps {
+interface TemporalSegmentSelectorProps {
   value: number
   onChange: (value: number) => void
   min?: number
@@ -19,12 +20,12 @@ interface ChunkDurationSelectorProps {
   description?: string
 }
 
-export const ChunkDurationSelector: React.FC<ChunkDurationSelectorProps> = ({
+export const TemporalSegmentSelector: React.FC<TemporalSegmentSelectorProps> = ({
   value,
   onChange,
   min = 1,
   max = 60,
-  label = 'CHUNK_DURATION_SEC',
+  label = 'TEMPORAL_SEGMENT_DURATION_SEC',
   showOverlap = false,
   overlapDuration = 3,
   style = {},

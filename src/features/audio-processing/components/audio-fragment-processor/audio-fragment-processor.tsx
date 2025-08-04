@@ -1,14 +1,19 @@
 'use client'
 
+// React and external libraries
 import React from 'react'
-import { useSusurro } from '@susurro/core'
-import { ChunkDurationSelector } from './ChunkDurationSelector'
 
-interface ChunkProcessorProps {
+// Absolute imports
+import { useSusurro } from '@susurro/core'
+
+// Relative imports - components
+import { TemporalSegmentSelector } from '../temporal-segment-selector'
+
+interface AudioFragmentProcessorProps {
   onBack: () => void
 }
 
-export const ChunkProcessor: React.FC<ChunkProcessorProps> = ({ onBack }) => {
+export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ onBack }) => {
   const [chunkDuration, setChunkDuration] = React.useState(15)
   const [overlapDuration] = React.useState(3)
   const [micPermissionStatus, setMicPermissionStatus] = React.useState<'prompt' | 'granted' | 'denied' | 'checking'>('prompt')

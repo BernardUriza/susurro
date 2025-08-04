@@ -1,0 +1,1 @@
+export { WhisperMatrixTerminal } from './whisper-matrix-terminal'

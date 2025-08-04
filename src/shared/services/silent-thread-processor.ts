@@ -1,4 +1,4 @@
-export class BackgroundProcessor {
+export class SilentThreadProcessor {
   private taskQueue: Array<() => Promise<any>> = []
   private isProcessing = false
   private onLog?: (message: string, type: 'info' | 'warning' | 'error' | 'success') => void

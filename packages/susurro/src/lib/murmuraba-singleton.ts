@@ -1,19 +1,8 @@
-interface MurmurabaEngine {
-  initializeAudioEngine: (config: any) => Promise<void>
-  destroyEngine: () => Promise<void>
-  processFile: (file: ArrayBuffer, options: any) => Promise<any>
-  processFileWithMetrics?: (file: ArrayBuffer, options: any) => Promise<any>
-  analyzeVAD?: (file: File | Blob | ArrayBuffer) => Promise<any>
-  processStreamChunked?: (stream: ReadableStream | ArrayBuffer, options: {
-    chunkDuration?: number
-    onChunkProcessed?: (chunk: any) => void
-  }) => Promise<any>
-  isInitialized: boolean
-}
+import type { MurmurabaConfig, MurmurabaInstance, MurmurabaResult, MurmurabaMetrics, MurmurabaChunk } from './murmuraba-types'
 
 class MurmurabaManager {
   private static instance: MurmurabaManager
-  private murmurabaModule: MurmurabaEngine | null = null
+  private murmurabaModule: MurmurabaInstance | null = null
   private initPromise: Promise<void> | null = null
   private isInitializing = false
 
@@ -26,7 +15,7 @@ class MurmurabaManager {
     return MurmurabaManager.instance
   }
 
-  async getMurmuraba(): Promise<MurmurabaEngine> {
+  async getMurmuraba(): Promise<MurmurabaInstance> {
     if (!this.murmurabaModule) {
       // Ensure we're in browser environment
       if (typeof window === 'undefined') {
@@ -39,7 +28,7 @@ class MurmurabaManager {
     return this.murmurabaModule!
   }
 
-  async initialize(config?: any): Promise<void> {
+  async initialize(config?: MurmurabaConfig): Promise<void> {
     if (this.initPromise) {
       return this.initPromise
     }
@@ -103,7 +92,7 @@ class MurmurabaManager {
     }
   }
 
-  async processFile(file: File | Blob, options: any): Promise<any> {
+  async processFile(file: File | Blob, options?: any): Promise<MurmurabaResult> {
     try {
       await this.initialize()
     } catch (error) {
@@ -127,7 +116,7 @@ class MurmurabaManager {
         setTimeout(() => reject(new Error('File processing timeout')), 20000)
       })
       
-      const result = await Promise.race([
+      const result: MurmurabaResult | ArrayBuffer = await Promise.race([
         murmuraba.processFile(arrayBuffer, options),
         processTimeout
       ])
@@ -157,8 +146,8 @@ class MurmurabaManager {
 
   async processStreamChunked(file: File | Blob, options: {
     chunkDuration?: number
-    onChunkProcessed?: (chunk: any) => void
-  } = {}): Promise<any[]> {
+    onChunkProcessed?: (chunk: MurmurabaChunk) => void
+  } = {}): Promise<MurmurabaChunk[]> {
     await this.initialize()
     const murmuraba = await this.getMurmuraba()
     
@@ -172,7 +161,7 @@ class MurmurabaManager {
     return result
   }
 
-  async processFileWithMetrics(file: File | Blob, onFrameProcessed?: (metrics: any) => void): Promise<any> {
+  async processFileWithMetrics(file: File | Blob, onFrameProcessed?: (metrics: MurmurabaMetrics) => void): Promise<MurmurabaResult> {
     await this.initialize()
     const murmuraba = await this.getMurmuraba()
     
@@ -200,7 +189,7 @@ class MurmurabaManager {
         
         // Log some VAD values for debugging
         if (result.metrics && result.metrics.length > 0) {
-          const vadValues = result.metrics.slice(0, 10).map((m: any) => m.vad)
+          const vadValues = result.metrics.slice(0, 10).map((m: MurmurabaMetrics) => m.vad)
         }
         
         return result

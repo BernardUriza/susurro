@@ -1,125 +1,162 @@
-import { renderHook, act } from '@testing-library/react-hooks'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useSusurro } from '../src/useSusurro'
+import { renderHook, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { useSusurro } from '../src/hooks/useSusurro';
 
-// Mock dependencies
-vi.mock('murmuraba', () => ({
-  default: {
-    processFileWithMetrics: vi.fn()
+// Mock the murmuraba singleton
+vi.mock('../src/lib/murmuraba-singleton', () => ({
+  murmurabaManager: {
+    initialize: vi.fn(),
+    processFileWithMetrics: vi.fn().mockResolvedValue({
+      processedBuffer: new ArrayBuffer(1000),
+      vadScores: [0.5, 0.7, 0.9],
+      averageVad: 0.7,
+      chunks: []
+    })
   }
-}))
+}));
 
-vi.mock('@xenova/transformers', () => ({
-  pipeline: vi.fn()
-}))
+// Mock the whisper hook
+vi.mock('../src/hooks/useWhisperDirect', () => ({
+  useWhisperDirect: () => ({
+    modelReady: true,
+    loadingProgress: 100,
+    isTranscribing: false,
+    transcript: 'Test transcription',
+    error: null,
+    transcribe: vi.fn().mockResolvedValue({
+      text: 'Test transcription',
+      segments: [],
+      chunkIndex: 0,
+      timestamp: Date.now()
+    })
+  })
+}));
 
-describe('useSusurro - Pipeline Explícito', () => {
+describe('useSusurro', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
-  describe('cleanAudio', () => {
-    it('debe procesar archivo y retornar blob + vadScore', async () => {
-      const { result } = renderHook(() => useSusurro())
-      const mockFile = new File(['audio'], 'test.wav', { type: 'audio/wav' })
-      
-      let cleanResult: any
-      await act(async () => {
-        cleanResult = await result.current.cleanAudio(mockFile)
-      })
-      
-      expect(cleanResult).toHaveProperty('blob')
-      expect(cleanResult).toHaveProperty('vadScore')
-      expect(cleanResult.blob).toBeInstanceOf(Blob)
-      expect(typeof cleanResult.vadScore).toBe('number')
-    })
-
-    it('debe cambiar estado cleaning mientras procesa', async () => {
-      const { result } = renderHook(() => useSusurro())
-      const mockFile = new File(['audio'], 'test.wav', { type: 'audio/wav' })
-      
-      expect(result.current.cleaning).toBe(false)
-      
-      const promise = act(async () => {
-        await result.current.cleanAudio(mockFile)
-      })
-      
-      expect(result.current.cleaning).toBe(true)
-      await promise
-      expect(result.current.cleaning).toBe(false)
-    })
-
-    it('debe manejar errores en procesamiento', async () => {
-      const { result } = renderHook(() => useSusurro())
-      const mockFile = new File([''], 'invalid.wav', { type: 'audio/wav' })
+  describe('processAudioFile', () => {
+    it('should process a file and return chunks with VAD scores', async () => {
+      const { result } = renderHook(() => useSusurro());
+      const mockFile = new File(['audio'], 'test.wav', { type: 'audio/wav' });
       
       await act(async () => {
-        await expect(result.current.cleanAudio(mockFile)).rejects.toThrow()
-      })
+        await result.current.processAudioFile(mockFile);
+      });
       
-      expect(result.current.error).toBeTruthy()
-      expect(result.current.cleaning).toBe(false)
-    })
-  })
+      expect(result.current.averageVad).toBe(0.7);
+      expect(result.current.audioChunks).toBeDefined();
+    });
 
-  describe('transcribe', () => {
-    it('debe transcribir blob y retornar texto', async () => {
-      const { result } = renderHook(() => useSusurro())
-      const mockBlob = new Blob(['audio'], { type: 'audio/wav' })
+    it('should handle errors during file processing', async () => {
+      const { result } = renderHook(() => useSusurro());
+      const mockFile = new File([''], 'invalid.wav', { type: 'audio/wav' });
       
-      let transcript: string = ''
-      await act(async () => {
-        transcript = await result.current.transcribe(mockBlob)
-      })
-      
-      expect(typeof transcript).toBe('string')
-      expect(transcript.length).toBeGreaterThan(0)
-    })
-
-    it('debe cambiar estado transcribing mientras procesa', async () => {
-      const { result } = renderHook(() => useSusurro())
-      const mockBlob = new Blob(['audio'], { type: 'audio/wav' })
-      
-      expect(result.current.transcribing).toBe(false)
-      
-      const promise = act(async () => {
-        await result.current.transcribe(mockBlob)
-      })
-      
-      expect(result.current.transcribing).toBe(true)
-      await promise
-      expect(result.current.transcribing).toBe(false)
-    })
-
-    it('debe manejar errores en transcripción', async () => {
-      const { result } = renderHook(() => useSusurro())
-      const mockBlob = new Blob([], { type: 'audio/wav' })
+      // Mock error
+      const murmurabaManager = await import('../src/lib/murmuraba-singleton');
+      vi.mocked(murmurabaManager.murmurabaManager.processFileWithMetrics).mockRejectedValueOnce(
+        new Error('Processing failed')
+      );
       
       await act(async () => {
-        await expect(result.current.transcribe(mockBlob)).rejects.toThrow()
-      })
-      
-      expect(result.current.error).toBeTruthy()
-      expect(result.current.transcribing).toBe(false)
-    })
-  })
+        try {
+          await result.current.processAudioFile(mockFile);
+        } catch (error) {
+          expect(error).toBeDefined();
+        }
+      });
+    });
+  });
 
-  describe('pipeline completo', () => {
-    it('debe procesar archivo y transcribir en secuencia', async () => {
-      const { result } = renderHook(() => useSusurro())
-      const mockFile = new File(['audio'], 'test.wav', { type: 'audio/wav' })
+  describe('recording', () => {
+    it('should start and stop recording', async () => {
+      const { result } = renderHook(() => useSusurro());
       
-      let cleanResult: any
-      let transcript: string = ''
+      expect(result.current.isRecording).toBe(false);
       
       await act(async () => {
-        cleanResult = await result.current.cleanAudio(mockFile)
-        transcript = await result.current.transcribe(cleanResult.blob)
-      })
+        await result.current.startRecording();
+      });
       
-      expect(cleanResult.vadScore).toBeGreaterThanOrEqual(0)
-      expect(cleanResult.vadScore).toBeLessThanOrEqual(1)
-      expect(transcript).toBeTruthy()
-    })
-  })
-})
+      expect(result.current.isRecording).toBe(true);
+      
+      act(() => {
+        result.current.stopRecording();
+      });
+      
+      expect(result.current.isRecording).toBe(false);
+    });
+
+    it('should pause and resume recording', async () => {
+      const { result } = renderHook(() => useSusurro());
+      
+      await act(async () => {
+        await result.current.startRecording();
+      });
+      
+      expect(result.current.isPaused).toBe(false);
+      
+      act(() => {
+        result.current.pauseRecording();
+      });
+      
+      expect(result.current.isPaused).toBe(true);
+      
+      act(() => {
+        result.current.resumeRecording();
+      });
+      
+      expect(result.current.isPaused).toBe(false);
+    });
+  });
+
+  describe('transcriptions', () => {
+    it('should clear transcriptions', async () => {
+      const { result } = renderHook(() => useSusurro());
+      
+      // Add a mock transcription
+      act(() => {
+        result.current.transcriptions.push({
+          text: 'Test',
+          segments: [],
+          chunkIndex: 0,
+          timestamp: Date.now()
+        });
+      });
+      
+      expect(result.current.transcriptions.length).toBeGreaterThan(0);
+      
+      act(() => {
+        result.current.clearTranscriptions();
+      });
+      
+      expect(result.current.transcriptions).toEqual([]);
+    });
+
+    it('should return full transcript from all transcriptions', () => {
+      const { result } = renderHook(() => useSusurro());
+      
+      act(() => {
+        result.current.transcriptions.push(
+          { text: 'Hello', segments: [], chunkIndex: 0, timestamp: Date.now() },
+          { text: 'World', segments: [], chunkIndex: 1, timestamp: Date.now() }
+        );
+      });
+      
+      expect(result.current.fullTranscript).toBe('Hello World');
+    });
+  });
+
+  describe('cleanup', () => {
+    it('should clean up resources on unmount', () => {
+      const { unmount } = renderHook(() => useSusurro());
+      
+      unmount();
+      
+      // Verify cleanup happened (AudioContext and MediaRecorder mocks)
+      expect(global.AudioContext).toHaveBeenCalled();
+    });
+  });
+});

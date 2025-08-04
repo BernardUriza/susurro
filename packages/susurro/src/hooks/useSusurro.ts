@@ -56,6 +56,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const startTimeRef = useRef<number>(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   // Use existing hooks
   const { 
@@ -125,6 +126,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       } else {
         // Fallback: manually create chunks from cleaned audio
         const audioContext = new AudioContext();
+        audioContextRef.current = audioContext;
         let audioBuffer: AudioBuffer;
         
         if (cleanedResult.processedBuffer instanceof ArrayBuffer) {
@@ -169,7 +171,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         
         setAverageVad(cleanedResult.averageVad || 0);
         setAudioChunks(chunks);
-        audioContext.close();
       }
     } catch (error) {
       throw error;
@@ -249,6 +250,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      mediaRecorderRef.current = null;
       setIsRecording(false);
       setIsPaused(false);
     }
@@ -281,6 +283,26 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       }, 100);
     }
   }, [audioChunks, isRecording, whisperReady, processChunks]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clean up audio context
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+      
+      // Stop and clean up media recorder
+      if (mediaRecorderRef.current) {
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+        mediaRecorderRef.current = null;
+      }
+    };
+  }, []);
 
   return {
     isRecording,

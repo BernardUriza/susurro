@@ -2,21 +2,21 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { WhisperConfig, TranscriptionResult, UseWhisperReturn } from '../lib/types'
+import type { Pipeline, TransformersModule, TransformersEnvironment, WhisperProgress, WhisperOutput } from '../lib/whisper-types'
 import { cacheManager } from '../lib/cache-manager'
-import { matrixAlert } from '../../../../src/components/MatrixAlert'
-import { matrixToast } from '../../../../src/components/MatrixToast'
+import { AlertService, ToastService, defaultAlertService, defaultToastService } from '../lib/ui-interfaces'
 
 // Singleton pattern for Whisper pipeline
 class WhisperPipelineSingleton {
-  static task = 'automatic-speech-recognition'
+  static task = 'automatic-speech-recognition' as const
   static model = 'Xenova/whisper-medium'
-  static instance: any = null
-  static pipeline: any = null
-  static env: any = null
+  static instance: Pipeline | null = null
+  static pipeline: TransformersModule['pipeline'] | null = null
+  static env: TransformersEnvironment | null = null
   static isLoading: boolean = false
-  static loadingPromise: Promise<any> | null = null
+  static loadingPromise: Promise<Pipeline> | null = null
 
-  static async getInstance(progress_callback: any = null) {
+  static async getInstance(progress_callback: ((progress: WhisperProgress) => void) | null = null): Promise<Pipeline> {
     // If already loaded, return immediately
     if (this.instance) {
       return this.instance
@@ -39,11 +39,11 @@ class WhisperPipelineSingleton {
     }
   }
 
-  private static async loadInstance(progress_callback: any = null) {
+  private static async loadInstance(progress_callback: ((progress: WhisperProgress) => void) | null = null): Promise<Pipeline> {
     if (!this.pipeline) {
       try {
         // Dynamic import with error handling
-        const transformers = await import('@xenova/transformers').catch(err => {
+        const transformers = await import('@xenova/transformers').catch((err: Error) => {
           throw new Error(`Failed to import transformers: ${err.message}`)
         })
         
@@ -94,7 +94,7 @@ class WhisperPipelineSingleton {
       })
       
       const loadPromise = this.pipeline(this.task, this.model, { 
-        progress_callback: (progress: any) => {
+        progress_callback: (progress: WhisperProgress) => {
           if (progress_callback) progress_callback(progress)
         },
         quantized: true 
@@ -107,7 +107,13 @@ class WhisperPipelineSingleton {
   }
 }
 
-export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
+export interface UseWhisperDirectConfig extends WhisperConfig {
+  alertService?: AlertService;
+  toastService?: ToastService;
+}
+
+export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhisperReturn {
+  const { alertService = defaultAlertService, toastService = defaultToastService, ...whisperConfig } = config;
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [transcript, setTranscript] = useState<string | null>(null)
   const [error, setError] = useState<Error | null>(null)
@@ -115,7 +121,7 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [isLoadingFromCache] = useState(false)
   
-  const pipelineRef = useRef<any>(null)
+  const pipelineRef = useRef<Pipeline | null>(null)
   const progressAlertRef = useRef<any>(null)
   const transcriptionQueueRef = useRef<Promise<any>>(Promise.resolve())
 
@@ -128,7 +134,7 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
       
       if (shouldShowAlert) {
         // Show loading alert
-        progressAlertRef.current = matrixAlert.show({
+        progressAlertRef.current = alertService.show({
           title: '[WHISPER_AI_INITIALIZATION]',
           message: 'Loading Whisper AI model...',
           type: 'loading',
@@ -139,7 +145,7 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
       try {
 
         // Get pipeline instance with progress callback
-        pipelineRef.current = await WhisperPipelineSingleton.getInstance((progress: any) => {
+        pipelineRef.current = await WhisperPipelineSingleton.getInstance((progress: WhisperProgress) => {
           const percent = progress.progress || 0
           setLoadingProgress(Math.max(1, percent))
           
@@ -162,7 +168,7 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
           progressAlertRef.current.close()
           progressAlertRef.current = null
           
-          matrixToast.success('[AI_MODEL_READY] You can now start recording!')
+          toastService.success('[AI_MODEL_READY] You can now start recording!')
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load model'
@@ -173,7 +179,7 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
           progressAlertRef.current = null
         }
         
-        matrixAlert.show({
+        alertService.show({
           title: '[MODEL_LOAD_ERROR]',
           message: errorMessage,
           type: 'error',
@@ -234,10 +240,10 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
       // Perform transcription
       const startTime = Date.now()
       
-      const output = await pipelineRef.current(audioDataUrl, {
+      const output: WhisperOutput = await pipelineRef.current(audioDataUrl, {
         chunk_length_s: 30,
         stride_length_s: 5,
-        language: config.language || 'english',
+        language: whisperConfig.language || 'english',
         task: 'transcribe',
         return_timestamps: false,
       })

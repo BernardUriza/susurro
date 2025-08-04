@@ -4,5 +4,8 @@ export { useTranscription } from './hooks/useTranscription';
 // useWhisperDirect is not exported - use whisper through useSusurro
 export { MurmurabaSingleton } from './lib/murmuraba-singleton';
 export * from './lib/types';
+export * from './lib/ui-interfaces';
+export * from './lib/whisper-types';
+export * from './lib/murmuraba-types';
 
 export type { UseSusurroOptions, UseSusurroReturn } from './hooks/useSusurro';

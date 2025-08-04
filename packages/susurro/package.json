@@ -33,13 +33,15 @@
     "@xenova/transformers": ">=2.0.0"
   },
   "dependencies": {
-    "@ricky0123/vad-web": "^0.0.19"
+    "@ricky0123/vad-web": "^0.0.24"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.0.0",
     "tsup": "^8.0.0",
-    "vitest": "^3.2.4"
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
+    "@vitest/ui": "^3.2.4"
   },
   "repository": {
     "type": "git",

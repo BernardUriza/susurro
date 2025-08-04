@@ -53,7 +53,8 @@
       "Bash(chmod:*)",
       "Bash(gh issue create:*)",
       "Bash(git push:*)",
-      "Bash(gh pr create:*)"
+      "Bash(gh pr create:*)",
+      "Bash(gh issue edit:*)"
     ],
     "deny": []
   }

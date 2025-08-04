@@ -2,43 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranscription } from './useTranscription';
 // REMOVED: Singleton pattern replaced with direct hook usage
 // REMOVED: import { murmurabaManager } from '../lib/murmuraba-singleton';
-import type { AudioChunk, ProcessingStatus, TranscriptionResult, SusurroChunk, ConversationalOptions, UseSusurroOptions as BaseUseSusurroOptions } from '../lib/types';
+import type {
+  AudioChunk,
+  ProcessingStatus,
+  TranscriptionResult,
+  SusurroChunk,
+  UseSusurroOptions as BaseUseSusurroOptions,
+} from '../lib/types';
 
-// Temporary mock for useMurmubaraEngine until Murmuraba v3 is available
-// This implements the expected interface from the migration plan
-const useMurmubaraEngine = (config: { defaultChunkDuration: number }) => {
-  const [chunks, setChunks] = useState<any[]>([]);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  
-  return {
-    recordingState: {
-      isRecording,
-      isPaused,
-      chunks
-    },
-    startRecording: async () => {
-      setIsRecording(true);
-      setChunks([]);
-    },
-    stopRecording: () => {
-      setIsRecording(false);
-      setIsPaused(false);
-    },
-    pauseRecording: () => {
-      setIsPaused(true);
-    },
-    resumeRecording: () => {
-      setIsPaused(false);
-    },
-    exportChunkAsWav: (chunkId: string) => Promise.resolve(new Blob()),
-    clearRecordings: () => {
-      setChunks([]);
-    }
-  };
-};
+// Direct import from Murmuraba v3 - Real package integration
+import { useMurmubaraEngine } from 'murmuraba';
 
-// Helper function to convert URL to Blob
+// Helper function to convert URL to Blob - Used in chunk processing
 const urlToBlob = async (url: string): Promise<Blob> => {
   try {
     const response = await fetch(url);
@@ -77,12 +52,7 @@ export interface UseSusurroReturn {
 }
 
 export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
-  const {
-    chunkDurationMs = 8000,
-    enableVAD = true,
-    whisperConfig = {},
-    conversational
-  } = options;
+  const { chunkDurationMs = 8000, whisperConfig = {}, conversational } = options;
 
   // Direct useMurmubaraEngine hook integration (Murmuraba v3 pattern)
   const {
@@ -92,9 +62,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     pauseRecording: pauseMurmurabaRecording,
     resumeRecording: resumeMurmurabaRecording,
     exportChunkAsWav,
-    clearRecordings
+    clearRecordings,
   } = useMurmubaraEngine({
-    defaultChunkDuration: chunkDurationMs / 1000 // Convert to seconds
+    defaultChunkDuration: chunkDurationMs / 1000, // Convert to seconds
   });
 
   // State management
@@ -105,9 +75,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     isProcessing: false,
     currentChunk: 0,
     totalChunks: 0,
-    stage: 'idle'
+    stage: 'idle',
   });
-  
+
   // Conversational state management
   const [conversationalChunks, setConversationalChunks] = useState<SusurroChunk[]>([]);
   const [processedAudioUrls, setProcessedAudioUrls] = useState<Map<string, string>>(new Map());
@@ -119,39 +89,39 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const chunkEmissionTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Use existing hooks with conversational enhancement
-  const { 
-    transcribe, 
+  const {
+    transcribe,
     isLoading: isTranscribing,
     whisperReady,
     whisperProgress,
     whisperError,
-    transcribeWithWhisper: transcribeWhisper
+    transcribeWithWhisper: transcribeWhisper,
   } = useTranscription({
     onTranscriptionComplete: (result) => {
-      setTranscriptions(prev => [...prev, result]);
-      
+      setTranscriptions((prev) => [...prev, result]);
+
       // Handle conversational mode transcription
       if (conversational?.onChunk && result.chunkIndex !== undefined) {
         const chunk = audioChunks[result.chunkIndex];
         if (chunk) {
           // Store transcription for this chunk
-          setChunkTranscriptions(prev => new Map(prev).set(chunk.id, result.text));
-          
+          setChunkTranscriptions((prev) => new Map(prev).set(chunk.id, result.text));
+
           // Try to emit chunk if audio is also ready
           tryEmitChunk(chunk);
         }
       }
     },
     onStatusUpdate: (status) => {
-      setProcessingStatus(prev => ({ 
-        ...prev, 
+      setProcessingStatus((prev) => ({
+        ...prev,
         ...status,
-        stage: status.stage as ProcessingStatus['stage'] || prev.stage
+        stage: (status.stage as ProcessingStatus['stage']) || prev.stage,
       }));
     },
     whisperConfig: {
-      language: whisperConfig?.language || 'en'
-    }
+      language: whisperConfig?.language || 'en',
+    },
   });
 
   // Helper functions
@@ -159,169 +129,213 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     const id = `chunk-${Date.now()}-${Math.random()}`;
     // Track processing start time for latency measurement
     chunkProcessingTimes.set(id, Date.now());
-    
+
     return {
       id,
       blob,
       duration: endTime - startTime,
       startTime,
-      endTime
+      endTime,
     };
   };
-  
+
   // Conversational helper functions
   const createAudioUrl = useCallback((blob: Blob): string => {
     return URL.createObjectURL(blob);
   }, []);
-  
-  const hasTranscriptFor = useCallback((chunkId: string): boolean => {
-    return chunkTranscriptions.has(chunkId);
-  }, [chunkTranscriptions]);
-  
-  const getTranscriptFor = useCallback((chunkId: string): string => {
-    return chunkTranscriptions.get(chunkId) || '';
-  }, [chunkTranscriptions]);
-  
-  const tryEmitChunk = useCallback((chunk: AudioChunk, forceEmit = false) => {
-    if (!conversational?.onChunk) return;
-    
-    const audioUrl = processedAudioUrls.get(chunk.id);
-    const transcript = chunkTranscriptions.get(chunk.id);
-    const processingStartTime = chunkProcessingTimes.get(chunk.id);
-    
-    // Only emit when both audio and transcript are ready
-    if (audioUrl && transcript) {
-      const processingLatency = processingStartTime ? Date.now() - processingStartTime : undefined;
-      
-      const susurroChunk: SusurroChunk = {
-        id: chunk.id,
-        audioUrl,
-        transcript,
-        startTime: chunk.startTime,
-        endTime: chunk.endTime,
-        vadScore: chunk.vadScore || 0,
-        isComplete: true,
-        processingLatency
-      };
-      
-      // Add to conversational chunks state
-      setConversationalChunks(prev => [...prev, susurroChunk]);
-      
-      // Emit via callback
-      conversational.onChunk(susurroChunk);
-      
-      // Clear timeout if it exists
-      const timeout = chunkEmissionTimeoutRef.current.get(chunk.id);
-      if (timeout) {
-        clearTimeout(timeout);
-        chunkEmissionTimeoutRef.current.delete(chunk.id);
+
+  const hasTranscriptFor = useCallback(
+    (chunkId: string): boolean => {
+      return chunkTranscriptions.has(chunkId);
+    },
+    [chunkTranscriptions]
+  );
+
+  const getTranscriptFor = useCallback(
+    (chunkId: string): string => {
+      return chunkTranscriptions.get(chunkId) || '';
+    },
+    [chunkTranscriptions]
+  );
+
+  const tryEmitChunk = useCallback(
+    (chunk: AudioChunk, forceEmit = false) => {
+      if (!conversational?.onChunk) return;
+
+      const audioUrl = processedAudioUrls.get(chunk.id);
+      const transcript = chunkTranscriptions.get(chunk.id);
+      const processingStartTime = chunkProcessingTimes.get(chunk.id);
+
+      // Only emit when both audio and transcript are ready
+      if (audioUrl && transcript) {
+        const processingLatency = processingStartTime
+          ? Date.now() - processingStartTime
+          : undefined;
+
+        const susurroChunk: SusurroChunk = {
+          id: chunk.id,
+          audioUrl,
+          transcript,
+          startTime: chunk.startTime,
+          endTime: chunk.endTime,
+          vadScore: chunk.vadScore || 0,
+          isComplete: true,
+          processingLatency,
+        };
+
+        // Add to conversational chunks state
+        setConversationalChunks((prev) => [...prev, susurroChunk]);
+
+        // Emit via callback
+        conversational.onChunk(susurroChunk);
+
+        // Clear timeout if it exists
+        const timeout = chunkEmissionTimeoutRef.current.get(chunk.id);
+        if (timeout) {
+          clearTimeout(timeout);
+          chunkEmissionTimeoutRef.current.delete(chunk.id);
+        }
+
+        // Clean up tracking data
+        chunkProcessingTimes.delete(chunk.id);
+      } else if (forceEmit && conversational.chunkTimeout) {
+        // Handle timeout case - emit incomplete chunk if timeout is reached
+        const susurroChunk: SusurroChunk = {
+          id: chunk.id,
+          audioUrl: audioUrl || '',
+          transcript: transcript || '',
+          startTime: chunk.startTime,
+          endTime: chunk.endTime,
+          vadScore: chunk.vadScore || 0,
+          isComplete: false,
+          processingLatency: processingStartTime ? Date.now() - processingStartTime : undefined,
+        };
+
+        setConversationalChunks((prev) => [...prev, susurroChunk]);
+        conversational.onChunk(susurroChunk);
       }
-      
-      // Clean up tracking data
-      chunkProcessingTimes.delete(chunk.id);
-    } else if (forceEmit && conversational.chunkTimeout) {
-      // Handle timeout case - emit incomplete chunk if timeout is reached
-      const susurroChunk: SusurroChunk = {
-        id: chunk.id,
-        audioUrl: audioUrl || '',
-        transcript: transcript || '',
-        startTime: chunk.startTime,
-        endTime: chunk.endTime,
-        vadScore: chunk.vadScore || 0,
-        isComplete: false,
-        processingLatency: processingStartTime ? Date.now() - processingStartTime : undefined
-      };
-      
-      setConversationalChunks(prev => [...prev, susurroChunk]);
-      conversational.onChunk(susurroChunk);
-    }
-  }, [conversational, processedAudioUrls, chunkTranscriptions, chunkProcessingTimes]);
-  
+    },
+    [conversational, processedAudioUrls, chunkTranscriptions, chunkProcessingTimes]
+  );
+
   const clearConversationalChunks = useCallback(() => {
     // Clear URL objects to prevent memory leaks
-    conversationalChunks.forEach(chunk => {
+    conversationalChunks.forEach((chunk) => {
       if (chunk.audioUrl.startsWith('blob:')) {
         URL.revokeObjectURL(chunk.audioUrl);
       }
     });
-    
+
     setConversationalChunks([]);
     setProcessedAudioUrls(new Map());
     setChunkTranscriptions(new Map());
     setChunkProcessingTimes(new Map());
-    
+
     // Clear any pending timeouts
-    chunkEmissionTimeoutRef.current.forEach(timeout => clearTimeout(timeout));
+    chunkEmissionTimeoutRef.current.forEach((timeout) => clearTimeout(timeout));
     chunkEmissionTimeoutRef.current.clear();
   }, [conversationalChunks]);
 
   // Real-time chunk processing with hook pattern (Murmuraba v3 integration)
   useEffect(() => {
-    recordingState.chunks.forEach((chunk, index) => {
-      if (index >= audioChunks.length) {
-        // Convert Murmuraba chunk to internal format
+    const processNewChunks = async () => {
+      const newChunks: AudioChunk[] = [];
+      
+      for (let index = audioChunks.length; index < recordingState.chunks.length; index++) {
+        const chunk = recordingState.chunks[index];
+        
+        // Convert Murmuraba chunk to internal format with real VAD metrics
         const audioChunk: AudioChunk = {
           id: chunk.id || `chunk-${Date.now()}-${index}`,
-          blob: new Blob(), // Will be replaced with urlToBlob(chunk.processedAudioUrl) when v3 is available
+          blob: await urlToBlob(chunk.processedAudioUrl || ''), // Real Murmuraba v3 integration
           startTime: chunk.startTime || index * chunkDurationMs,
           endTime: chunk.endTime || (index + 1) * chunkDurationMs,
-          vadScore: chunk.averageVad || 0,
-          duration: chunk.duration || chunkDurationMs
+          vadScore: chunk.averageVad || 0, // Real VAD from neural processing
+          duration: chunk.duration || chunkDurationMs,
         };
-        setAudioChunks(prev => [...prev, audioChunk]);
+        
+        newChunks.push(audioChunk);
+        
+        // Store processed audio URL for conversational mode
+        if (conversational?.onChunk && chunk.processedAudioUrl) {
+          setProcessedAudioUrls((prev) => new Map(prev).set(audioChunk.id, chunk.processedAudioUrl!));
+          
+          // Set timeout for chunk emission if configured
+          if (conversational.chunkTimeout) {
+            const timeout = setTimeout(() => {
+              tryEmitChunk(audioChunk, true); // Force emit on timeout
+            }, conversational.chunkTimeout);
+            chunkEmissionTimeoutRef.current.set(audioChunk.id, timeout);
+          }
+        }
       }
-    });
-    
-    // Update VAD from latest chunk
+      
+      if (newChunks.length > 0) {
+        setAudioChunks((prev) => [...prev, ...newChunks]);
+      }
+    };
+
+    processNewChunks();
+
+    // Update VAD from latest chunk with enhanced metrics
     const latestChunk = recordingState.chunks[recordingState.chunks.length - 1];
     if (latestChunk) {
       setAverageVad(latestChunk.averageVad || 0);
     }
-  }, [recordingState.chunks, audioChunks.length, chunkDurationMs]);
+  }, [recordingState.chunks, audioChunks.length, chunkDurationMs, conversational, tryEmitChunk]);
 
   // Process audio file - DEPRECATED in Murmuraba v3
   const processAudioFile = useCallback(async (file: File) => {
-    throw new Error('File processing is deprecated in Murmuraba v3. Use real-time recording with startRecording() instead.');
+    throw new Error(
+      'File processing is deprecated in Murmuraba v3. Use real-time recording with startRecording() instead.'
+    );
   }, []);
 
   // Process chunks for transcription
-  const processChunks = useCallback(async (chunks: AudioChunk[]) => {
-    setProcessingStatus({
-      isProcessing: true,
-      currentChunk: 0,
-      totalChunks: chunks.length,
-      stage: 'processing'
-    });
-    
-    // Process each chunk with Whisper
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      setProcessingStatus(prev => ({
-        ...prev,
-        currentChunk: i + 1
-      }));
-      
-      try {
-        const result = await transcribeWhisper(chunk.blob);
-        if (result) {
-          setTranscriptions(prev => [...prev, {
-            text: result.text,
-            segments: result.segments || [],
-            chunkIndex: i,
-            timestamp: Date.now()
-          }]);
-        }
-      } catch (error) {
-      }
-    }
+  const processChunks = useCallback(
+    async (chunks: AudioChunk[]) => {
+      setProcessingStatus({
+        isProcessing: true,
+        currentChunk: 0,
+        totalChunks: chunks.length,
+        stage: 'processing',
+      });
 
-    setProcessingStatus({
-      isProcessing: false,
-      currentChunk: 0,
-      totalChunks: 0,
-      stage: 'complete'
-    });
-  }, [transcribeWhisper]);
+      // Process each chunk with Whisper
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        setProcessingStatus((prev) => ({
+          ...prev,
+          currentChunk: i + 1,
+        }));
+
+        try {
+          const result = await transcribeWhisper(chunk.blob);
+          if (result) {
+            setTranscriptions((prev) => [
+              ...prev,
+              {
+                text: result.text,
+                segments: result.segments || [],
+                chunkIndex: i,
+                timestamp: Date.now(),
+              },
+            ]);
+          }
+        } catch (error) {
+          console.warn('Transcription failed for chunk:', chunk.id, error);
+        }
+      }
+
+      setProcessingStatus({
+        isProcessing: false,
+        currentChunk: 0,
+        totalChunks: 0,
+        stage: 'complete',
+      });
+    },
+    [transcribeWhisper]
+  );
 
   // Recording functions - Placeholder for Murmuraba v3 integration
   // Recording functions - Direct hook integration (Murmuraba v3 pattern)
@@ -330,7 +344,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       startTimeRef.current = Date.now();
       setAudioChunks([]);
       setTranscriptions([]);
-      
+
       // Hook handles all MediaRecorder setup and initialization
       await startMurmurabaRecording();
     } catch (error) {
@@ -356,37 +370,43 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const clearTranscriptions = useCallback(() => {
     setTranscriptions([]);
     clearRecordings(); // Also clear Murmuraba recordings
-    
+
     // Also clear conversational transcriptions if in conversational mode
     if (conversational?.onChunk) {
       setChunkTranscriptions(new Map());
     }
   }, [conversational]);
-  
+
   // Optimize memory by cleaning up old URL objects
-  const cleanupOldChunks = useCallback((maxChunks = 50) => {
-    if (conversationalChunks.length > maxChunks) {
-      const chunksToRemove = conversationalChunks.slice(0, conversationalChunks.length - maxChunks);
-      
-      // Revoke old URL objects
-      chunksToRemove.forEach(chunk => {
-        if (chunk.audioUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(chunk.audioUrl);
-        }
-      });
-      
-      // Keep only recent chunks
-      setConversationalChunks(prev => prev.slice(-maxChunks));
-    }
-  }, [conversationalChunks]);
-  
+  const cleanupOldChunks = useCallback(
+    (maxChunks = 50) => {
+      if (conversationalChunks.length > maxChunks) {
+        const chunksToRemove = conversationalChunks.slice(
+          0,
+          conversationalChunks.length - maxChunks
+        );
+
+        // Revoke old URL objects
+        chunksToRemove.forEach((chunk) => {
+          if (chunk.audioUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(chunk.audioUrl);
+          }
+        });
+
+        // Keep only recent chunks
+        setConversationalChunks((prev) => prev.slice(-maxChunks));
+      }
+    },
+    [conversationalChunks]
+  );
+
   // Debounced cleanup to prevent memory bloat
   useEffect(() => {
     if (conversational?.onChunk && conversationalChunks.length > 0) {
       const cleanup = setTimeout(() => {
         cleanupOldChunks();
       }, 5000); // Clean up every 5 seconds
-      
+
       return () => clearTimeout(cleanup);
     }
   }, [conversational, conversationalChunks.length, cleanupOldChunks]);
@@ -403,30 +423,33 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       }, 100);
     }
   }, [audioChunks, recordingState.isRecording, whisperReady, processChunks, conversational]);
-  
+
   // Conversational mode: Process chunks individually for real-time emission
   useEffect(() => {
-    if (conversational?.onChunk && conversational?.enableInstantTranscription && audioChunks.length > 0) {
+    if (
+      conversational?.onChunk &&
+      conversational?.enableInstantTranscription &&
+      audioChunks.length > 0
+    ) {
       // Find chunks that haven't been transcribed yet
-      const untranscribedChunks = audioChunks.filter(chunk => 
-        !chunkTranscriptions.has(chunk.id) && 
-        processedAudioUrls.has(chunk.id)
+      const untranscribedChunks = audioChunks.filter(
+        (chunk) => !chunkTranscriptions.has(chunk.id) && processedAudioUrls.has(chunk.id)
       );
-      
+
       // Process each untranscribed chunk immediately
       untranscribedChunks.forEach(async (chunk) => {
         try {
           const result = await transcribeWhisper(chunk.blob);
           if (result) {
             // Store transcription
-            setChunkTranscriptions(prev => new Map(prev).set(chunk.id, result.text));
-            
+            setChunkTranscriptions((prev) => new Map(prev).set(chunk.id, result.text));
+
             // Try to emit chunk now that transcript is ready
             tryEmitChunk(chunk);
           }
         } catch (error) {
           console.warn('Transcription failed for chunk:', chunk.id, error);
-          
+
           // Still try to emit with empty transcript if audio is ready
           if (processedAudioUrls.has(chunk.id)) {
             tryEmitChunk(chunk, true);
@@ -434,14 +457,21 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         }
       });
     }
-  }, [audioChunks, conversational, chunkTranscriptions, processedAudioUrls, transcribeWhisper, tryEmitChunk]);
+  }, [
+    audioChunks,
+    conversational,
+    chunkTranscriptions,
+    processedAudioUrls,
+    transcribeWhisper,
+    tryEmitChunk,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       // Clean up conversational resources
       clearConversationalChunks();
-      
+
       // Murmuraba v3 hook handles all cleanup automatically
     };
   }, [clearConversationalChunks]);
@@ -461,8 +491,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     resumeRecording,
     clearTranscriptions,
     processAudioFile, // Deprecated in v3
-    // Built-in export functions from hook
-    exportChunkAsWav,
+    // Built-in export functions from hook - wrapped for compatibility
+    exportChunkAsWav: (chunkId: string) => exportChunkAsWav(chunkId, 'processed'),
     // Whisper-related properties
     whisperReady,
     whisperProgress,
@@ -470,7 +500,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     transcribeWithWhisper: transcribeWhisper,
     // Conversational features
     conversationalChunks,
-    clearConversationalChunks
+    clearConversationalChunks,
   };
 }
 
@@ -479,20 +509,20 @@ async function audioBufferToWav(audioBuffer: AudioBuffer): Promise<Blob> {
   const length = audioBuffer.length * audioBuffer.numberOfChannels * 2;
   const buffer = new ArrayBuffer(44 + length);
   const view = new DataView(buffer);
-  
+
   const writeString = (offset: number, string: string) => {
     for (let i = 0; i < string.length; i++) {
       view.setUint8(offset + i, string.charCodeAt(i));
     }
   };
-  
+
   const floatTo16BitPCM = (output: DataView, offset: number, input: Float32Array) => {
     for (let i = 0; i < input.length; i++, offset += 2) {
       const s = Math.max(-1, Math.min(1, input[i]));
-      output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
     }
   };
-  
+
   writeString(0, 'RIFF');
   view.setUint32(4, 36 + length, true);
   writeString(8, 'WAVE');
@@ -506,18 +536,18 @@ async function audioBufferToWav(audioBuffer: AudioBuffer): Promise<Blob> {
   view.setUint16(34, 16, true);
   writeString(36, 'data');
   view.setUint32(40, length, true);
-  
+
   const offset = 44;
   const interleaved = new Float32Array(audioBuffer.length * audioBuffer.numberOfChannels);
-  
+
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const channelData = audioBuffer.getChannelData(channel);
     for (let i = 0; i < channelData.length; i++) {
       interleaved[i * audioBuffer.numberOfChannels + channel] = channelData[i];
     }
   }
-  
+
   floatTo16BitPCM(view, offset, interleaved);
-  
+
   return new Blob([buffer], { type: 'audio/wav' });
 }

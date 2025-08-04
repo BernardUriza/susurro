@@ -3,6 +3,7 @@
 A next-generation conversational AI platform combining Murmuraba's neural audio processing with Whisper's transcription capabilities for ChatGPT-style real-time voice conversations.
 
 **Working Commit ID**: `f8d559d3d7c3c69fde502fa48ac3ea94ad03402b`
+**Branch**: `feature/bazaar-migration-v3`
 
 ## 🎯 Features
 

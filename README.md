@@ -28,6 +28,13 @@ A next-generation conversational AI platform combining Murmuraba's neural audio 
 ## 🚀 Technology Stack
 
 - **Vite + React 18** - Modern build system and framework
+- **Matrix Theme CSS** - Cyberpunk terminal aesthetics with custom animations
+
+### Matrix Theme Features
+- **CSS Variables**: `--matrix-green: #00ff41`, `--matrix-bg: #0d0208`
+- **Matrix Components**: `.matrix-button`, `.matrix-terminal`, `.matrix-theme`
+- **Visual Effects**: Digital rainfall, scanning lines, glitch animations
+- **Responsive Design**: Mobile-first approach with terminal styling
 - **TypeScript** - Full type safety and developer experience
 - **Murmuraba v2** - Neural audio processing engine
 - **Transformers.js** - Client-side Whisper AI models

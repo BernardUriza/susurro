@@ -1,5 +1,5 @@
 {
-  "name": "@bernarduriza/susurro",
+  "name": "susurro-audio",
   "version": "2.0.0",
   "description": "Audio processing and transcription library for web applications",
   "main": "dist/index.js",

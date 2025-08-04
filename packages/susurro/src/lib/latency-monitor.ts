@@ -222,7 +222,7 @@ export class LatencyMonitor {
   // Simple event emitter for optimization triggers
   private listeners: { [event: string]: Function[] } = {};
 
-  private emit(event: string, data: any): void {
+  private emit(event: string, data: unknown): void {
     if (this.listeners[event]) {
       this.listeners[event].forEach((listener) => listener(data));
     }

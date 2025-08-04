@@ -61,7 +61,7 @@ class WhisperPipelineSingleton {
         throw new Error(`Failed to import transformers: ${err.message}`);
       });
 
-      this.pipeline = transformers.pipeline as any;
+      this.pipeline = transformers.pipeline;
       this.env = { ...transformers.env, remoteURL: '' } as TransformersEnvironment;
 
       if (this.env) {

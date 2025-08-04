@@ -54,7 +54,16 @@
       "Bash(gh issue create:*)",
       "Bash(git push:*)",
       "Bash(gh pr create:*)",
-      "Bash(gh issue edit:*)"
+      "Bash(gh issue edit:*)",
+      "Bash(git mv:*)",
+      "Bash(git push:*)",
+      "Bash(gh auth:*)",
+      "Bash(npx vite:*)",
+      "Bash(gh pr list:*)",
+      "Bash(mv:*)",
+      "Bash(chmod:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }

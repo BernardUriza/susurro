@@ -17,10 +17,6 @@
     "build": "vite build",
     "build:package": "echo 'Package build skipped - no workspace found'",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "lint:strict": "eslint . --ext ts,tsx --max-warnings 0",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
     "type-check:strict": "tsc --noEmit --strict",
     "test": "vitest",
@@ -29,14 +25,15 @@
     "test:e2e:puppeteer": "vitest run test/e2e/puppeteer-transcription.test.ts",
     "test:unit": "vitest run test/unit",
     "coverage": "vitest run --coverage",
-    "pre-commit": "lint-staged",
-    "prepare": "husky",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "analyze": "node scripts/analyze-project.js",
+    "analyze:dead-code": "knip --config config/knip.config.ts",
+    "validate-cleanup": "node scripts/cleanup-validation.js",
     "migration:detect-legacy": "grep -r --exclude-dir=node_modules -v '//.*MediaRecorder\\|//.*processAudioFile\\|/\\*.*MediaRecorder\\|/\\*.*processAudioFile' packages/susurro/src/ | grep -E 'MediaRecorder\\b|getUserMedia\\b|ondataavailable\\b|processAudioFile\\s*[\\(:]' && echo 'LEGACY DETECTED' || echo 'LEGACY EXTINCT'",
-    "build-lib": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types",
+    "build-lib": "npm run clean && npm run build:types",
     "clean": "rmdir /s /q dist 2>nul || echo No dist folder",
-    "build:esm": "esbuild src/index.ts --bundle --minify --format=esm --outfile=dist/index.mjs --external:react --external:react-dom --external:next --external:@xenova/transformers --external:sweetalert2",
-    "build:cjs": "esbuild src/index.ts --bundle --minify --format=cjs --outfile=dist/index.js --external:react --external:react-dom --external:next --external:@xenova/transformers --external:sweetalert2",
-    "build:types": "tsc --project tsconfig.lib.json --emitDeclarationOnly",
+    "build:types": "tsc --project config/tsconfig.lib.json --emitDeclarationOnly",
     "prepublishOnly": "npm run build-lib"
   },
   "keywords": [
@@ -70,14 +67,10 @@
   ],
   "dependencies": {
     "@susurro/core": "file:./packages/susurro",
-    "@vitest/ui": "^3.2.4",
     "framer-motion": "^12.23.12",
-    "happy-dom": "^18.0.1",
     "murmuraba": "^3.0.2",
     "react-virtuoso": "^4.13.0",
-    "sweetalert2": "^11.6.13",
-    "three": "^0.178.0",
-    "vitest": "^3.2.4"
+    "three": "^0.178.0"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.0",
@@ -88,27 +81,16 @@
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "@vitejs/plugin-react": "^4.7.0",
-    "esbuild": "^0.25.8",
+    "@vitest/ui": "^3.2.4",
     "eslint": "^8.57.1",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.3",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^4.6.2",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.1.4",
-    "prettier": "^3.6.2",
+    "happy-dom": "^18.0.1",
+    "knip": "^5.43.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.5.3",
-    "vite": "^7.0.6"
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
-      "eslint --fix --max-warnings 0",
-      "prettier --write"
-    ],
-    "*.{json,md,css}": [
-      "prettier --write"
-    ]
+    "vite": "^7.0.6",
+    "vitest": "^3.2.4"
   }
 }

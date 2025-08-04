@@ -18,12 +18,20 @@
     "build:package": "npm -w @susurro/core run build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:strict": "eslint . --ext ts,tsx --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "tsc --noEmit",
+    "type-check:strict": "tsc --noEmit --strict",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "vitest run test/e2e",
     "test:e2e:puppeteer": "vitest run test/e2e/puppeteer-transcription.test.ts",
     "test:unit": "vitest run test/unit",
     "coverage": "vitest run --coverage",
+    "pre-commit": "lint-staged",
+    "prepare": "husky",
+    "migration:detect-legacy": "grep -r 'MediaRecorder\\|getUserMedia\\|ondataavailable' packages/susurro/src/ && echo 'LEGACY DETECTED' || echo 'LEGACY EXTINCT'",
     "build-lib": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types",
     "clean": "rmdir /s /q dist 2>nul || echo No dist folder",
     "build:esm": "esbuild src/index.ts --bundle --minify --format=esm --outfile=dist/index.mjs --external:react --external:react-dom --external:next --external:@xenova/transformers --external:sweetalert2",
@@ -74,12 +82,26 @@
     "@typescript-eslint/parser": "^7.18.0",
     "@vitejs/plugin-react": "^4.7.0",
     "esbuild": "^0.19.12",
-    "eslint": "^8.57.0",
-    "eslint-plugin-react": "^7.34.0",
-    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.4",
+    "prettier": "^3.6.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.5.3",
     "vite": "^7.0.6"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
+    ],
+    "*.{json,md,css}": [
+      "prettier --write"
+    ]
   }
 }

@@ -48,7 +48,12 @@
       "Bash(touch:*)",
       "Bash(npm outdated)",
       "Bash(npx eslint:*)",
-      "Bash(npm:*)"
+      "Bash(npm:*)",
+      "Bash(npx husky:*)",
+      "Bash(chmod:*)",
+      "Bash(gh issue create:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)"
     ],
     "deny": []
   }

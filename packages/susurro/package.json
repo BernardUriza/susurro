@@ -34,7 +34,7 @@
   },
   "peerDependencies": {
     "@xenova/transformers": ">=2.0.0",
-    "murmuraba": ">=2.0.0",
+    "murmuraba": ">=3.0.0",
     "react": ">=19.0.0"
   },
   "dependencies": {

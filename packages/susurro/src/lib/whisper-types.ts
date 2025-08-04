@@ -23,15 +23,15 @@ export interface WhisperOutput {
   }>;
 }
 
-export interface Pipeline<T extends string = 'automatic-speech-recognition'> {
+export interface Pipeline {
   (input: string | ArrayBuffer, options?: WhisperTransformersConfig): Promise<WhisperOutput>;
 }
 
 export interface TransformersEnvironment {
   allowLocalModels: boolean;
-  allowRemoteModels: boolean;
+  allowRemoteModels?: boolean;
   remoteURL: string;
-  backends: {
+  backends?: {
     onnx: {
       wasm: {
         wasmPaths: string;
@@ -41,13 +41,13 @@ export interface TransformersEnvironment {
 }
 
 export interface TransformersModule {
-  pipeline: <T extends string>(
-    task: T,
+  pipeline: (
+    task: string,
     model?: string,
     options?: {
       progress_callback?: (progress: WhisperProgress) => void;
       quantized?: boolean;
     }
-  ) => Promise<Pipeline<T>>;
+  ) => Promise<Pipeline>;
   env: TransformersEnvironment;
 }

@@ -3,7 +3,7 @@
 // React and external libraries
 import React from 'react';
 
-interface TemporalSegmentSelectorProps {
+export interface TemporalSegmentSelectorProps {
   value: number;
   onChange: (value: number) => void;
   min?: number;

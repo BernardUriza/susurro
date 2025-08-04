@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranscription } from './useTranscription';
+import { useWhisperDirect } from './useWhisperDirect';
 // REMOVED: Singleton pattern replaced with direct hook usage
 // REMOVED: import { murmurabaManager } from '../lib/murmuraba-singleton';
 import type {
@@ -48,8 +48,8 @@ export interface UseSusurroReturn {
   // Whisper-related properties
   whisperReady: boolean;
   whisperProgress: number;
-  whisperError: any;
-  transcribeWithWhisper: (blob: Blob) => Promise<any>;
+  whisperError: Error | null;
+  transcribeWithWhisper: (blob: Blob) => Promise<TranscriptionResult | null>;
   // Built-in export functions (Murmuraba v3)
   exportChunkAsWav: (chunkId: string) => Promise<Blob>;
   // Conversational features
@@ -118,75 +118,18 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const startTimeRef = useRef<number>(0);
   const chunkEmissionTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
-  // Use existing hooks with conversational enhancement
+  // Direct Whisper integration - no abstraction layer
   const {
-    transcribe,
-    isLoading: isTranscribing,
-    whisperReady,
-    whisperProgress,
-    whisperError,
-    transcribeWithWhisper: transcribeWhisper,
-  } = useTranscription({
-    onTranscriptionComplete: (result) => {
-      setTranscriptions((prev) => [...prev, result]);
-
-      // Handle conversational mode transcription
-      if (conversational?.onChunk && result.chunkIndex !== undefined) {
-        const chunk = audioChunks[result.chunkIndex];
-        if (chunk) {
-          // Store transcription for this chunk
-          setChunkTranscriptions((prev) => new Map(prev).set(chunk.id, result.text));
-
-          // Try to emit chunk if audio is also ready
-          tryEmitChunk(chunk);
-        }
-      }
-    },
-    onStatusUpdate: (status) => {
-      setProcessingStatus((prev) => ({
-        ...prev,
-        ...status,
-        stage: (status.stage as ProcessingStatus['stage']) || prev.stage,
-      }));
-    },
-    whisperConfig: {
-      language: whisperConfig?.language || 'en',
-    },
+    isTranscribing,
+    modelReady: whisperReady,
+    loadingProgress: whisperProgress,
+    error: whisperError,
+    transcribe: transcribeWhisper,
+  } = useWhisperDirect({
+    language: whisperConfig?.language || 'en',
   });
 
-  // Helper functions
-  const createChunk = (blob: Blob, startTime: number, endTime: number): AudioChunk => {
-    const id = `chunk-${Date.now()}-${Math.random()}`;
-    // Track processing start time for latency measurement
-    chunkProcessingTimes.set(id, Date.now());
-
-    return {
-      id,
-      blob,
-      duration: endTime - startTime,
-      startTime,
-      endTime,
-    };
-  };
-
-  // Conversational helper functions
-  const createAudioUrl = useCallback((blob: Blob): string => {
-    return URL.createObjectURL(blob);
-  }, []);
-
-  const hasTranscriptFor = useCallback(
-    (chunkId: string): boolean => {
-      return chunkTranscriptions.has(chunkId);
-    },
-    [chunkTranscriptions]
-  );
-
-  const getTranscriptFor = useCallback(
-    (chunkId: string): string => {
-      return chunkTranscriptions.get(chunkId) || '';
-    },
-    [chunkTranscriptions]
-  );
+  // Helper functions - moved before usage
 
   const tryEmitChunk = useCallback(
     async (chunk: AudioChunk, forceEmit = false) => {
@@ -218,7 +161,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         try {
           susurroChunk = await middlewarePipeline.process(susurroChunk);
         } catch (error) {
-          console.warn('Middleware processing failed:', error);
+          // Log middleware processing failure in development only
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('Middleware processing failed:', error);
+          }
         }
         const middlewareLatency = performance.now() - middlewareStartTime;
 
@@ -299,6 +245,40 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     chunkEmissionTimeoutRef.current.clear();
   }, [conversationalChunks]);
 
+  // Enhanced transcription handler with conversational support
+  const transcribeWithWhisper = useCallback(
+    async (blob: Blob): Promise<TranscriptionResult | null> => {
+      try {
+        const result = await transcribeWhisper(blob);
+        if (result) {
+          // Add to main transcriptions
+          setTranscriptions((prev) => [...prev, result]);
+
+          // Handle conversational mode transcription
+          if (conversational?.onChunk && result.chunkIndex !== undefined) {
+            const chunk = audioChunks[result.chunkIndex];
+            if (chunk) {
+              // Store transcription for this chunk
+              setChunkTranscriptions((prev) => new Map(prev).set(chunk.id, result.text));
+
+              // Try to emit chunk if audio is also ready
+              tryEmitChunk(chunk);
+            }
+          }
+
+          return result;
+        }
+        return null;
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Transcription failed:', error);
+        }
+        return null;
+      }
+    },
+    [transcribeWhisper, conversational, audioChunks, tryEmitChunk]
+  );
+
   // Real-time chunk processing with hook pattern (Murmuraba v3 integration)
   useEffect(() => {
     const processNewChunks = async () => {
@@ -321,9 +301,11 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
         // Store processed audio URL for conversational mode
         if (conversational?.onChunk && chunk.processedAudioUrl) {
-          setProcessedAudioUrls((prev) =>
-            new Map(prev).set(audioChunk.id, chunk.processedAudioUrl!)
-          );
+          if (chunk.processedAudioUrl) {
+            setProcessedAudioUrls((prev) =>
+              new Map(prev).set(audioChunk.id, chunk.processedAudioUrl!)
+            );
+          }
 
           // Set timeout for chunk emission if configured
           if (conversational.chunkTimeout) {
@@ -370,20 +352,20 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         }));
 
         try {
-          const result = await transcribeWhisper(chunk.blob);
+          const result = await transcribeWithWhisper(chunk.blob);
           if (result) {
-            setTranscriptions((prev) => [
-              ...prev,
-              {
-                text: result.text,
-                segments: result.segments || [],
-                chunkIndex: i,
-                timestamp: Date.now(),
-              },
-            ]);
+            // Enhanced result with chunk information
+            const enhancedResult: TranscriptionResult = {
+              ...result,
+              chunkIndex: i,
+              timestamp: Date.now(),
+            };
+            setTranscriptions((prev) => [...prev, enhancedResult]);
           }
         } catch (error) {
-          console.warn('Transcription failed for chunk:', chunk.id, error);
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('Transcription failed for chunk:', chunk.id, error);
+          }
         }
       }
 
@@ -400,16 +382,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // Recording functions - Placeholder for Murmuraba v3 integration
   // Recording functions - Direct hook integration (Murmuraba v3 pattern)
   const startRecording = useCallback(async () => {
-    try {
-      startTimeRef.current = Date.now();
-      setAudioChunks([]);
-      setTranscriptions([]);
+    startTimeRef.current = Date.now();
+    setAudioChunks([]);
+    setTranscriptions([]);
 
-      // Hook handles all audio setup and initialization
-      await startMurmurabaRecording();
-    } catch (error) {
-      throw error;
-    }
+    // Hook handles all audio setup and initialization
+    await startMurmurabaRecording();
   }, [startMurmurabaRecording]);
 
   const stopRecording = useCallback(() => {
@@ -435,7 +413,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     if (conversational?.onChunk) {
       setChunkTranscriptions(new Map());
     }
-  }, [conversational]);
+  }, [conversational, clearRecordings]);
 
   // Optimize memory by cleaning up old URL objects
   const cleanupOldChunks = useCallback(
@@ -512,7 +490,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       // Process each untranscribed chunk immediately
       untranscribedChunks.forEach(async (chunk) => {
         try {
-          const result = await transcribeWhisper(chunk.blob);
+          const result = await transcribeWithWhisper(chunk.blob);
           if (result) {
             // Store transcription
             setChunkTranscriptions((prev) => new Map(prev).set(chunk.id, result.text));
@@ -521,7 +499,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
             tryEmitChunk(chunk);
           }
         } catch (error) {
-          console.warn('Transcription failed for chunk:', chunk.id, error);
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('Transcription failed for chunk:', chunk.id, error);
+          }
 
           // Still try to emit with empty transcript if audio is ready
           if (processedAudioUrls.has(chunk.id)) {
@@ -570,7 +550,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     whisperReady,
     whisperProgress,
     whisperError,
-    transcribeWithWhisper: transcribeWhisper,
+    transcribeWithWhisper,
     // Conversational features
     conversationalChunks,
     clearConversationalChunks,
@@ -582,50 +562,3 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   };
 }
 
-// Helper function to convert AudioBuffer to WAV
-async function audioBufferToWav(audioBuffer: AudioBuffer): Promise<Blob> {
-  const length = audioBuffer.length * audioBuffer.numberOfChannels * 2;
-  const buffer = new ArrayBuffer(44 + length);
-  const view = new DataView(buffer);
-
-  const writeString = (offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  };
-
-  const floatTo16BitPCM = (output: DataView, offset: number, input: Float32Array) => {
-    for (let i = 0; i < input.length; i++, offset += 2) {
-      const s = Math.max(-1, Math.min(1, input[i]));
-      output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-    }
-  };
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + length, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, audioBuffer.numberOfChannels, true);
-  view.setUint32(24, audioBuffer.sampleRate, true);
-  view.setUint32(28, audioBuffer.sampleRate * audioBuffer.numberOfChannels * 2, true);
-  view.setUint16(32, audioBuffer.numberOfChannels * 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, 'data');
-  view.setUint32(40, length, true);
-
-  const offset = 44;
-  const interleaved = new Float32Array(audioBuffer.length * audioBuffer.numberOfChannels);
-
-  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-    const channelData = audioBuffer.getChannelData(channel);
-    for (let i = 0; i < channelData.length; i++) {
-      interleaved[i * audioBuffer.numberOfChannels + channel] = channelData[i];
-    }
-  }
-
-  floatTo16BitPCM(view, offset, interleaved);
-
-  return new Blob([buffer], { type: 'audio/wav' });
-}

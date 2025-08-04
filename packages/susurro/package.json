@@ -1,7 +1,7 @@
 {
   "name": "susurro-audio",
   "version": "2.0.0",
-  "description": "Audio processing and transcription library for web applications",
+  "description": "🎙️ Real-time conversational audio with AI transcription. Build ChatGPT-style voice interfaces in minutes with <300ms latency",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -22,9 +22,32 @@
     "transcription",
     "whisper",
     "speech-to-text",
+    "voice",
+    "voice-ai",
+    "voice-chat",
+    "voice-recognition",
+    "chatgpt",
+    "conversational-ai",
+    "real-time",
+    "streaming",
     "web-audio",
     "murmuraba",
-    "vad"
+    "vad",
+    "voice-activity-detection",
+    "react",
+    "react-hooks",
+    "typescript",
+    "neural-audio",
+    "noise-reduction",
+    "voice-interface",
+    "voice-assistant",
+    "speech-recognition",
+    "audio-processing",
+    "webrtc",
+    "voice-commands",
+    "voice-notes",
+    "audio-streaming",
+    "openai-whisper"
   ],
   "author": "Bernard Uriza Orozco",
   "license": "MIT",
@@ -55,8 +78,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/susurro"
+    "url": "https://github.com/BernardUriza/susurro"
   },
+  "bugs": {
+    "url": "https://github.com/BernardUriza/susurro/issues"
+  },
+  "homepage": "https://github.com/BernardUriza/susurro#readme",
   "publishConfig": {
     "access": "public"
   }

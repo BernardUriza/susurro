@@ -2,9 +2,9 @@
 
 // React and external libraries
 import React, { useEffect, useState } from 'react';
-import ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 
-interface MatrixAlertProps {
+export interface MatrixAlertProps {
   isOpen: boolean;
   onClose?: () => void;
   title?: string;
@@ -219,7 +219,7 @@ export const MatrixAlert: React.FC<MatrixAlertProps> = ({
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes fadeIn {
           from {
             opacity: 0;
@@ -286,19 +286,20 @@ class MatrixAlertManager {
     alertDiv.id = alertId;
     container.appendChild(alertDiv);
 
+    const root = createRoot(alertDiv);
+    
     const close = () => {
-      ReactDOM.unmountComponentAtNode(alertDiv);
+      root.unmount();
       alertDiv.remove();
       props.onClose?.();
     };
 
-    ReactDOM.render(<MatrixAlert {...props} isOpen={true} onClose={close} />, alertDiv);
+    root.render(<MatrixAlert {...props} isOpen={true} onClose={close} />);
 
     return {
       update: (newProps: Partial<MatrixAlertProps>) => {
-        ReactDOM.render(
-          <MatrixAlert {...props} {...newProps} isOpen={true} onClose={close} />,
-          alertDiv
+        root.render(
+          <MatrixAlert {...props} {...newProps} isOpen={true} onClose={close} />
         );
       },
       close,

@@ -27,10 +27,14 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
-    "packages/**/*"
+    "packages/**/*",
+    "examples/**/*.tsx",
+    "test/**/*.ts"
   ],
   "references": [{ "path": "./tsconfig.node.json" }],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "dist",
+    "**/*.d.ts"
   ]
 }

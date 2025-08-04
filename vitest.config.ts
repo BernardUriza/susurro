@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     globals: true,
-    setupFiles: './test/setup.ts',
+    setupFiles: './packages/susurro/tests/setup.ts',
   },
   resolve: {
     alias: {

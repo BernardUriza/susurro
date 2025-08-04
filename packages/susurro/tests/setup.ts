@@ -1,17 +1,21 @@
 import { vi } from 'vitest';
 
 // Mock browser APIs
-global.navigator = {
-  mediaDevices: {
-    getUserMedia: vi.fn().mockResolvedValue({
-      getTracks: () => [
-        {
-          stop: vi.fn(),
-        },
-      ],
-    }),
+Object.defineProperty(global, 'navigator', {
+  value: {
+    mediaDevices: {
+      getUserMedia: vi.fn().mockResolvedValue({
+        getTracks: () => [
+          {
+            stop: vi.fn(),
+          },
+        ],
+      }),
+    },
+    userAgent: 'test',
   },
-} as any;
+  writable: true,
+});
 
 global.AudioContext = vi.fn().mockImplementation(() => ({
   createBuffer: vi.fn(),
@@ -70,10 +74,13 @@ global.indexedDB = {
 } as any;
 
 // Mock storage API
-global.navigator.storage = {
-  estimate: vi.fn().mockResolvedValue({
-    usage: 1000000,
-    quota: 10000000,
-  }),
-  persist: vi.fn().mockResolvedValue(true),
-} as any;
+Object.defineProperty(global.navigator, 'storage', {
+  value: {
+    estimate: vi.fn().mockResolvedValue({
+      usage: 1000000,
+      quota: 10000000,
+    }),
+    persist: vi.fn().mockResolvedValue(true),
+  },
+  writable: true,
+});

@@ -56,47 +56,33 @@ class WhisperPipelineSingleton {
     progress_callback: ((progress: WhisperProgress) => void) | null = null
   ): Promise<Pipeline> {
     if (!this.pipeline) {
-      try {
-        // Dynamic import with error handling
-        const transformers = await import('@xenova/transformers').catch((err: Error) => {
-          throw new Error(`Failed to import transformers: ${err.message}`);
-        });
+      // Dynamic import with error handling
+      const transformers = await import('@xenova/transformers').catch((err: Error) => {
+        throw new Error(`Failed to import transformers: ${err.message}`);
+      });
 
-        this.pipeline = transformers.pipeline;
-        this.env = transformers.env;
+      this.pipeline = transformers.pipeline as any;
+      this.env = { ...transformers.env, remoteURL: '' } as TransformersEnvironment;
 
+      if (this.env) {
         // Configure environment with correct WASM paths for Vite
         this.env.allowLocalModels = true;
-        this.env.useBrowserCache = true;
-        this.env.useCustomCache = true;
         this.env.remoteURL = 'https://huggingface.co/';
 
-        // Try multiple WASM path configurations
-        const possiblePaths = [
-          '/node_modules/@xenova/transformers/dist/',
-          '/@fs/node_modules/@xenova/transformers/dist/',
-          'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/',
-          '/',
-        ];
-
-        // Use the first path that works or fallback to CDN
-        this.env.backends = {
-          onnx: {
+        // Configure backends safely
+        if (this.env.backends) {
+          this.env.backends.onnx = {
             wasm: {
-              wasmPaths: possiblePaths[2], // Use CDN as most reliable option
+              wasmPaths: 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/',
             },
-          },
-        };
-      } catch (error) {
-        throw error;
+          };
+        }
       }
     }
 
     // Check cache first
     const cacheStatus = await cacheManager.getCacheStatus();
-    if (cacheStatus.hasCache) {
-    } else {
-    }
+    // Cache checking logic can be expanded here if needed
 
     // Request persistent storage for better caching
     await cacheManager.requestPersistentStorage();
@@ -106,6 +92,10 @@ class WhisperPipelineSingleton {
       setTimeout(() => reject(new Error('Model loading timeout after 2 minutes')), 120000);
     });
 
+    if (!this.pipeline) {
+      throw new Error('Pipeline not initialized');
+    }
+
     const loadPromise = this.pipeline(this.task, this.model, {
       progress_callback: (progress: WhisperProgress) => {
         if (progress_callback) progress_callback(progress);
@@ -113,8 +103,13 @@ class WhisperPipelineSingleton {
       quantized: true,
     });
 
-    this.instance = await Promise.race([loadPromise, timeoutPromise]);
-
+    const result = await Promise.race([loadPromise, timeoutPromise]);
+    
+    if (result instanceof Error) {
+      throw result;
+    }
+    
+    this.instance = result as Pipeline;
     return this.instance;
   }
 }
@@ -138,8 +133,8 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
   const [isLoadingFromCache] = useState(false);
 
   const pipelineRef = useRef<Pipeline | null>(null);
-  const progressAlertRef = useRef<any>(null);
-  const transcriptionQueueRef = useRef<Promise<any>>(Promise.resolve());
+  const progressAlertRef = useRef<{ close: () => void; update: (options: { message: string; progress: number }) => void } | null>(null);
+  const transcriptionQueueRef = useRef<Promise<TranscriptionResult | null>>(Promise.resolve(null));
 
   // Initialize Transformers.js
   useEffect(() => {
@@ -200,7 +195,6 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
           title: '[MODEL_LOAD_ERROR]',
           message: errorMessage,
           type: 'error',
-          onClose: () => {},
         });
       }
     };
@@ -265,11 +259,22 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
             return_timestamps: false,
           });
 
-          const endTime = Date.now();
+          // Processing completed
 
           const result: TranscriptionResult = {
             text: output.text,
-            segments: output.chunks,
+            segments: output.chunks?.map((chunk, index) => ({
+              id: index,
+              seek: 0,
+              start: chunk.timestamp?.[0] || 0,
+              end: chunk.timestamp?.[1] || 0,
+              text: chunk.text,
+              tokens: [],
+              temperature: 0,
+              avg_logprob: 0,
+              compression_ratio: 0,
+              no_speech_prob: 0,
+            })) || [],
             chunkIndex: 0,
             timestamp: Date.now(),
           };
@@ -282,7 +287,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
           setError(error);
           setIsTranscribing(false);
 
-          matrixAlert.show({
+          alertService.show({
             title: '[TRANSCRIPTION_ERROR]',
             message: error.message,
             type: 'error',
@@ -295,9 +300,9 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       // Update queue reference
       transcriptionQueueRef.current = transcriptionPromise.catch(() => {});
 
-      return transcriptionPromise;
+      return transcriptionPromise as Promise<TranscriptionResult | null>;
     },
-    [config, modelReady, isTranscribing]
+    [whisperConfig, modelReady, isTranscribing]
   );
 
   const clearTranscript = useCallback(() => {

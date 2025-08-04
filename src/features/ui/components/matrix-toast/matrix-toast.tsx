@@ -2,15 +2,15 @@
 
 // React and external libraries
 import React, { useEffect, useState } from 'react';
-import ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 
-interface ToastProps {
+export interface ToastProps {
   message: string;
   type?: 'success' | 'error' | 'info' | 'warning';
   duration?: number;
 }
 
-interface ToastItem extends ToastProps {
+export interface ToastItem extends ToastProps {
   id: string;
   isVisible: boolean;
 }
@@ -133,13 +133,14 @@ class MatrixToastManager {
     container.appendChild(toastDiv);
     this.toasts.set(toastId, toastDiv);
 
+    const root = createRoot(toastDiv);
     const close = () => {
-      ReactDOM.unmountComponentAtNode(toastDiv);
+      root.unmount();
       toastDiv.remove();
       this.toasts.delete(toastId);
     };
 
-    ReactDOM.render(<MatrixToast {...props} onClose={close} />, toastDiv);
+    root.render(<MatrixToast {...props} onClose={close} />);
   }
 
   success(message: string) {

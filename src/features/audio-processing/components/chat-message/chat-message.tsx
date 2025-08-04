@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { AudioVisualizer } from 'react-audio-visualize';
+import { WaveformAnalyzer } from 'murmuraba';
 import type { SusurroChunk } from '@susurro/core';
 import { StreamingText } from '../streaming-text';
 
@@ -25,25 +25,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isStreamingText, setIsStreamingText] = useState(false);
-
-  // Load audio blob from URL
-  useEffect(() => {
-    const loadAudioBlob = async () => {
-      if (chunk.audioUrl) {
-        try {
-          const response = await fetch(chunk.audioUrl);
-          const blob = await response.blob();
-          setAudioBlob(blob);
-        } catch (error) {
-          console.warn('Failed to load audio blob:', error);
-        }
-      }
-    };
-
-    loadAudioBlob();
-  }, [chunk.audioUrl]);
 
   // Handle audio events
   const handlePlayPause = useCallback(() => {
@@ -222,24 +204,26 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
           </div>
 
-          {/* Audio Visualizer */}
-          {audioBlob && (
+          {/* Professional Waveform Visualizer from Murmuraba */}
+          {chunk.audioUrl && (
             <div
               style={{
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                marginTop: '8px',
+                borderRadius: '4px',
+                overflow: 'hidden',
               }}
             >
-              <AudioVisualizer
-                blob={audioBlob}
-                width={300}
-                height={40}
-                barWidth={2}
-                gap={1}
-                barColor={isPlaying ? '#ffaa00' : '#00ff41'}
-                backgroundColor="transparent"
+              <WaveformAnalyzer
+                audioUrl={chunk.audioUrl}
+                color={isPlaying ? '#ffaa00' : '#00ff41'}
+                isActive={true}
+                isPaused={!isPlaying}
+                hideControls={true}
+                volume={1.0}
+                width={280}
+                height={60}
+                onPlayStateChange={setIsPlaying}
+                aria-label={`Audio waveform for chunk ${index + 1}`}
               />
             </div>
           )}

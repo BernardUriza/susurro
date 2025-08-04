@@ -137,7 +137,7 @@ export function ConversationalDemo() {
     <div className="conversational-demo">
       <div className="demo-header">
         <h1>🗣️ Susurro Conversational Demo v3</h1>
-        <p>Real-time recording with ChatGPT-style processing and <300ms latency</p>
+        <p>Real-time recording with ChatGPT-style processing and &lt;300ms latency</p>
         
         <div className="status-bar">
           <span className={`status ${whisperReady ? 'ready' : 'loading'}`}>
@@ -203,7 +203,7 @@ export function ConversationalDemo() {
           {messages.length === 0 ? (
             <div className="empty-state">
               <p>🎤 Click "Start Recording" to begin real-time conversation...</p>
-              <small>Phase 3: Neural audio processing with <300ms latency</small>
+              <small>Phase 3: Neural audio processing with &lt;300ms latency</small>
             </div>
           ) : (
             messages.map((message) => (

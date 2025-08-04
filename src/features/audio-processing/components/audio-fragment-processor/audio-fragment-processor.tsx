@@ -10,7 +10,7 @@ import { useSusurro } from '@susurro/core';
 import { TemporalSegmentSelector } from '../temporal-segment-selector';
 import { ConversationalChatFeed } from '../conversational-chat-feed';
 
-interface AudioFragmentProcessorProps {
+export interface AudioFragmentProcessorProps {
   onBack: () => void;
 }
 
@@ -21,8 +21,17 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     'prompt' | 'granted' | 'denied' | 'checking'
   >('prompt');
   const [status, setStatus] = React.useState('');
-  const [viewMode, setViewMode] = React.useState<'processor' | 'conversational'>('processor');
+  const [viewMode, setViewMode] = React.useState<'processor' | 'conversational'>('conversational'); // Default to conversational
+  const [messages, setMessages] = React.useState<Array<{
+    id: string;
+    type: 'audio-message';
+    audioUrl: string;
+    text: string;
+    timestamp: Date;
+    vadScore: number;
+  }>>([]);
 
+  // 🔥 FUTURE IMPLEMENTATION - Real-time conversational pattern
   const {
     isRecording,
     isProcessing,
@@ -38,13 +47,29 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     clearConversationalChunks,
   } = useSusurro({
     chunkDurationMs: chunkDuration * 1000,
-    enableVAD: true,
     conversational: {
       onChunk: (chunk) => {
-        console.log('New conversational chunk:', chunk);
+        // 🆕 Real-time chunk callback - ChatGPT style
+        console.log('New conversation chunk:', {
+          audio: chunk.audioUrl,      // Clean neural-processed audio
+          text: chunk.transcript,     // AI transcription
+          timing: `${chunk.startTime}-${chunk.endTime}ms`,
+          confidence: chunk.vadScore
+        });
+        
+        // Add to UI immediately - ChatGPT style
+        setMessages(prev => [...prev, {
+          id: chunk.id,
+          type: 'audio-message',
+          audioUrl: chunk.audioUrl,
+          text: chunk.transcript,
+          timestamp: new Date(),
+          vadScore: chunk.vadScore
+        }]);
       },
-      enableInstantTranscription: true,
-      chunkTimeout: 5000,
+      enableInstantTranscription: true, // Real-time processing
+      chunkTimeout: 5000, // Max 5s wait for transcript
+      enableChunkEnrichment: true // Enable middleware processing
     },
   });
 
@@ -131,7 +156,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
             textShadow: '0 0 10px #00ff41',
           }}
         >
-          &gt; CHUNK_PROCESSOR_MODULE
+          &gt; {viewMode === 'conversational' ? 'CONVERSATIONAL_CHUNKS' : 'CHUNK_PROCESSOR'}_MODULE
         </h1>
 
         {/* View Mode Toggle */}
@@ -311,9 +336,24 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
           </>
         )}
 
-        {/* Conversational View */}
+        {/* Conversational View - FUTURE IMPLEMENTATION */}
         {viewMode === 'conversational' && (
           <>
+            {/* 🔥 REAL-TIME CONVERSATIONAL FLOW */}
+            <div
+              style={{
+                marginBottom: '20px',
+                padding: '15px',
+                background: 'rgba(0, 255, 65, 0.1)',
+                border: '1px solid #00ff41',
+                fontSize: '0.9rem',
+              }}
+            >
+              &gt; 🎤 Audio Input → 🧠 Murmuraba (Neural Clean) → 🤖 Whisper (AI Transcribe) → ✨ SusurroChunk → 💬 UI Update
+              <br />
+              &gt; Each chunk is a complete conversational unit with audio + transcript
+            </div>
+
             {/* Recording Controls for Conversational Mode */}
             <div style={{ marginBottom: '30px', textAlign: 'center' }}>
               <button
@@ -347,11 +387,56 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
               label="CONVERSATIONAL_CHUNK_DURATION_SEC"
             />
 
-            {/* Conversational Chat Feed */}
+            {/* Real-time Messages Display */}
+            {messages.length > 0 && (
+              <div
+                style={{
+                  marginBottom: '20px',
+                  padding: '15px',
+                  background: 'rgba(0, 255, 65, 0.05)',
+                  border: '1px solid #00ff41',
+                  maxHeight: '300px',
+                  overflow: 'auto',
+                }}
+              >
+                <h3 style={{ marginBottom: '10px' }}>&gt; REAL_TIME_MESSAGES ({messages.length}):</h3>
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    style={{
+                      marginBottom: '10px',
+                      padding: '10px',
+                      background: 'rgba(0, 255, 65, 0.05)',
+                      borderLeft: '3px solid #00ff41',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '5px' }}>
+                      [{new Date(msg.timestamp).toLocaleTimeString()}] VAD: {(msg.vadScore * 100).toFixed(1)}%
+                    </div>
+                    <div>{msg.text || '[Processing...]'}</div>
+                    <audio 
+                      src={msg.audioUrl} 
+                      controls 
+                      style={{ 
+                        width: '100%', 
+                        height: '30px', 
+                        marginTop: '5px',
+                        filter: 'hue-rotate(120deg)' 
+                      }} 
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Conversational Chat Feed - Alternative View */}
             <ConversationalChatFeed
               chunks={conversationalChunks}
               isRecording={isRecording}
-              onClearChat={clearConversationalChunks}
+              onClearChat={() => {
+                clearConversationalChunks();
+                setMessages([]); // Clear messages too
+              }}
               style={{
                 height: '500px',
                 marginBottom: '20px',

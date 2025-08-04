@@ -13,7 +13,7 @@ export interface ChunkMiddleware {
 export interface MiddlewareContext {
   startTime: number;
   processingStage: 'pre-emit' | 'post-emit';
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 // Translation Middleware
@@ -106,12 +106,12 @@ export class ChunkMiddlewarePipeline {
   private middlewares: ChunkMiddleware[] = [];
   private context: MiddlewareContext;
 
-  constructor(context: Partial<MiddlewareContext> = {}) {
+  constructor(_context: Partial<MiddlewareContext> = {}) {
     this.context = {
       startTime: Date.now(),
       processingStage: 'pre-emit',
       metadata: {},
-      ...context,
+      ..._context,
     };
 
     // Register default middlewares

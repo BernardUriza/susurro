@@ -4,7 +4,7 @@
 import React from 'react';
 
 // Absolute imports
-import { useWhisperOrchestrator } from '../../../../shared/hooks';
+import { useSusurro } from '@susurro/core';
 
 // Relative imports - components
 import { DigitalRainfall } from '../../../visualization/components';
@@ -22,17 +22,17 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
   const {
     isProcessing,
-    audioFragments,
-    averageResonance,
-    processAudioFile,
-    clearRevelations,
+    audioChunks,
+    averageVad,
+    clearTranscriptions,
     whisperReady,
     whisperProgress,
     whisperError,
     transcribeWithWhisper,
-  } = useWhisperOrchestrator({
-    temporalSegmentMs: temporalSegmentDuration * 1000, // Convert to milliseconds
-    enableVoiceResonance: true,
+    transcriptions,
+  } = useSusurro({
+    chunkDurationMs: temporalSegmentDuration * 1000, // Convert to milliseconds
+    whisperConfig: { language: 'en' },
   });
 
   const [originalUrl, setOriginalUrl] = React.useState('');
@@ -41,13 +41,10 @@ export const WhisperMatrixTerminal: React.FC = () => {
   // Additional state for component functionality
   const [chunkUrls, setChunkUrls] = React.useState<string[]>([]);
   const [chunkDuration, setChunkDuration] = React.useState(15);
-  const [transcriptions] = React.useState<Array<{ timestamp: number; text: string }>>([]);
   const [whisperTranscriptions, setWhisperTranscriptions] = React.useState<string[]>([]);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
 
-  // Derived values from useWhisperOrchestrator
-  const audioChunks = audioFragments || [];
-  const averageVad = averageResonance || 0;
+  // Direct values from useSusurro - no abstraction needed
   const [backgroundLogs, setBackgroundLogs] = React.useState<
     Array<{
       id: string;
@@ -74,35 +71,30 @@ export const WhisperMatrixTerminal: React.FC = () => {
     });
   }, []);
 
-  // Create URLs for each audio fragment
+  // Create URLs for each audio chunk
   React.useEffect(() => {
-    if (audioFragments && audioFragments.length > 0) {
-      // console.log('[WhisperMatrixTerminal] Creating URLs for', audioFragments.length, 'fragments');
-
-      // Create URL for each fragment
-      const urls = audioFragments.map((fragment) => URL.createObjectURL(fragment.audioEssence));
-      setFragmentUrls(urls);
-      setChunkUrls(urls); // Also set chunk URLs for component compatibility
+    if (audioChunks && audioChunks.length > 0) {
+      // Create URL for each chunk
+      const urls = audioChunks.map((chunk) => URL.createObjectURL(chunk.blob));
+      setChunkUrls(urls); // Set chunk URLs for audio playback
 
       return () => {
         // Cleanup old URLs
         urls.forEach((url) => URL.revokeObjectURL(url));
       };
     }
-  }, [audioFragments]);
+  }, [audioChunks]);
 
   const handleFileProcess = async (file: File) => {
     try {
       setStatus('[INITIALIZING_NEURAL_PROCESSOR...]');
       setOriginalUrl(URL.createObjectURL(file));
-      clearRevelations();
+      clearTranscriptions();
 
-      // Add timeout to prevent infinite hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Processing timeout')), 30000);
-      });
-
-      await Promise.race([processAudioFile(file), timeoutPromise]);
+      // Note: File processing deprecated in favor of real-time recording
+      // For file processing, we'll need to simulate with recording
+      setStatus('[FILE_PROCESSING_NOT_SUPPORTED] Use real-time recording instead');
+      return false;
 
       setStatus('[PROCESSING_COMPLETE]');
 
@@ -375,7 +367,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
               {/* Individual chunk players */}
               {audioChunks.map((chunk, index) => (
-                <div key={chunk.id} style={{ marginBottom: 15 }}>
+                <div key={`audio-chunk-${index}`} style={{ marginBottom: 15 }}>
                   <p style={{ margin: '5px 0', fontSize: '0.9em', opacity: 0.8 }}>
                     &gt; CHUNK_{index + 1} | DURATION: {(chunk.duration / 1000).toFixed(2)}s | VAD:{' '}
                     {chunk.vadScore ? (chunk.vadScore * 100).toFixed(1) : 'N/A'}%
@@ -799,7 +791,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
               {transcriptions.length > 0 && (
                 <div className="matrix-transcript">
-                  &gt; MURMURABA_OUTPUT:
+                  &gt; SUSURRO_OUTPUT:
                   <br />
                   <br />
                   {transcriptions.map((t, i) => (

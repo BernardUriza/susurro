@@ -7,7 +7,7 @@ interface LogEntry {
   type: 'info' | 'warning' | 'error' | 'success';
 }
 
-interface WhisperEchoLogsProps {
+export interface WhisperEchoLogsProps {
   logs: LogEntry[];
   maxLogs?: number;
 }

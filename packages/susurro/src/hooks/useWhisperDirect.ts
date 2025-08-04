@@ -19,13 +19,11 @@ class WhisperPipelineSingleton {
   static async getInstance(progress_callback: any = null) {
     // If already loaded, return immediately
     if (this.instance) {
-      console.log('♻️ [WhisperSingleton] Returning existing instance')
       return this.instance
     }
 
     // If currently loading, wait for the existing loading promise
     if (this.isLoading && this.loadingPromise) {
-      console.log('⏳ [WhisperSingleton] Already loading, waiting for completion...')
       return this.loadingPromise
     }
 
@@ -43,44 +41,67 @@ class WhisperPipelineSingleton {
 
   private static async loadInstance(progress_callback: any = null) {
     if (!this.pipeline) {
-      // Dynamic import on first use
-      const transformers = await import('@xenova/transformers')
-      this.pipeline = transformers.pipeline
-      this.env = transformers.env
-      
-      // Configure environment
-      this.env.allowLocalModels = true
-      this.env.useBrowserCache = true
-      this.env.useCustomCache = true
-      this.env.remoteURL = 'https://huggingface.co/'
-      this.env.backends = {
-        onnx: {
-          wasm: {
-            wasmPaths: '/'
+      try {
+        // Dynamic import with error handling
+        const transformers = await import('@xenova/transformers').catch(err => {
+          throw new Error(`Failed to import transformers: ${err.message}`)
+        })
+        
+        this.pipeline = transformers.pipeline
+        this.env = transformers.env
+        
+        // Configure environment with correct WASM paths for Vite
+        this.env.allowLocalModels = true
+        this.env.useBrowserCache = true
+        this.env.useCustomCache = true
+        this.env.remoteURL = 'https://huggingface.co/'
+        
+        // Try multiple WASM path configurations
+        const possiblePaths = [
+          '/node_modules/@xenova/transformers/dist/',
+          '/@fs/node_modules/@xenova/transformers/dist/',
+          'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/',
+          '/'
+        ]
+        
+        // Use the first path that works or fallback to CDN
+        this.env.backends = {
+          onnx: {
+            wasm: {
+              wasmPaths: possiblePaths[2] // Use CDN as most reliable option
+            }
           }
         }
+        
+      } catch (error) {
+        throw error
       }
     }
 
-    console.log('🚀 [WhisperSingleton] Creando nueva instancia del pipeline...')
       
       // Check cache first
       const cacheStatus = await cacheManager.getCacheStatus()
       if (cacheStatus.hasCache) {
-        console.log('💾 [WhisperSingleton] Modelo encontrado en cache!')
       } else {
-        console.log('⬇️ [WhisperSingleton] Modelo NO está en cache, se descargará...')
       }
       
       // Request persistent storage for better caching
       await cacheManager.requestPersistentStorage()
       
-      this.instance = await this.pipeline(this.task, this.model, { 
-        progress_callback,
+      // Add timeout for model loading (2 minutes)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Model loading timeout after 2 minutes')), 120000)
+      })
+      
+      const loadPromise = this.pipeline(this.task, this.model, { 
+        progress_callback: (progress: any) => {
+          if (progress_callback) progress_callback(progress)
+        },
         quantized: true 
       })
       
-      console.log('✅ [WhisperSingleton] Pipeline creado exitosamente')
+      this.instance = await Promise.race([loadPromise, timeoutPromise])
+      
     
     return this.instance
   }
@@ -101,7 +122,6 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
   // Initialize Transformers.js
   useEffect(() => {
     const loadModel = async () => {
-      console.log('[useWhisper] Starting model load...')
       
       // Only show loading alert if not already loaded and not currently loading
       const shouldShowAlert = !WhisperPipelineSingleton.instance && !WhisperPipelineSingleton.isLoading
@@ -117,12 +137,10 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
       }
 
       try {
-        console.log('[useWhisper] Loading model using Singleton pattern...')
 
         // Get pipeline instance with progress callback
         pipelineRef.current = await WhisperPipelineSingleton.getInstance((progress: any) => {
           const percent = progress.progress || 0
-          console.log(`[useWhisper] ${progress.status === 'download' ? '⬇️' : progress.status === 'progress' ? '⏳' : progress.status === 'done' ? '✅' : '🔄'} Progress: ${percent.toFixed(1)}% - ${progress.status}`)
           setLoadingProgress(Math.max(1, percent))
           
           // Update progress alert
@@ -136,7 +154,6 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
           }
         })
 
-        console.log('[useWhisper] Pipeline created successfully')
         setModelReady(true)
         setLoadingProgress(100)
 
@@ -148,7 +165,6 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
           matrixToast.success('[AI_MODEL_READY] You can now start recording!')
         }
       } catch (err) {
-        console.error('[useWhisper] Error loading model:', err)
         const errorMessage = err instanceof Error ? err.message : 'Failed to load model'
         setError(new Error(errorMessage))
         
@@ -171,7 +187,6 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
       pipelineRef.current = WhisperPipelineSingleton.instance
       setModelReady(true)
       setLoadingProgress(100)
-      console.log('[useWhisper] Model already loaded, using existing instance')
     } else if (!pipelineRef.current && typeof window !== 'undefined') {
       loadModel()
     }
@@ -199,34 +214,24 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
   const transcribe = useCallback(async (audioBlob: Blob): Promise<TranscriptionResult | null> => {
     // Queue transcriptions to prevent concurrent calls
     const transcriptionPromise = transcriptionQueueRef.current.then(async () => {
-      console.log('🎤 [transcribeAudio] Iniciando transcripción...')
-      console.log(`📁 [transcribeAudio] Blob size: ${(audioBlob.size / 1024).toFixed(2)}KB, type: ${audioBlob.type}`)
       
       if (isTranscribing) {
-        console.warn('⚠️ [transcribeAudio] Ya hay una transcripción en proceso, esperando...')
         return null
       }
       
       if (!pipelineRef.current || !modelReady) {
-        console.error('❌ [transcribeAudio] Modelo no está listo!')
-        console.log(`   - pipelineRef.current: ${!!pipelineRef.current}`)
-        console.log(`   - modelReady: ${modelReady}`)
         setError(new Error('Model not ready'))
         return null
       }
 
-      console.log('✅ [transcribeAudio] Modelo listo, procesando audio...')
       setIsTranscribing(true)
       setError(null)
 
       try {
       // Convert blob to data URL
-      console.log('🔄 [transcribeAudio] Convirtiendo audio a base64...')
       const audioDataUrl = await audioToBase64(audioBlob)
-      console.log(`✅ [transcribeAudio] Audio convertido, longitud: ${audioDataUrl.length} caracteres`)
       
       // Perform transcription
-      console.log('🧠 [transcribeAudio] Ejecutando modelo Whisper...')
       const startTime = Date.now()
       
       const output = await pipelineRef.current(audioDataUrl, {
@@ -238,7 +243,6 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
       })
       
       const endTime = Date.now()
-      console.log(`⏱️ [transcribeAudio] Transcripción completada en ${(endTime - startTime) / 1000}s`)
 
       const result: TranscriptionResult = {
         text: output.text,
@@ -247,7 +251,6 @@ export function useWhisperDirect(config: WhisperConfig = {}): UseWhisperReturn {
         timestamp: Date.now()
       }
 
-      console.log(`📝 [transcribeAudio] Resultado: "${result.text.substring(0, 50)}..."`)
       setTranscript(result.text)
       setIsTranscribing(false)
       return result

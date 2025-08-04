@@ -54,7 +54,6 @@ class ModelCacheManager {
       })
 
       request.onsuccess = () => {
-        console.log(`Model ${modelId} stored in cache (${(data.byteLength / 1024 / 1024).toFixed(2)}MB)`)
         resolve()
       }
       request.onerror = () => reject(request.error)
@@ -73,7 +72,6 @@ class ModelCacheManager {
         request.onsuccess = () => {
           const result = request.result
           if (result && result.data) {
-            console.log(`Model ${modelId} loaded from cache`)
             resolve(result.data)
           } else {
             resolve(null)
@@ -82,7 +80,6 @@ class ModelCacheManager {
         request.onerror = () => resolve(null)
       })
     } catch (error) {
-      console.error('Error retrieving model from cache:', error)
       return null
     }
   }
@@ -134,13 +131,11 @@ class ModelCacheManager {
       return new Promise((resolve, reject) => {
         const request = store.clear()
         request.onsuccess = () => {
-          console.log('Model cache cleared')
           resolve()
         }
         request.onerror = () => reject(request.error)
       })
     } catch (error) {
-      console.error('Error clearing cache:', error)
     }
   }
 
@@ -154,7 +149,6 @@ class ModelCacheManager {
           quota: estimate.quota || 0
         }
       } catch (error) {
-        console.error('Error getting storage estimate:', error)
         return null
       }
     }
@@ -166,10 +160,8 @@ class ModelCacheManager {
     if ('storage' in navigator && 'persist' in navigator.storage) {
       try {
         const isPersisted = await navigator.storage.persist()
-        console.log(`Persistent storage ${isPersisted ? 'granted' : 'denied'}`)
         return isPersisted
       } catch (error) {
-        console.error('Error requesting persistent storage:', error)
         return false
       }
     }

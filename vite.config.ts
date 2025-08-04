@@ -11,8 +11,10 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    exclude: ['@xenova/transformers']
+    exclude: ['@xenova/transformers'],
+    include: ['onnxruntime-web']
   },
+  assetsInclude: ['**/*.wasm', '**/*.onnx'],
   build: {
     outDir: 'dist',
     rollupOptions: {
@@ -26,6 +28,9 @@ export default defineConfig({
     headers: {
       'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Opener-Policy': 'same-origin'
+    },
+    fs: {
+      allow: ['..']
     }
   },
   worker: {

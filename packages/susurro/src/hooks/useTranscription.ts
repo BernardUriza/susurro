@@ -67,7 +67,6 @@ export function useTranscription(options: UseTranscriptionOptions = {}): UseTran
       
       return null
     } catch (error) {
-      console.error('Error transcribing chunk:', error)
       setStatus(prev => ({ ...prev, isProcessing: false, stage: 'error' }))
       onStatusUpdate?.({ isProcessing: false, stage: 'error' })
       return null

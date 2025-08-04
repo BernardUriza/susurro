@@ -93,21 +93,15 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // Process audio file with Murmuraba
   const processAudioFile = useCallback(async (file: File) => {
     try {
-      console.log('[useSusurro] Starting file processing...');
       setTranscriptions([]);
       
       // Step 1: Initialize Murmuraba
       await murmurabaManager.initialize();
-      console.log('[useSusurro] Murmuraba initialized');
       
       // Step 2: Process with Murmuraba to clean audio with metrics
-      console.log('[useSusurro] Processing with Murmuraba for audio cleaning...');
       const cleanedResult = await murmurabaManager.processFileWithMetrics(file, (metrics) => {
-        console.log('[useSusurro] Frame metrics:', metrics);
       });
       
-      console.log('[useSusurro] Murmuraba processing complete, cleaned audio received');
-      console.log('[useSusurro] Murmuraba result:', {
         hasProcessedBuffer: !!cleanedResult.processedBuffer,
         hasVadScores: !!cleanedResult.vadScores,
         averageVad: cleanedResult.averageVad
@@ -115,7 +109,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       
       // Step 3: Use Murmuraba's chunking if available
       if (cleanedResult.chunks && Array.isArray(cleanedResult.chunks)) {
-        console.log('[useSusurro] Using chunks from Murmuraba:', cleanedResult.chunks.length);
         const chunks: AudioChunk[] = [];
         
         for (const chunk of cleanedResult.chunks) {
@@ -131,7 +124,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         setAverageVad(cleanedResult.averageVad || 0);
       } else {
         // Fallback: manually create chunks from cleaned audio
-        console.log('[useSusurro] Creating chunks manually from cleaned audio');
         const audioContext = new AudioContext();
         let audioBuffer: AudioBuffer;
         
@@ -144,7 +136,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           audioBuffer = cleanedResult.processedBuffer;
         }
         
-        console.log('[useSusurro] Cleaned audio decoded, duration:', audioBuffer.duration, 'seconds');
         
         const duration = audioBuffer.duration * 1000;
         const chunks: AudioChunk[] = [];
@@ -176,13 +167,11 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           chunks.push(createChunk(wavBlob, startTime, endTime));
         }
         
-        console.log('[useSusurro] Created', chunks.length, 'chunks for transcription');
         setAverageVad(cleanedResult.averageVad || 0);
         setAudioChunks(chunks);
         audioContext.close();
       }
     } catch (error) {
-      console.error('[useSusurro] Error processing audio file:', error);
       throw error;
     }
   }, [chunkDurationMs, enableVAD]);
@@ -215,7 +204,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           }]);
         }
       } catch (error) {
-        console.error(`[useSusurro] Error transcribing chunk ${i + 1}:`, error);
       }
     }
 
@@ -253,7 +241,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       setAudioChunks([]);
       setTranscriptions([]);
     } catch (error) {
-      console.error('[useSusurro] Error starting recording:', error);
       throw error;
     }
   }, [chunkDurationMs, processAudioFile]);

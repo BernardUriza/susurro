@@ -62,7 +62,6 @@ class MurmurabaManager {
         const murmuraba = await this.getMurmuraba()
         
         if (!murmuraba.isInitialized) {
-          console.log('[Murmuraba] Initializing audio engine...')
           
           // Add timeout to prevent hanging
           const initTimeout = new Promise((_, reject) => {
@@ -79,12 +78,9 @@ class MurmurabaManager {
             initTimeout
           ])
           
-          console.log('[Murmuraba] Audio engine initialized successfully')
         }
       } catch (error: any) {
-        console.error('[Murmuraba] Initialization error:', error)
         if (error.message?.includes('already initialized')) {
-          console.warn('[MurmurabaManager] Engine already initialized, continuing...')
         } else {
           // Reset state on error to allow retry
           this.initPromise = null
@@ -111,14 +107,12 @@ class MurmurabaManager {
     try {
       await this.initialize()
     } catch (error) {
-      console.error('[Murmuraba] Failed to initialize before processing:', error)
       throw new Error('Audio engine initialization failed. Please refresh and try again.')
     }
     
     const murmuraba = await this.getMurmuraba()
     
     // Log for debugging
-    console.log('[Murmuraba] processFile called with:', { 
       type: file.constructor.name, 
       size: file.size,
       fileType: file.type 
@@ -127,7 +121,6 @@ class MurmurabaManager {
     // Convert File/Blob to ArrayBuffer as murmuraba expects ArrayBuffer
     try {
       const arrayBuffer = await file.arrayBuffer()
-      console.log('[Murmuraba] Converted to ArrayBuffer, size:', arrayBuffer.byteLength)
       
       // Add timeout for processing
       const processTimeout = new Promise((_, reject) => {
@@ -139,12 +132,9 @@ class MurmurabaManager {
         processTimeout
       ])
       
-      console.log('[Murmuraba] Processing result type:', typeof result)
-      console.log('[Murmuraba] Result keys:', result ? Object.keys(result) : 'null')
       
       // Handle different return formats from murmuraba
       if (result instanceof ArrayBuffer) {
-        console.log('[Murmuraba] Result is ArrayBuffer, size:', result.byteLength)
         return {
           processedBuffer: result,
           vadScores: [],
@@ -161,7 +151,6 @@ class MurmurabaManager {
         averageVad: result.averageVad || 0
       }
     } catch (error: any) {
-      console.error('[Murmuraba] Error processing file:', error)
       throw error
     }
   }
@@ -188,7 +177,6 @@ class MurmurabaManager {
     const murmuraba = await this.getMurmuraba()
     
     // Log for debugging
-    console.log('[Murmuraba] processFileWithMetrics called with:', { 
       type: file.constructor.name, 
       size: file.size,
       fileType: file.type 
@@ -197,7 +185,6 @@ class MurmurabaManager {
     // Convert File/Blob to ArrayBuffer as murmuraba expects ArrayBuffer
     try {
       const arrayBuffer = await file.arrayBuffer()
-      console.log('[Murmuraba] Converted to ArrayBuffer for metrics, size:', arrayBuffer.byteLength)
       
       // Check if the method exists, otherwise fall back to processFile
       if (murmuraba.processFileWithMetrics) {
@@ -205,7 +192,6 @@ class MurmurabaManager {
           arrayBuffer, 
           onFrameProcessed  // Pass callback as second param
         )
-        console.log('[Murmuraba] processFileWithMetrics result:', { 
           hasMetrics: !!result.metrics,
           metricsLength: result.metrics?.length,
           averageVad: result.averageVad,
@@ -215,12 +201,10 @@ class MurmurabaManager {
         // Log some VAD values for debugging
         if (result.metrics && result.metrics.length > 0) {
           const vadValues = result.metrics.slice(0, 10).map((m: any) => m.vad)
-          console.log('[Murmuraba] First 10 VAD values:', vadValues)
         }
         
         return result
       } else {
-        console.warn('[Murmuraba] processFileWithMetrics not available, using processFile')
         const result = await murmuraba.processFile(arrayBuffer, {
           enableVAD: true
         })
@@ -228,12 +212,9 @@ class MurmurabaManager {
         // Try to analyze VAD if available
         let vadData = null
         if (murmuraba.analyzeVAD) {
-          console.log('[Murmuraba] Analyzing VAD separately...')
           try {
             vadData = await murmuraba.analyzeVAD(arrayBuffer)
-            console.log('[Murmuraba] VAD analysis result:', vadData)
           } catch (err) {
-            console.error('[Murmuraba] VAD analysis failed:', err)
           }
         }
         
@@ -246,7 +227,6 @@ class MurmurabaManager {
         }
       }
     } catch (error: any) {
-      console.error('[Murmuraba] Error processing file with metrics:', error)
       throw error
     }
   }

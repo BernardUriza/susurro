@@ -10,9 +10,9 @@ vi.mock('../src/lib/murmuraba-singleton', () => ({
       processedBuffer: new ArrayBuffer(1000),
       vadScores: [0.5, 0.7, 0.9],
       averageVad: 0.7,
-      chunks: []
-    })
-  }
+      chunks: [],
+    }),
+  },
 }));
 
 // Mock the whisper hook
@@ -27,9 +27,9 @@ vi.mock('../src/hooks/useWhisperDirect', () => ({
       text: 'Test transcription',
       segments: [],
       chunkIndex: 0,
-      timestamp: Date.now()
-    })
-  })
+      timestamp: Date.now(),
+    }),
+  }),
 }));
 
 describe('useSusurro', () => {
@@ -41,11 +41,11 @@ describe('useSusurro', () => {
     it('should process a file and return chunks with VAD scores', async () => {
       const { result } = renderHook(() => useSusurro());
       const mockFile = new File(['audio'], 'test.wav', { type: 'audio/wav' });
-      
+
       await act(async () => {
         await result.current.processAudioFile(mockFile);
       });
-      
+
       expect(result.current.averageVad).toBe(0.7);
       expect(result.current.audioChunks).toBeDefined();
     });
@@ -53,13 +53,13 @@ describe('useSusurro', () => {
     it('should handle errors during file processing', async () => {
       const { result } = renderHook(() => useSusurro());
       const mockFile = new File([''], 'invalid.wav', { type: 'audio/wav' });
-      
+
       // Mock error
       const murmurabaManager = await import('../src/lib/murmuraba-singleton');
       vi.mocked(murmurabaManager.murmurabaManager.processFileWithMetrics).mockRejectedValueOnce(
         new Error('Processing failed')
       );
-      
+
       await act(async () => {
         try {
           await result.current.processAudioFile(mockFile);
@@ -73,41 +73,41 @@ describe('useSusurro', () => {
   describe('recording', () => {
     it('should start and stop recording', async () => {
       const { result } = renderHook(() => useSusurro());
-      
+
       expect(result.current.isRecording).toBe(false);
-      
+
       await act(async () => {
         await result.current.startRecording();
       });
-      
+
       expect(result.current.isRecording).toBe(true);
-      
+
       act(() => {
         result.current.stopRecording();
       });
-      
+
       expect(result.current.isRecording).toBe(false);
     });
 
     it('should pause and resume recording', async () => {
       const { result } = renderHook(() => useSusurro());
-      
+
       await act(async () => {
         await result.current.startRecording();
       });
-      
+
       expect(result.current.isPaused).toBe(false);
-      
+
       act(() => {
         result.current.pauseRecording();
       });
-      
+
       expect(result.current.isPaused).toBe(true);
-      
+
       act(() => {
         result.current.resumeRecording();
       });
-      
+
       expect(result.current.isPaused).toBe(false);
     });
   });
@@ -115,36 +115,36 @@ describe('useSusurro', () => {
   describe('transcriptions', () => {
     it('should clear transcriptions', async () => {
       const { result } = renderHook(() => useSusurro());
-      
+
       // Add a mock transcription
       act(() => {
         result.current.transcriptions.push({
           text: 'Test',
           segments: [],
           chunkIndex: 0,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
       });
-      
+
       expect(result.current.transcriptions.length).toBeGreaterThan(0);
-      
+
       act(() => {
         result.current.clearTranscriptions();
       });
-      
+
       expect(result.current.transcriptions).toEqual([]);
     });
 
     it('should return full transcript from all transcriptions', () => {
       const { result } = renderHook(() => useSusurro());
-      
+
       act(() => {
         result.current.transcriptions.push(
           { text: 'Hello', segments: [], chunkIndex: 0, timestamp: Date.now() },
           { text: 'World', segments: [], chunkIndex: 1, timestamp: Date.now() }
         );
       });
-      
+
       expect(result.current.fullTranscript).toBe('Hello World');
     });
   });
@@ -152,9 +152,9 @@ describe('useSusurro', () => {
   describe('cleanup', () => {
     it('should clean up resources on unmount', () => {
       const { unmount } = renderHook(() => useSusurro());
-      
+
       unmount();
-      
+
       // Verify cleanup happened (AudioContext and MediaRecorder mocks)
       expect(global.AudioContext).toHaveBeenCalled();
     });

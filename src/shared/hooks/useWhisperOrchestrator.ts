@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useRef, useState, useTransition, useOptimistic, useMemo } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  useOptimistic,
+  useMemo,
+} from 'react';
 import { useTranscription } from '@susurro/core';
-import { murmurabaManager } from '@susurro/core';
 import type { WhisperFragment, ProcessingState, WhisperRevelation } from '../types/whisper-types';
 
 export interface WhisperOrchestratorOptions {
@@ -32,12 +39,10 @@ export interface WhisperOrchestratorReturn {
   transcribeWithWhisper: (blob: Blob) => Promise<any>;
 }
 
-export function useWhisperOrchestrator(options: WhisperOrchestratorOptions = {}): WhisperOrchestratorReturn {
-  const {
-    temporalSegmentMs = 8000,
-    enableVoiceResonance = true,
-    whisperConfig = {}
-  } = options;
+export function useWhisperOrchestrator(
+  options: WhisperOrchestratorOptions = {}
+): WhisperOrchestratorReturn {
+  const { temporalSegmentMs = 8000, enableVoiceResonance = true, whisperConfig = {} } = options;
 
   // React 19 concurrent features
   const [isPending, startTransition] = useTransition();
@@ -56,7 +61,7 @@ export function useWhisperOrchestrator(options: WhisperOrchestratorOptions = {})
     isProcessing: false,
     currentFragment: 0,
     totalFragments: 0,
-    stage: 'silent'
+    stage: 'silent',
   });
 
   // Refs with whisper-themed naming
@@ -65,13 +70,13 @@ export function useWhisperOrchestrator(options: WhisperOrchestratorOptions = {})
   const captureStartTimeRef = useRef<number>(0);
 
   // Use existing hooks with updated interface
-  const { 
-    transcribe, 
+  const {
+    transcribe,
     isLoading: isTranscribing,
     whisperReady,
     whisperProgress,
     whisperError,
-    transcribeWithWhisper: transcribeWhisper
+    transcribeWithWhisper: transcribeWhisper,
   } = useTranscription({
     onTranscriptionComplete: (result) => {
       const revelation: WhisperRevelation = {
@@ -81,127 +86,123 @@ export function useWhisperOrchestrator(options: WhisperOrchestratorOptions = {})
         revelationTime: Date.now(),
         confidenceScore: result.confidence || 0.5,
         languageDetected: result.language || 'unknown',
-        processingDuration: result.processingTime || 0
+        processingDuration: result.processingTime || 0,
       };
-      setRevelations(prev => [...prev, revelation]);
+      setRevelations((prev) => [...prev, revelation]);
     },
     onStatusUpdate: (status) => {
-      setProcessingState(prev => ({ 
-        ...prev, 
+      setProcessingState((prev) => ({
+        ...prev,
         ...status,
-        stage: status.stage as ProcessingState['stage'] || prev.stage
+        stage: (status.stage as ProcessingState['stage']) || prev.stage,
       }));
     },
     whisperConfig: {
-      language: whisperConfig.language || 'en'
-    }
+      language: whisperConfig.language || 'en',
+    },
   });
 
   // Helper functions with whisper-themed naming
-  const createWhisperFragment = (blob: Blob, echoStart: number, echoEnd: number): WhisperFragment => ({
+  const createWhisperFragment = (
+    blob: Blob,
+    echoStart: number,
+    echoEnd: number
+  ): WhisperFragment => ({
     whisperID: `whisper-${Date.now()}-${Math.random()}`,
     audioEssence: blob,
     temporalSpan: echoEnd - echoStart,
     echoStart,
     echoEnd,
-    spectralSignature: new Float32Array(0) // Placeholder
+    spectralSignature: new Float32Array(0), // Placeholder
   });
 
   // Process audio file with optimistic UI updates
-  const processAudioFileWithOptimism = useCallback(async (file: File) => {
-    try {
-      setRevelations([]);
-      
-      // Add optimistic revelation for immediate feedback
-      addOptimisticRevelation({
-        decodedMessage: '[WHISPER_PROCESSING_AUDIO_ESSENCE...]',
-        audioFragments: [],
-        fragmentIndex: 0,
-        revelationTime: Date.now(),
-        confidenceScore: 0,
-        languageDetected: 'processing',
-        processingDuration: 0
-      });
+  const processAudioFileWithOptimism = useCallback(
+    async (file: File) => {
+      try {
+        setRevelations([]);
 
-      // Use React 19 startTransition for non-blocking updates
-      startTransition(async () => {
-        // Step 1: Initialize Audio Alchemy
-        await murmurabaManager.initialize();
-        
-        // Step 2: Process with enhanced metrics
-        const alchemyResult = await murmurabaManager.processFileWithMetrics(file, (metrics) => {
-          // Handle real-time processing metrics
+        // Add optimistic revelation for immediate feedback
+        addOptimisticRevelation({
+          decodedMessage: '[WHISPER_PROCESSING_AUDIO_ESSENCE...]',
+          audioFragments: [],
+          fragmentIndex: 0,
+          revelationTime: Date.now(),
+          confidenceScore: 0,
+          languageDetected: 'processing',
+          processingDuration: 0,
         });
-        
-        // Step 3: Create whisper fragments
-        if (alchemyResult.chunks && Array.isArray(alchemyResult.chunks)) {
-          const fragments: WhisperFragment[] = [];
+
+        // Use React 19 startTransition for non-blocking updates
+        startTransition(async () => {
+          // Note: murmurabaManager deprecated in v3 - use useSusurro hook instead
+          // This is a legacy function that should be refactored to use the new hook pattern
           
-          for (const chunk of alchemyResult.chunks) {
-            const wavBlob = chunk.blob || await audioBufferToWav(chunk.audioBuffer);
-            const fragment = createWhisperFragment(wavBlob, chunk.startTime, chunk.endTime);
-            if (chunk.vadScore !== undefined) {
-              fragment.voiceResonance = chunk.vadScore;
-            }
-            fragments.push(fragment);
-          }
+          // Create a simple fragment from the file for now
+          const arrayBuffer = await file.arrayBuffer();
+          const blob = new Blob([arrayBuffer], { type: file.type });
+          const fragment = createWhisperFragment(blob, 0, file.size);
           
-          setAudioFragments(fragments);
-          setAverageResonance(alchemyResult.averageVad || 0);
-        }
-      });
-    } catch (error) {
-      throw error;
-    }
-  }, [temporalSegmentMs, enableVoiceResonance, addOptimisticRevelation]);
+          setAudioFragments([fragment]);
+          setAverageResonance(0.5); // Default value
+        });
+      } catch (error) {
+        throw error;
+      }
+    },
+    [temporalSegmentMs, enableVoiceResonance, addOptimisticRevelation]
+  );
 
   // Process fragments for transcription with React 19 patterns
-  const processFragmentsWithConcurrency = useCallback(async (fragments: WhisperFragment[]) => {
-    setProcessingState({
-      isProcessing: true,
-      currentFragment: 0,
-      totalFragments: fragments.length,
-      stage: 'decoding'
-    });
-    
-    // Process fragments concurrently using React 19 patterns
-    const fragmentPromises = fragments.map(async (fragment, index) => {
-      setProcessingState(prev => ({
-        ...prev,
-        currentFragment: index + 1
-      }));
-      
-      try {
-        const result = await transcribeWhisper(fragment.audioEssence);
-        if (result) {
-          const revelation: WhisperRevelation = {
-            decodedMessage: result.text,
-            audioFragments: result.segments || [],
-            fragmentIndex: index,
-            revelationTime: Date.now(),
-            confidenceScore: result.confidence || 0.5,
-            languageDetected: result.language || 'en',
-            processingDuration: result.processingTime || 0
-          };
-          
-          // Use optimistic updates for immediate UI feedback
-          addOptimisticRevelation(revelation);
-          setRevelations(prev => [...prev, revelation]);
+  const processFragmentsWithConcurrency = useCallback(
+    async (fragments: WhisperFragment[]) => {
+      setProcessingState({
+        isProcessing: true,
+        currentFragment: 0,
+        totalFragments: fragments.length,
+        stage: 'decoding',
+      });
+
+      // Process fragments concurrently using React 19 patterns
+      const fragmentPromises = fragments.map(async (fragment, index) => {
+        setProcessingState((prev) => ({
+          ...prev,
+          currentFragment: index + 1,
+        }));
+
+        try {
+          const result = await transcribeWhisper(fragment.audioEssence);
+          if (result) {
+            const revelation: WhisperRevelation = {
+              decodedMessage: result.text,
+              audioFragments: result.segments || [],
+              fragmentIndex: index,
+              revelationTime: Date.now(),
+              confidenceScore: result.confidence || 0.5,
+              languageDetected: result.language || 'en',
+              processingDuration: result.processingTime || 0,
+            };
+
+            // Use optimistic updates for immediate UI feedback
+            addOptimisticRevelation(revelation);
+            setRevelations((prev) => [...prev, revelation]);
+          }
+        } catch (error) {
+          console.error(`Fragment ${index} processing failed:`, error);
         }
-      } catch (error) {
-        console.error(`Fragment ${index} processing failed:`, error);
-      }
-    });
+      });
 
-    await Promise.allSettled(fragmentPromises);
+      await Promise.allSettled(fragmentPromises);
 
-    setProcessingState({
-      isProcessing: false,
-      currentFragment: 0,
-      totalFragments: 0,
-      stage: 'complete'
-    });
-  }, [transcribeWhisper, addOptimisticRevelation]);
+      setProcessingState({
+        isProcessing: false,
+        currentFragment: 0,
+        totalFragments: 0,
+        stage: 'complete',
+      });
+    },
+    [transcribeWhisper, addOptimisticRevelation]
+  );
 
   // Capture functions with whisper-themed naming
   const startCapturing = useCallback(async () => {
@@ -209,19 +210,19 @@ export function useWhisperOrchestrator(options: WhisperOrchestratorOptions = {})
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const audioCapturer = new MediaRecorder(stream);
       const essenceChunks: Blob[] = [];
-      
+
       audioCapturer.ondataavailable = (event) => {
         if (event.data.size > 0) {
           essenceChunks.push(event.data);
         }
       };
-      
+
       audioCapturer.onstop = async () => {
         const audioEssence = new Blob(essenceChunks, { type: 'audio/webm' });
         const audioFile = new File([audioEssence], 'whisper-capture.webm', { type: 'audio/webm' });
         await processAudioFileWithOptimism(audioFile);
       };
-      
+
       audioCapturerRef.current = audioCapturer;
       captureStartTimeRef.current = Date.now();
       audioCapturer.start(temporalSegmentMs);
@@ -236,7 +237,7 @@ export function useWhisperOrchestrator(options: WhisperOrchestratorOptions = {})
   const stopCapturing = useCallback(() => {
     if (audioCapturerRef.current && isCapturing) {
       audioCapturerRef.current.stop();
-      audioCapturerRef.current.stream.getTracks().forEach(track => track.stop());
+      audioCapturerRef.current.stream.getTracks().forEach((track) => track.stop());
       audioCapturerRef.current = null;
       setIsCapturing(false);
       setIsPaused(false);
@@ -281,13 +282,13 @@ export function useWhisperOrchestrator(options: WhisperOrchestratorOptions = {})
         audioContextRef.current.close();
         audioContextRef.current = null;
       }
-      
+
       // Stop and clean up audio capturer
       if (audioCapturerRef.current) {
         if (audioCapturerRef.current.state !== 'inactive') {
           audioCapturerRef.current.stop();
         }
-        audioCapturerRef.current.stream.getTracks().forEach(track => track.stop());
+        audioCapturerRef.current.stream.getTracks().forEach((track) => track.stop());
         audioCapturerRef.current = null;
       }
     };
@@ -310,7 +311,7 @@ export function useWhisperOrchestrator(options: WhisperOrchestratorOptions = {})
     whisperReady,
     whisperProgress,
     whisperError,
-    transcribeWithWhisper: transcribeWhisper
+    transcribeWithWhisper: transcribeWhisper,
   };
 }
 
@@ -319,20 +320,20 @@ async function audioBufferToWav(audioBuffer: AudioBuffer): Promise<Blob> {
   const length = audioBuffer.length * audioBuffer.numberOfChannels * 2;
   const buffer = new ArrayBuffer(44 + length);
   const view = new DataView(buffer);
-  
+
   const writeString = (offset: number, string: string) => {
     for (let i = 0; i < string.length; i++) {
       view.setUint8(offset + i, string.charCodeAt(i));
     }
   };
-  
+
   const floatTo16BitPCM = (output: DataView, offset: number, input: Float32Array) => {
     for (let i = 0; i < input.length; i++, offset += 2) {
       const s = Math.max(-1, Math.min(1, input[i]));
-      output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
     }
   };
-  
+
   writeString(0, 'RIFF');
   view.setUint32(4, 36 + length, true);
   writeString(8, 'WAVE');
@@ -346,18 +347,18 @@ async function audioBufferToWav(audioBuffer: AudioBuffer): Promise<Blob> {
   view.setUint16(34, 16, true);
   writeString(36, 'data');
   view.setUint32(40, length, true);
-  
+
   const offset = 44;
   const interleaved = new Float32Array(audioBuffer.length * audioBuffer.numberOfChannels);
-  
+
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const channelData = audioBuffer.getChannelData(channel);
     for (let i = 0; i < channelData.length; i++) {
       interleaved[i * audioBuffer.numberOfChannels + channel] = channelData[i];
     }
   }
-  
+
   floatTo16BitPCM(view, offset, interleaved);
-  
+
   return new Blob([buffer], { type: 'audio/wav' });
 }

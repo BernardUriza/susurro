@@ -25,13 +25,13 @@ export interface AlertService {
 export const defaultAlertService: AlertService = {
   show: () => ({
     update: () => {},
-    close: () => {}
-  })
+    close: () => {},
+  }),
 };
 
 export const defaultToastService: ToastService = {
   success: () => {},
   error: () => {},
   warning: () => {},
-  info: () => {}
+  info: () => {},
 };

@@ -1,1 +1,1 @@
-export { DigitalRainfall } from './digital-rainfall'
+export { DigitalRainfall } from './digital-rainfall';

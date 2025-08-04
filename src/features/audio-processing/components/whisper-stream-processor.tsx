@@ -1,25 +1,25 @@
-'use client'
+'use client';
 
 // React 19 streaming transcription processor
-import React, { Suspense, useMemo, use } from 'react'
-import { WhisperRevelation, WhisperFragment } from '../../../shared/types'
+import React, { Suspense, useMemo, use } from 'react';
+import { WhisperRevelation, WhisperFragment } from '../../../shared/types';
 
 interface WhisperStreamProcessorProps {
-  audioFragments: WhisperFragment[]
-  onRevelationStream?: (revelation: WhisperRevelation) => void
+  audioFragments: WhisperFragment[];
+  onRevelationStream?: (revelation: WhisperRevelation) => void;
 }
 
-export function WhisperStreamProcessor({ 
-  audioFragments, 
-  onRevelationStream 
+export function WhisperStreamProcessor({
+  audioFragments,
+  onRevelationStream,
 }: WhisperStreamProcessorProps) {
   // React 19 streaming with use() hook
   const streamingRevelations = use(
-    useMemo(() => 
-      createStreamingTranscription(audioFragments, onRevelationStream), 
+    useMemo(
+      () => createStreamingTranscription(audioFragments, onRevelationStream),
       [audioFragments, onRevelationStream]
     )
-  )
+  );
 
   return (
     <div className="whisper-stream-processor">
@@ -27,7 +27,7 @@ export function WhisperStreamProcessor({
         <StreamingRevelationDisplay revelations={streamingRevelations} />
       </Suspense>
     </div>
-  )
+  );
 }
 
 // Create streaming transcription promise for React 19 use() hook
@@ -36,65 +36,67 @@ function createStreamingTranscription(
   onRevelationStream?: (revelation: WhisperRevelation) => void
 ): Promise<WhisperRevelation[]> {
   return new Promise((resolve, reject) => {
-    const revelations: WhisperRevelation[] = []
-    let processedCount = 0
+    const revelations: WhisperRevelation[] = [];
+    let processedCount = 0;
 
     if (fragments.length === 0) {
-      resolve(revelations)
-      return
+      resolve(revelations);
+      return;
     }
 
     // Process fragments as a stream
     const processFragmentStream = async (fragment: WhisperFragment, index: number) => {
       try {
         // Simulate streaming transcription processing
-        const revelation = await transcribeFragmentStreaming(fragment, index)
-        
+        const revelation = await transcribeFragmentStreaming(fragment, index);
+
         // Stream individual revelations as they complete
         if (onRevelationStream) {
-          onRevelationStream(revelation)
+          onRevelationStream(revelation);
         }
-        
-        revelations[index] = revelation
-        processedCount++
-        
+
+        revelations[index] = revelation;
+        processedCount++;
+
         // Resolve when all fragments are processed
         if (processedCount === fragments.length) {
-          resolve(revelations)
+          resolve(revelations);
         }
       } catch (error) {
-        reject(error)
+        reject(error);
       }
-    }
+    };
 
     // Start streaming processing for all fragments
-    fragments.forEach(processFragmentStream)
-  })
+    fragments.forEach(processFragmentStream);
+  });
 }
 
 // Streaming transcription function with real-time updates
 async function transcribeFragmentStreaming(
-  fragment: WhisperFragment, 
+  fragment: WhisperFragment,
   index: number
 ): Promise<WhisperRevelation> {
   // Simulate streaming transcription with periodic updates
   return new Promise((resolve) => {
-    let progress = 0
-    const chunkSize = 10 // Process in 10% chunks for streaming feel
-    
+    let progress = 0;
+    const chunkSize = 10; // Process in 10% chunks for streaming feel
+
     const streamingInterval = setInterval(() => {
-      progress += chunkSize
-      
+      progress += chunkSize;
+
       // Emit streaming progress (could trigger UI updates)
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('whisper-stream-progress', {
-          detail: { fragmentIndex: index, progress }
-        }))
+        window.dispatchEvent(
+          new CustomEvent('whisper-stream-progress', {
+            detail: { fragmentIndex: index, progress },
+          })
+        );
       }
-      
+
       if (progress >= 100) {
-        clearInterval(streamingInterval)
-        
+        clearInterval(streamingInterval);
+
         // Complete the transcription
         const revelation: WhisperRevelation = {
           decodedMessage: `[STREAMED_FRAGMENT_${index + 1}] Whisper revelation decoded in real-time`,
@@ -108,14 +110,14 @@ async function transcribeFragmentStreaming(
             sentiment: (Math.random() - 0.5) * 2,
             keywords: ['streaming', 'whisper', 'real-time'],
             topics: ['audio-processing', 'transcription'],
-            entityMentions: []
-          }
-        }
-        
-        resolve(revelation)
+            entityMentions: [],
+          },
+        };
+
+        resolve(revelation);
       }
-    }, 100) // Update every 100ms for smooth streaming effect
-  })
+    }, 100); // Update every 100ms for smooth streaming effect
+  });
 }
 
 // Streaming revelations display component
@@ -129,38 +131,32 @@ function StreamingRevelationDisplay({ revelations }: { revelations: WhisperRevel
           <span>LIVE</span>
         </div>
       </div>
-      
+
       <div className="revelations-stream">
         {revelations.map((revelation, index) => (
-          <div 
-            key={index} 
+          <div
+            key={index}
             className="streaming-revelation"
             style={{
               animationDelay: `${index * 0.2}s`,
-              opacity: revelation ? 1 : 0.3
+              opacity: revelation ? 1 : 0.3,
             }}
           >
             <div className="revelation-header">
-              <span className="fragment-id">
-                FRAGMENT_{revelation.fragmentIndex + 1}
-              </span>
+              <span className="fragment-id">FRAGMENT_{revelation.fragmentIndex + 1}</span>
               <span className="confidence-score">
                 CONFIDENCE: {(revelation.confidenceScore * 100).toFixed(1)}%
               </span>
-              <span className="processing-time">
-                {revelation.processingDuration}ms
-              </span>
+              <span className="processing-time">{revelation.processingDuration}ms</span>
             </div>
-            
-            <div className="revelation-content">
-              {revelation.decodedMessage}
-            </div>
-            
+
+            <div className="revelation-content">{revelation.decodedMessage}</div>
+
             {revelation.semanticAnalysis && (
               <div className="semantic-analysis">
                 <div className="sentiment">
-                  SENTIMENT: {revelation.semanticAnalysis.sentiment > 0 ? 'POSITIVE' : 'NEGATIVE'} 
-                  ({(revelation.semanticAnalysis.sentiment * 100).toFixed(1)})
+                  SENTIMENT: {revelation.semanticAnalysis.sentiment > 0 ? 'POSITIVE' : 'NEGATIVE'}(
+                  {(revelation.semanticAnalysis.sentiment * 100).toFixed(1)})
                 </div>
                 <div className="keywords">
                   KEYWORDS: {revelation.semanticAnalysis.keywords.join(', ')}
@@ -171,7 +167,7 @@ function StreamingRevelationDisplay({ revelations }: { revelations: WhisperRevel
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 // Loading spinner for streaming
@@ -192,51 +188,56 @@ function WhisperStreamingSpinner() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 // React 19 streaming hook for real-time updates
 export function useWhisperStream(fragments: WhisperFragment[]) {
-  const [streamingRevelations, setStreamingRevelations] = React.useState<WhisperRevelation[]>([])
-  const [isStreaming, setIsStreaming] = React.useState(false)
-  const [streamProgress, setStreamProgress] = React.useState(0)
+  const [streamingRevelations, setStreamingRevelations] = React.useState<WhisperRevelation[]>([]);
+  const [isStreaming, setIsStreaming] = React.useState(false);
+  const [streamProgress, setStreamProgress] = React.useState(0);
 
   const startStreaming = React.useCallback(() => {
-    if (fragments.length === 0) return
-    
-    setIsStreaming(true)
-    setStreamingRevelations([])
-    setStreamProgress(0)
-    
+    if (fragments.length === 0) return;
+
+    setIsStreaming(true);
+    setStreamingRevelations([]);
+    setStreamProgress(0);
+
     // Listen for streaming progress events
     const handleStreamProgress = (event: CustomEvent) => {
-      const { fragmentIndex, progress } = event.detail
-      setStreamProgress((fragmentIndex + progress / 100) / fragments.length * 100)
-    }
-    
-    window.addEventListener('whisper-stream-progress', handleStreamProgress as EventListener)
-    
+      const { fragmentIndex, progress } = event.detail;
+      setStreamProgress(((fragmentIndex + progress / 100) / fragments.length) * 100);
+    };
+
+    window.addEventListener('whisper-stream-progress', handleStreamProgress as EventListener);
+
     // Start streaming transcription
     createStreamingTranscription(fragments, (revelation) => {
-      setStreamingRevelations(prev => {
-        const updated = [...prev]
-        updated[revelation.fragmentIndex] = revelation
-        return updated
-      })
-    }).then(() => {
-      setIsStreaming(false)
-      setStreamProgress(100)
-    }).finally(() => {
-      window.removeEventListener('whisper-stream-progress', handleStreamProgress as EventListener)
+      setStreamingRevelations((prev) => {
+        const updated = [...prev];
+        updated[revelation.fragmentIndex] = revelation;
+        return updated;
+      });
     })
-  }, [fragments])
+      .then(() => {
+        setIsStreaming(false);
+        setStreamProgress(100);
+      })
+      .finally(() => {
+        window.removeEventListener(
+          'whisper-stream-progress',
+          handleStreamProgress as EventListener
+        );
+      });
+  }, [fragments]);
 
   return {
     streamingRevelations,
     isStreaming,
     streamProgress,
-    startStreaming
-  }
+    startStreaming,
+  };
 }
 
 // CSS-in-JS styles for streaming components
@@ -319,12 +320,12 @@ const streamingStyles = `
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
-`
+`;
 
 // Inject styles
 if (typeof document !== 'undefined' && !document.getElementById('whisper-streaming-styles')) {
-  const styleSheet = document.createElement('style')
-  styleSheet.id = 'whisper-streaming-styles'
-  styleSheet.textContent = streamingStyles
-  document.head.appendChild(styleSheet)
+  const styleSheet = document.createElement('style');
+  styleSheet.id = 'whisper-streaming-styles';
+  styleSheet.textContent = streamingStyles;
+  document.head.appendChild(styleSheet);
 }

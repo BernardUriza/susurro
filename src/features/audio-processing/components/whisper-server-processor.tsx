@@ -1,33 +1,33 @@
 // React 19 Server Component for audio metadata preprocessing
-import { AudioMetadata, WhisperFragment } from '../../../shared/types'
+import { AudioMetadata, WhisperFragment } from '../../../shared/types';
 
 interface WhisperServerProcessorProps {
-  audioFile: string
-  children?: React.ReactNode
+  audioFile: string;
+  children?: React.ReactNode;
 }
 
 // Server-side audio preprocessing component
-export default async function WhisperServerProcessor({ 
-  audioFile, 
-  children 
+export default async function WhisperServerProcessor({
+  audioFile,
+  children,
 }: WhisperServerProcessorProps) {
   // Server-side audio metadata extraction
-  const processedMetadata = await processAudioMetadata(audioFile)
-  
+  const processedMetadata = await processAudioMetadata(audioFile);
+
   return (
     <div className="whisper-server-processed">
       {/* Server-rendered audio metadata */}
       <AudioMetadataDisplay metadata={processedMetadata} />
-      
+
       {/* Hydrate client components with preprocessed data */}
-      <WhisperClientProcessor 
+      <WhisperClientProcessor
         audioMetadata={processedMetadata}
         preloadedFragments={processedMetadata.fragments}
       />
-      
+
       {children}
     </div>
-  )
+  );
 }
 
 // Server-side audio metadata processing function
@@ -45,9 +45,9 @@ async function processAudioMetadata(audioFile: string): Promise<AudioMetadata> {
     processingHints: {
       recommendedChunkSize: 15000,
       optimalModel: 'medium',
-      languageHint: 'en'
-    }
-  }
+      languageHint: 'en',
+    },
+  };
 }
 
 // Server-rendered metadata display component
@@ -62,17 +62,17 @@ function AudioMetadataDisplay({ metadata }: { metadata: AudioMetadata }) {
         <div>Quality Score: {(metadata.qualityScore * 100).toFixed(1)}%</div>
       </div>
     </div>
-  )
+  );
 }
 
 // Client component that receives server-preprocessed data
-'use client'
-function WhisperClientProcessor({ 
-  audioMetadata, 
-  preloadedFragments 
-}: { 
-  audioMetadata: AudioMetadata
-  preloadedFragments: WhisperFragment[]
+('use client');
+function WhisperClientProcessor({
+  audioMetadata,
+  preloadedFragments,
+}: {
+  audioMetadata: AudioMetadata;
+  preloadedFragments: WhisperFragment[];
 }) {
   // Use React 19 patterns with server-preprocessed data
   return (
@@ -80,21 +80,21 @@ function WhisperClientProcessor({
       <p>&gt; CLIENT_HYDRATED_WITH_PREPROCESSED_DATA</p>
       <p>&gt; FRAGMENTS_PRELOADED: {preloadedFragments.length}</p>
     </div>
-  )
+  );
 }
 
 // Type definitions for server component
 interface AudioMetadata {
-  duration: number
-  sampleRate: number
-  channels: number
-  format: string
-  size: number
-  fragments: WhisperFragment[]
-  qualityScore: number
+  duration: number;
+  sampleRate: number;
+  channels: number;
+  format: string;
+  size: number;
+  fragments: WhisperFragment[];
+  qualityScore: number;
   processingHints: {
-    recommendedChunkSize: number
-    optimalModel: string
-    languageHint: string
-  }
+    recommendedChunkSize: number;
+    optimalModel: string;
+    languageHint: string;
+  };
 }

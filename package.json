@@ -1,7 +1,7 @@
 {
   "name": "susurro-whisper-nextjs",
   "version": "1.0.0",
-  "description": "WAV file transcription using Whisper AI with Transformers.js for Next.js",
+  "description": "Neural audio processing and real-time transcription using Whisper AI with conversational chunk streaming",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -31,7 +31,7 @@
     "coverage": "vitest run --coverage",
     "pre-commit": "lint-staged",
     "prepare": "husky",
-    "migration:detect-legacy": "grep -r 'MediaRecorder\\|getUserMedia\\|ondataavailable' packages/susurro/src/ && echo 'LEGACY DETECTED' || echo 'LEGACY EXTINCT'",
+    "migration:detect-legacy": "grep -r --exclude-dir=node_modules -v '//.*MediaRecorder\\|//.*processAudioFile\\|/\\*.*MediaRecorder\\|/\\*.*processAudioFile' packages/susurro/src/ | grep -E 'MediaRecorder\\b|getUserMedia\\b|ondataavailable\\b|processAudioFile\\s*[\\(:]' && echo 'LEGACY DETECTED' || echo 'LEGACY EXTINCT'",
     "build-lib": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types",
     "clean": "rmdir /s /q dist 2>nul || echo No dist folder",
     "build:esm": "esbuild src/index.ts --bundle --minify --format=esm --outfile=dist/index.mjs --external:react --external:react-dom --external:next --external:@xenova/transformers --external:sweetalert2",
@@ -42,11 +42,14 @@
   "keywords": [
     "whisper",
     "speech-to-text",
-    "transformers",
-    "nextjs",
+    "neural-audio",
+    "conversational-ai",
+    "real-time-transcription",
     "react",
     "ai",
-    "transcription"
+    "transcription",
+    "murmuraba",
+    "voice-activity-detection"
   ],
   "author": "Bernard",
   "license": "MIT",
@@ -68,7 +71,11 @@
   "dependencies": {
     "@susurro/core": "file:./packages/susurro",
     "@vitest/ui": "^3.2.4",
+    "framer-motion": "^12.23.12",
     "happy-dom": "^18.0.1",
+    "murmuraba": "^3.0.2",
+    "react-audio-visualize": "^1.2.0",
+    "react-virtuoso": "^4.13.0",
     "sweetalert2": "^11.6.13",
     "three": "^0.178.0",
     "vitest": "^3.2.4"

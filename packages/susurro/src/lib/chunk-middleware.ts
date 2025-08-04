@@ -24,7 +24,7 @@ export const translationMiddleware: ChunkMiddleware = {
   async process(chunk: SusurroChunk): Promise<SusurroChunk> {
     // Future: Integrate with translation API
     const translatedText = chunk.transcript; // Placeholder
-    
+
     return {
       ...chunk,
       metadata: {
@@ -45,7 +45,7 @@ export const sentimentMiddleware: ChunkMiddleware = {
   async process(chunk: SusurroChunk): Promise<SusurroChunk> {
     // Future: Integrate with sentiment analysis
     const sentiment = analyzeSentiment(chunk.transcript);
-    
+
     return {
       ...chunk,
       metadata: {
@@ -66,7 +66,7 @@ export const intentMiddleware: ChunkMiddleware = {
   async process(chunk: SusurroChunk): Promise<SusurroChunk> {
     // Future: Integrate with intent detection
     const intent = detectIntent(chunk.transcript);
-    
+
     return {
       ...chunk,
       metadata: {
@@ -87,7 +87,7 @@ export const qualityMiddleware: ChunkMiddleware = {
   async process(chunk: SusurroChunk): Promise<SusurroChunk> {
     // Audio quality validation and enhancement
     const qualityMetrics = analyzeAudioQuality(chunk);
-    
+
     return {
       ...chunk,
       metadata: {
@@ -113,7 +113,7 @@ export class ChunkMiddlewarePipeline {
       metadata: {},
       ...context,
     };
-    
+
     // Register default middlewares
     this.register(qualityMiddleware);
     this.register(translationMiddleware);
@@ -127,18 +127,18 @@ export class ChunkMiddlewarePipeline {
   }
 
   unregister(name: string): void {
-    this.middlewares = this.middlewares.filter(m => m.name !== name);
+    this.middlewares = this.middlewares.filter((m) => m.name !== name);
   }
 
   enable(name: string): void {
-    const middleware = this.middlewares.find(m => m.name === name);
+    const middleware = this.middlewares.find((m) => m.name === name);
     if (middleware) {
       middleware.enabled = true;
     }
   }
 
   disable(name: string): void {
-    const middleware = this.middlewares.find(m => m.name === name);
+    const middleware = this.middlewares.find((m) => m.name === name);
     if (middleware) {
       middleware.enabled = false;
     }
@@ -152,13 +152,13 @@ export class ChunkMiddlewarePipeline {
       if (!middleware.enabled) continue;
 
       const startTime = performance.now();
-      
+
       try {
         processedChunk = await middleware.process(processedChunk);
-        
+
         const latency = performance.now() - startTime;
         processingLatencies[middleware.name] = latency;
-        
+
         // Latency warning for debugging
         if (latency > 50) {
           console.warn(`Middleware "${middleware.name}" took ${latency.toFixed(2)}ms`);
@@ -181,7 +181,7 @@ export class ChunkMiddlewarePipeline {
   }
 
   getStatus(): { name: string; enabled: boolean; priority: number }[] {
-    return this.middlewares.map(m => ({
+    return this.middlewares.map((m) => ({
       name: m.name,
       enabled: m.enabled,
       priority: m.priority,
@@ -194,17 +194,17 @@ function analyzeSentiment(text: string): { label: string; score: number; emotion
   // Placeholder implementation - Future: integrate with sentiment API
   const positiveWords = ['good', 'great', 'awesome', 'excellent', 'amazing'];
   const negativeWords = ['bad', 'terrible', 'awful', 'horrible', 'worst'];
-  
+
   const words = text.toLowerCase().split(' ');
-  const positiveCount = words.filter(w => positiveWords.includes(w)).length;
-  const negativeCount = words.filter(w => negativeWords.includes(w)).length;
-  
+  const positiveCount = words.filter((w) => positiveWords.includes(w)).length;
+  const negativeCount = words.filter((w) => negativeWords.includes(w)).length;
+
   if (positiveCount > negativeCount) {
     return { label: 'positive', score: 0.7, emotion: 'happy' };
   } else if (negativeCount > positiveCount) {
     return { label: 'negative', score: 0.7, emotion: 'sad' };
   }
-  
+
   return { label: 'neutral', score: 0.5, emotion: 'neutral' };
 }
 
@@ -212,15 +212,15 @@ function detectIntent(text: string): { name: string; confidence: number; entitie
   // Placeholder implementation - Future: integrate with NLU API
   const questionWords = ['what', 'how', 'when', 'where', 'why', 'who'];
   const commandWords = ['play', 'stop', 'start', 'open', 'close', 'send'];
-  
+
   const words = text.toLowerCase().split(' ');
-  
-  if (words.some(w => questionWords.includes(w))) {
+
+  if (words.some((w) => questionWords.includes(w))) {
     return { name: 'question', confidence: 0.8, entities: [] };
-  } else if (words.some(w => commandWords.includes(w))) {
+  } else if (words.some((w) => commandWords.includes(w))) {
     return { name: 'command', confidence: 0.8, entities: [] };
   }
-  
+
   return { name: 'statement', confidence: 0.6, entities: [] };
 }
 

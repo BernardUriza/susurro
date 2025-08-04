@@ -1,1 +1,1 @@
-export * from './cube-navigator'
+export * from './cube-navigator';

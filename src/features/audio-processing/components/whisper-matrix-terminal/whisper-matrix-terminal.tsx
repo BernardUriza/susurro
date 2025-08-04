@@ -1,26 +1,26 @@
-'use client'
+'use client';
 
 // React and external libraries
-import React from 'react'
+import React from 'react';
 
 // Absolute imports
-import { useWhisperOrchestrator } from '../../../../shared/hooks'
+import { useWhisperOrchestrator } from '../../../../shared/hooks';
 
 // Relative imports - components
-import { DigitalRainfall } from '../../../visualization/components'
-import { WhisperEchoLogs } from '../../../visualization/components'
-import { TemporalSegmentSelector } from '../temporal-segment-selector'
+import { DigitalRainfall } from '../../../visualization/components';
+import { WhisperEchoLogs } from '../../../visualization/components';
+import { TemporalSegmentSelector } from '../temporal-segment-selector';
 
 // Relative imports - utilities
-import { SilentThreadProcessor } from '../../../../shared/services'
+import { SilentThreadProcessor } from '../../../../shared/services';
 
 // Styles (last)
-import '../../../styles/matrix-theme.css'
+import '../../../styles/matrix-theme.css';
 
 export const WhisperMatrixTerminal: React.FC = () => {
-  const [temporalSegmentDuration, setTemporalSegmentDuration] = React.useState(15) // Default 15 seconds
-  
-  const { 
+  const [temporalSegmentDuration, setTemporalSegmentDuration] = React.useState(15); // Default 15 seconds
+
+  const {
     isProcessing,
     revelations,
     audioFragments,
@@ -30,156 +30,168 @@ export const WhisperMatrixTerminal: React.FC = () => {
     whisperReady,
     whisperProgress,
     whisperError,
-    transcribeWithWhisper
+    transcribeWithWhisper,
   } = useWhisperOrchestrator({
     temporalSegmentMs: temporalSegmentDuration * 1000, // Convert to milliseconds
-    enableVoiceResonance: true
-  })
-  
-  const [originalUrl, setOriginalUrl] = React.useState('')
-  const [fragmentUrls, setFragmentUrls] = React.useState<string[]>([])
-  const [status, setStatus] = React.useState('')
-  const [isDecoding, setIsDecoding] = React.useState(false)
-  const [whisperRevelations, setWhisperRevelations] = React.useState<string[]>([])
-  const [backgroundLogs, setBackgroundLogs] = React.useState<Array<{
-    id: string
-    timestamp: Date
-    message: string
-    type: 'info' | 'warning' | 'error' | 'success'
-  }>>([])
-  
+    enableVoiceResonance: true,
+  });
+
+  const [originalUrl, setOriginalUrl] = React.useState('');
+  const [fragmentUrls, setFragmentUrls] = React.useState<string[]>([]);
+  const [status, setStatus] = React.useState('');
+  const [isDecoding, setIsDecoding] = React.useState(false);
+  const [whisperRevelations, setWhisperRevelations] = React.useState<string[]>([]);
+  const [backgroundLogs, setBackgroundLogs] = React.useState<
+    Array<{
+      id: string;
+      timestamp: Date;
+      message: string;
+      type: 'info' | 'warning' | 'error' | 'success';
+    }>
+  >([]);
+
   // Silent thread processor for non-blocking transcription
-  const silentThreadProcessorRef = React.useRef<SilentThreadProcessor | null>(null)
-  
+  const silentThreadProcessorRef = React.useRef<SilentThreadProcessor | null>(null);
+
   React.useEffect(() => {
     silentThreadProcessorRef.current = new SilentThreadProcessor((message, type) => {
-      setBackgroundLogs(prev => [...prev, {
-        id: `log-${Date.now()}-${Math.random()}`,
-        timestamp: new Date(),
-        message,
-        type
-      }])
-    })
-  }, [])
-  
-  
+      setBackgroundLogs((prev) => [
+        ...prev,
+        {
+          id: `log-${Date.now()}-${Math.random()}`,
+          timestamp: new Date(),
+          message,
+          type,
+        },
+      ]);
+    });
+  }, []);
+
   // Create URLs for each audio fragment
   React.useEffect(() => {
     if (audioFragments && audioFragments.length > 0) {
-      console.log('[WhisperMatrixTerminal] Creating URLs for', audioFragments.length, 'fragments')
-      
+      console.log('[WhisperMatrixTerminal] Creating URLs for', audioFragments.length, 'fragments');
+
       // Create URL for each fragment
-      const urls = audioFragments.map(fragment => URL.createObjectURL(fragment.audioEssence))
-      setFragmentUrls(urls)
-      
+      const urls = audioFragments.map((fragment) => URL.createObjectURL(fragment.audioEssence));
+      setFragmentUrls(urls);
+
       return () => {
         // Cleanup old URLs
-        urls.forEach(url => URL.revokeObjectURL(url))
-      }
+        urls.forEach((url) => URL.revokeObjectURL(url));
+      };
     }
-  }, [audioChunks])
-  
+  }, [audioChunks]);
+
   const handleFileProcess = async (file: File) => {
     try {
-      setStatus('[INITIALIZING_NEURAL_PROCESSOR...]')
-      setOriginalUrl(URL.createObjectURL(file))
-      clearRevelations()
-      
+      setStatus('[INITIALIZING_NEURAL_PROCESSOR...]');
+      setOriginalUrl(URL.createObjectURL(file));
+      clearRevelations();
+
       // Add timeout to prevent infinite hanging
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Processing timeout')), 30000)
-      })
-      
-      await Promise.race([
-        processAudioFile(file),
-        timeoutPromise
-      ])
-      
-      setStatus('[PROCESSING_COMPLETE]')
-      
-      return true
+        setTimeout(() => reject(new Error('Processing timeout')), 30000);
+      });
+
+      await Promise.race([processAudioFile(file), timeoutPromise]);
+
+      setStatus('[PROCESSING_COMPLETE]');
+
+      return true;
     } catch (err) {
-      console.error('File processing error:', err)
-      setStatus(`[ERROR] ${err instanceof Error ? err.message : 'Unknown error'}`)
-      return false
+      console.error('File processing error:', err);
+      setStatus(`[ERROR] ${err instanceof Error ? err.message : 'Unknown error'}`);
+      return false;
     }
-  }
-  
+  };
+
   const loadExampleAudio = async () => {
     try {
-      setStatus('[LOADING_SAMPLE_AUDIO...]')
-      const res = await fetch('/sample.wav')
+      setStatus('[LOADING_SAMPLE_AUDIO...]');
+      const res = await fetch('/sample.wav');
       if (!res.ok) {
-        throw new Error(`Failed to load sample: ${res.status}`)
+        throw new Error(`Failed to load sample: ${res.status}`);
       }
-      const blob = await res.blob()
-      const file = new File([blob], 'sample.wav', { type: 'audio/wav' })
-      await handleFileProcess(file)
+      const blob = await res.blob();
+      const file = new File([blob], 'sample.wav', { type: 'audio/wav' });
+      await handleFileProcess(file);
     } catch (error) {
-      console.error('Error loading sample:', error)
-      setStatus(`[ERROR] ${error instanceof Error ? error.message : 'Failed to load sample'}`)
+      console.error('Error loading sample:', error);
+      setStatus(`[ERROR] ${error instanceof Error ? error.message : 'Failed to load sample'}`);
     }
-  }
+  };
 
   return (
     <div className="matrix-theme">
       <DigitalRainfall />
       {/* Version indicator in top-left corner */}
-      <div style={{
-        position: 'fixed',
-        top: 20,
-        left: 20,
-        fontSize: '12px',
-        fontFamily: 'monospace',
-        color: '#00ff41',
-        opacity: 0.8,
-        zIndex: 1000,
-        textShadow: '0 0 10px rgba(0, 255, 65, 0.5)',
-        letterSpacing: '2px'
-      }}>
+      <div
+        style={{
+          position: 'fixed',
+          top: 20,
+          left: 20,
+          fontSize: '12px',
+          fontFamily: 'monospace',
+          color: '#00ff41',
+          opacity: 0.8,
+          zIndex: 1000,
+          textShadow: '0 0 10px rgba(0, 255, 65, 0.5)',
+          letterSpacing: '2px',
+        }}
+      >
         SUSURRO_MATRIX_v1.0
       </div>
-      <div className="matrix-container" style={{ 
-        maxWidth: 600, 
-        margin: '40px auto', 
-        padding: 20
-      }}>
+      <div
+        className="matrix-container"
+        style={{
+          maxWidth: 600,
+          margin: '40px auto',
+          padding: 20,
+        }}
+      >
         {/* Banner with advanced transparency effects */}
-        <div style={{
-          position: 'relative',
-          width: '100%',
-          marginTop: 20,
-          marginBottom: 30,
-          overflow: 'hidden',
-          borderRadius: '8px'
-        }}>
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: `
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            marginTop: 20,
+            marginBottom: 30,
+            overflow: 'hidden',
+            borderRadius: '8px',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: `
               radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0.8) 100%),
               linear-gradient(to bottom, rgba(0, 255, 65, 0.1) 0%, transparent 50%, rgba(0, 255, 65, 0.1) 100%)
             `,
-            pointerEvents: 'none',
-            zIndex: 2
-          }} />
-          
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            background: 'rgba(0, 0, 0, 0.5)',
-            padding: '20px',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            border: '1px solid rgba(0, 255, 65, 0.3)',
-            boxShadow: `
+              pointerEvents: 'none',
+              zIndex: 2,
+            }}
+          />
+
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              background: 'rgba(0, 0, 0, 0.5)',
+              padding: '20px',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              border: '1px solid rgba(0, 255, 65, 0.3)',
+              boxShadow: `
               0 0 40px rgba(0, 255, 65, 0.2),
               inset 0 0 40px rgba(0, 255, 65, 0.1),
               0 0 80px rgba(0, 255, 65, 0.1)
-            `
-          }}>
-            <img 
-              src="/banner.png" 
+            `,
+            }}
+          >
+            <img
+              src="/banner.png"
               alt="Susurro Banner"
               style={{
                 width: '100%',
@@ -210,7 +222,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
                     black 90%,
                     transparent 100%
                   )
-                `
+                `,
               }}
               onLoad={(e) => {
                 const img = e.target as HTMLImageElement;
@@ -218,28 +230,31 @@ export const WhisperMatrixTerminal: React.FC = () => {
               }}
             />
           </div>
-          
+
           {/* Animated scan line effect */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: '2px',
-            background: 'linear-gradient(to right, transparent, #00ff41, transparent)',
-            animation: 'matrix-scan-horizontal 4s linear infinite',
-            zIndex: 3,
-            opacity: 0.6
-          }} />
-          
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '2px',
+              background: 'linear-gradient(to right, transparent, #00ff41, transparent)',
+              animation: 'matrix-scan-horizontal 4s linear infinite',
+              zIndex: 3,
+              opacity: 0.6,
+            }}
+          />
+
           {/* Glitch effect overlay */}
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            opacity: 0.03,
-            mixBlendMode: 'overlay',
-            animation: 'matrix-glitch 10s infinite',
-            background: `
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              opacity: 0.03,
+              mixBlendMode: 'overlay',
+              animation: 'matrix-glitch 10s infinite',
+              background: `
               repeating-linear-gradient(
                 0deg,
                 transparent,
@@ -248,51 +263,52 @@ export const WhisperMatrixTerminal: React.FC = () => {
                 rgba(0, 255, 65, 0.03) 4px
               )
             `,
-            pointerEvents: 'none',
-            zIndex: 4
-          }} />
+              pointerEvents: 'none',
+              zIndex: 4,
+            }}
+          />
         </div>
         <p style={{ marginBottom: 30, opacity: 0.8 }}>
           &gt; INITIALIZING AUDIO NEURAL PROCESSOR...
         </p>
-        
+
         {/* Upload Section */}
         <div style={{ marginBottom: 30 }}>
-          <div 
+          <div
             className="matrix-upload-area"
-            style={{ 
-              padding: 40, 
+            style={{
+              padding: 40,
               textAlign: 'center',
               borderRadius: 0,
               cursor: 'pointer',
-              marginBottom: 20
+              marginBottom: 20,
             }}
             onClick={() => {
               if (!isProcessing) {
-                document.getElementById('file')?.click()
+                document.getElementById('file')?.click();
               }
             }}
           >
             <p style={{ margin: 0 }}>&gt; DRAG_DROP_AUDIO.WAV</p>
           </div>
-          
-          <input 
+
+          <input
             id="file"
-            type="file" 
+            type="file"
             accept=".wav"
             style={{ display: 'none' }}
             onChange={async (e) => {
-              const file = e.target.files?.[0]
+              const file = e.target.files?.[0];
               if (file) {
-                await handleFileProcess(file)
+                await handleFileProcess(file);
               }
             }}
           />
-          
-          <button 
+
+          <button
             onClick={() => {
               if (!isProcessing) {
-                loadExampleAudio()
+                loadExampleAudio();
               }
             }}
             disabled={isProcessing}
@@ -302,21 +318,21 @@ export const WhisperMatrixTerminal: React.FC = () => {
             {isProcessing ? '[MURMURABA_PROCESSING...]' : '[LOAD_JFK_SAMPLE.WAV]'}
           </button>
         </div>
-        
+
         {/* Status */}
         {status && (
           <div className={`matrix-status ${status.includes('ERROR') ? 'error' : ''}`}>
             &gt; {status}
           </div>
         )}
-        
+
         {/* Processing Status */}
         {isProcessing && (
           <div className="matrix-status" style={{ marginTop: 10 }}>
             &gt; [MURMURABA_PROCESSING] CLEANING_AUDIO...
           </div>
         )}
-        
+
         {/* Original Audio */}
         {originalUrl && (
           <div className="matrix-audio-section">
@@ -324,83 +340,100 @@ export const WhisperMatrixTerminal: React.FC = () => {
             <audio src={originalUrl} controls style={{ width: '100%' }} />
           </div>
         )}
-        
+
         {/* Processed Audio Chunks */}
         {chunkUrls.length > 0 && (
           <>
             <div className="matrix-audio-section" style={{ position: 'relative' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+              >
                 <h3 style={{ margin: 0 }}>&gt; MURMURABA_CLEANED_AUDIO</h3>
-                <div style={{ 
-                  fontSize: '2.5em', 
-                  color: '#00ff41',
-                  fontWeight: 'bold',
-                  textShadow: '0 0 10px #00ff41',
-                  marginRight: 20
-                }}>
+                <div
+                  style={{
+                    fontSize: '2.5em',
+                    color: '#00ff41',
+                    fontWeight: 'bold',
+                    textShadow: '0 0 10px #00ff41',
+                    marginRight: 20,
+                  }}
+                >
                   VAD: {(averageVad * 100).toFixed(1)}%
                 </div>
               </div>
-              
+
               <p className="matrix-vad-score" style={{ marginTop: 10, marginBottom: 10 }}>
                 &gt; AUDIO_ENHANCEMENT: NOISE_REDUCTION | AGC | ECHO_CANCELLATION
               </p>
-              
+
               {/* Individual chunk players */}
               {audioChunks.map((chunk, index) => (
                 <div key={chunk.id} style={{ marginBottom: 15 }}>
                   <p style={{ margin: '5px 0', fontSize: '0.9em', opacity: 0.8 }}>
-                    &gt; CHUNK_{index + 1} | DURATION: {(chunk.duration / 1000).toFixed(2)}s | VAD: {chunk.vadScore ? (chunk.vadScore * 100).toFixed(1) : 'N/A'}%
+                    &gt; CHUNK_{index + 1} | DURATION: {(chunk.duration / 1000).toFixed(2)}s | VAD:{' '}
+                    {chunk.vadScore ? (chunk.vadScore * 100).toFixed(1) : 'N/A'}%
                   </p>
-                  <audio 
-                    src={chunkUrls[index]} 
-                    controls 
-                    style={{ width: '100%', height: '35px' }} 
+                  <audio
+                    src={chunkUrls[index]}
+                    controls
+                    style={{ width: '100%', height: '35px' }}
                   />
                 </div>
               ))}
-              
-              <p className="matrix-vad-score" style={{ marginTop: 10, marginBottom: 0, opacity: 0.7 }}>
-                &gt; TOTAL_CHUNKS: {audioChunks.length} | TOTAL_DURATION: {(audioChunks.reduce((acc, chunk) => acc + chunk.duration, 0) / 1000).toFixed(2)}s
+
+              <p
+                className="matrix-vad-score"
+                style={{ marginTop: 10, marginBottom: 0, opacity: 0.7 }}
+              >
+                &gt; TOTAL_CHUNKS: {audioChunks.length} | TOTAL_DURATION:{' '}
+                {(audioChunks.reduce((acc, chunk) => acc + chunk.duration, 0) / 1000).toFixed(2)}s
               </p>
             </div>
-            
+
             {/* Chunk Duration Control - Only show after processing */}
             {status === '[PROCESSING_COMPLETE]' && (
-              <div style={{
-                marginTop: 20,
-                marginBottom: 20,
-                padding: '20px',
-                background: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(0, 255, 65, 0.3)',
-                borderRadius: '0',
-                backdropFilter: 'blur(5px)',
-                position: 'relative',
-                overflow: 'hidden',
-                animation: 'fadeIn 0.5s ease-in'
-              }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '20px',
-                  flexWrap: 'wrap'
-                }}>
-                  <label style={{
-                    color: '#00ff41',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px'
-                  }}>
-                    &gt; CHUNK_DURATION_SEC:
-                  </label>
-                  
-                  <div style={{
-                    position: 'relative',
+              <div
+                style={{
+                  marginTop: 20,
+                  marginBottom: 20,
+                  padding: '20px',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: '1px solid rgba(0, 255, 65, 0.3)',
+                  borderRadius: '0',
+                  backdropFilter: 'blur(5px)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  animation: 'fadeIn 0.5s ease-in',
+                }}
+              >
+                <div
+                  style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '10px'
-                  }}>
+                    gap: '20px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <label
+                    style={{
+                      color: '#00ff41',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px',
+                    }}
+                  >
+                    &gt; CHUNK_DURATION_SEC:
+                  </label>
+
+                  <div
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                    }}
+                  >
                     <button
                       onClick={() => setChunkDuration(Math.max(1, chunkDuration - 1))}
                       className="matrix-button"
@@ -415,31 +448,33 @@ export const WhisperMatrixTerminal: React.FC = () => {
                         border: '1px solid #00ff41',
                         color: '#00ff41',
                         cursor: 'pointer',
-                        transition: 'all 0.2s'
+                        transition: 'all 0.2s',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#00ff41'
-                        e.currentTarget.style.color = '#000'
+                        e.currentTarget.style.background = '#00ff41';
+                        e.currentTarget.style.color = '#000';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
-                        e.currentTarget.style.color = '#00ff41'
+                        e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
+                        e.currentTarget.style.color = '#00ff41';
                       }}
                     >
                       −
                     </button>
-                    
-                    <div style={{
-                      position: 'relative',
-                      width: '120px',
-                      height: '50px'
-                    }}>
+
+                    <div
+                      style={{
+                        position: 'relative',
+                        width: '120px',
+                        height: '50px',
+                      }}
+                    >
                       <input
                         type="number"
                         value={chunkDuration}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value) || 1
-                          setChunkDuration(Math.max(1, Math.min(60, val)))
+                          const val = parseInt(e.target.value) || 1;
+                          setChunkDuration(Math.max(1, Math.min(60, val)));
                         }}
                         style={{
                           width: '100%',
@@ -459,39 +494,41 @@ export const WhisperMatrixTerminal: React.FC = () => {
                             0 0 20px rgba(0, 255, 65, 0.3)
                           `,
                           transition: 'all 0.3s',
-                          letterSpacing: '2px'
+                          letterSpacing: '2px',
                         }}
                         onFocus={(e) => {
                           e.target.style.boxShadow = `
                             inset 0 0 30px rgba(0, 255, 65, 0.4),
                             0 0 40px rgba(0, 255, 65, 0.5)
-                          `
+                          `;
                         }}
                         onBlur={(e) => {
                           e.target.style.boxShadow = `
                             inset 0 0 20px rgba(0, 255, 65, 0.2),
                             0 0 20px rgba(0, 255, 65, 0.3)
-                          `
+                          `;
                         }}
                         min="1"
                         max="60"
                       />
-                      
+
                       {/* Digital display effect */}
-                      <div style={{
-                        position: 'absolute',
-                        top: '50%',
-                        right: '10px',
-                        transform: 'translateY(-50%)',
-                        fontSize: '10px',
-                        color: '#00ff41',
-                        opacity: 0.5,
-                        pointerEvents: 'none'
-                      }}>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          right: '10px',
+                          transform: 'translateY(-50%)',
+                          fontSize: '10px',
+                          color: '#00ff41',
+                          opacity: 0.5,
+                          pointerEvents: 'none',
+                        }}
+                      >
                         SEC
                       </div>
                     </div>
-                    
+
                     <button
                       onClick={() => setChunkDuration(Math.min(60, chunkDuration + 1))}
                       className="matrix-button"
@@ -506,28 +543,30 @@ export const WhisperMatrixTerminal: React.FC = () => {
                         border: '1px solid #00ff41',
                         color: '#00ff41',
                         cursor: 'pointer',
-                        transition: 'all 0.2s'
+                        transition: 'all 0.2s',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#00ff41'
-                        e.currentTarget.style.color = '#000'
+                        e.currentTarget.style.background = '#00ff41';
+                        e.currentTarget.style.color = '#000';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
-                        e.currentTarget.style.color = '#00ff41'
+                        e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
+                        e.currentTarget.style.color = '#00ff41';
                       }}
                     >
                       +
                     </button>
                   </div>
-                  
+
                   {/* Preset buttons */}
-                  <div style={{
-                    display: 'flex',
-                    gap: '5px',
-                    flexWrap: 'wrap'
-                  }}>
-                    {[5, 10, 15, 30].map(preset => (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '5px',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    {[5, 10, 15, 30].map((preset) => (
                       <button
                         key={preset}
                         onClick={() => setChunkDuration(preset)}
@@ -540,16 +579,16 @@ export const WhisperMatrixTerminal: React.FC = () => {
                           border: '1px solid #00ff41',
                           borderRadius: '0',
                           cursor: 'pointer',
-                          transition: 'all 0.2s'
+                          transition: 'all 0.2s',
                         }}
                         onMouseEnter={(e) => {
                           if (chunkDuration !== preset) {
-                            e.currentTarget.style.background = 'rgba(0, 255, 65, 0.2)'
+                            e.currentTarget.style.background = 'rgba(0, 255, 65, 0.2)';
                           }
                         }}
                         onMouseLeave={(e) => {
                           if (chunkDuration !== preset) {
-                            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
+                            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
                           }
                         }}
                       >
@@ -558,144 +597,180 @@ export const WhisperMatrixTerminal: React.FC = () => {
                     ))}
                   </div>
                 </div>
-                
+
                 {/* Visual indicator bar */}
-                <div style={{
-                  marginTop: '15px',
-                  height: '4px',
-                  background: 'rgba(0, 255, 65, 0.1)',
-                  borderRadius: '2px',
-                  overflow: 'hidden',
-                  position: 'relative'
-                }}>
-                  <div style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    height: '100%',
-                    width: `${(chunkDuration / 60) * 100}%`,
-                    background: 'linear-gradient(to right, #00ff41, #00cc33)',
-                    boxShadow: '0 0 10px #00ff41',
-                    transition: 'width 0.3s ease'
-                  }} />
+                <div
+                  style={{
+                    marginTop: '15px',
+                    height: '4px',
+                    background: 'rgba(0, 255, 65, 0.1)',
+                    borderRadius: '2px',
+                    overflow: 'hidden',
+                    position: 'relative',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      height: '100%',
+                      width: `${(chunkDuration / 60) * 100}%`,
+                      background: 'linear-gradient(to right, #00ff41, #00cc33)',
+                      boxShadow: '0 0 10px #00ff41',
+                      transition: 'width 0.3s ease',
+                    }}
+                  />
                 </div>
-                
-                <p style={{
-                  marginTop: '10px',
-                  fontSize: '11px',
-                  color: '#00ff41',
-                  opacity: 0.6,
-                  textAlign: 'center'
-                }}>
-                  &gt; AUDIO_CHUNK_SIZE: {chunkDuration}000ms | OPTIMAL_RANGE: 10-30s | [RECONFIGURE_FOR_NEXT_PROCESS]
+
+                <p
+                  style={{
+                    marginTop: '10px',
+                    fontSize: '11px',
+                    color: '#00ff41',
+                    opacity: 0.6,
+                    textAlign: 'center',
+                  }}
+                >
+                  &gt; AUDIO_CHUNK_SIZE: {chunkDuration}000ms | OPTIMAL_RANGE: 10-30s |
+                  [RECONFIGURE_FOR_NEXT_PROCESS]
                 </p>
               </div>
             )}
-            
+
             {/* Whisper Transcription Button */}
             <div style={{ marginTop: 20 }}>
               {!whisperReady ? (
                 <div className="matrix-status" style={{ textAlign: 'center' }}>
                   &gt; [WHISPER_MODEL_LOADING] {(whisperProgress * 100).toFixed(0)}%
-                  <div style={{ 
-                    width: '100%', 
-                    height: '20px', 
-                    background: '#001a00',
-                    border: '1px solid #00ff41',
-                    marginTop: 10,
-                    position: 'relative',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{
-                      width: `${whisperProgress * 100}%`,
-                      height: '100%',
-                      background: '#00ff41',
-                      transition: 'width 0.3s ease',
-                      boxShadow: '0 0 10px #00ff41'
-                    }} />
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '20px',
+                      background: '#001a00',
+                      border: '1px solid #00ff41',
+                      marginTop: 10,
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${whisperProgress * 100}%`,
+                        height: '100%',
+                        background: '#00ff41',
+                        transition: 'width 0.3s ease',
+                        boxShadow: '0 0 10px #00ff41',
+                      }}
+                    />
                   </div>
                 </div>
               ) : (
                 <button
                   onClick={() => {
-                    if (!isTranscribing && audioChunks.length > 0 && silentThreadProcessorRef.current) {
-                      setIsTranscribing(true)
-                      setStatus('[WHISPER_BACKGROUND_PROCESSING_STARTED]')
-                      setWhisperTranscriptions([]) // Clear previous transcriptions
-                      
+                    if (
+                      !isTranscribing &&
+                      audioChunks.length > 0 &&
+                      silentThreadProcessorRef.current
+                    ) {
+                      setIsTranscribing(true);
+                      setStatus('[WHISPER_BACKGROUND_PROCESSING_STARTED]');
+                      setWhisperTranscriptions([]); // Clear previous transcriptions
+
                       // Add log
-                      setBackgroundLogs(prev => [...prev, {
-                        id: `log-${Date.now()}`,
-                        timestamp: new Date(),
-                        message: `Starting background transcription of ${audioChunks.length} chunks`,
-                        type: 'info'
-                      }])
-                      
+                      setBackgroundLogs((prev) => [
+                        ...prev,
+                        {
+                          id: `log-${Date.now()}`,
+                          timestamp: new Date(),
+                          message: `Starting background transcription of ${audioChunks.length} chunks`,
+                          type: 'info',
+                        },
+                      ]);
+
                       // Process each chunk in background
                       audioChunks.forEach((chunk, index) => {
-                        silentThreadProcessorRef.current!.processTranscriptionAsync(
-                          chunk.blob,
-                          transcribeWithWhisper,
-                          (progress) => {
-                            // Update progress log
-                            setBackgroundLogs(prev => [...prev, {
-                              id: `progress-${index}-${Date.now()}`,
-                              timestamp: new Date(),
-                              message: `Chunk ${index + 1}: ${progress}% complete`,
-                              type: 'info'
-                            }])
-                          }
-                        ).then((text) => {
-                          // Update transcriptions without blocking
-                          setWhisperTranscriptions(prev => {
-                            const newTranscriptions = [...prev]
-                            newTranscriptions[index] = text
-                            return newTranscriptions
+                        silentThreadProcessorRef
+                          .current!.processTranscriptionAsync(
+                            chunk.blob,
+                            transcribeWithWhisper,
+                            (progress) => {
+                              // Update progress log
+                              setBackgroundLogs((prev) => [
+                                ...prev,
+                                {
+                                  id: `progress-${index}-${Date.now()}`,
+                                  timestamp: new Date(),
+                                  message: `Chunk ${index + 1}: ${progress}% complete`,
+                                  type: 'info',
+                                },
+                              ]);
+                            }
+                          )
+                          .then((text) => {
+                            // Update transcriptions without blocking
+                            setWhisperTranscriptions((prev) => {
+                              const newTranscriptions = [...prev];
+                              newTranscriptions[index] = text;
+                              return newTranscriptions;
+                            });
+
+                            // Add success log
+                            setBackgroundLogs((prev) => [
+                              ...prev,
+                              {
+                                id: `success-${index}-${Date.now()}`,
+                                timestamp: new Date(),
+                                message: `Chunk ${index + 1} transcribed: "${text.substring(0, 50)}..."`,
+                                type: 'success',
+                              },
+                            ]);
+
+                            // Check if all chunks are done
+                            if (index === audioChunks.length - 1) {
+                              setIsTranscribing(false);
+                              setStatus('[WHISPER_BACKGROUND_COMPLETE]');
+                            }
                           })
-                          
-                          // Add success log
-                          setBackgroundLogs(prev => [...prev, {
-                            id: `success-${index}-${Date.now()}`,
-                            timestamp: new Date(),
-                            message: `Chunk ${index + 1} transcribed: "${text.substring(0, 50)}..."`,
-                            type: 'success'
-                          }])
-                          
-                          // Check if all chunks are done
-                          if (index === audioChunks.length - 1) {
-                            setIsTranscribing(false)
-                            setStatus('[WHISPER_BACKGROUND_COMPLETE]')
-                          }
-                        }).catch((error) => {
-                          // Add error log
-                          setBackgroundLogs(prev => [...prev, {
-                            id: `error-${index}-${Date.now()}`,
-                            timestamp: new Date(),
-                            message: `Chunk ${index + 1} failed: ${error}`,
-                            type: 'error'
-                          }])
-                        })
-                      })
+                          .catch((error) => {
+                            // Add error log
+                            setBackgroundLogs((prev) => [
+                              ...prev,
+                              {
+                                id: `error-${index}-${Date.now()}`,
+                                timestamp: new Date(),
+                                message: `Chunk ${index + 1} failed: ${error}`,
+                                type: 'error',
+                              },
+                            ]);
+                          });
+                      });
                     }
                   }}
                   disabled={isTranscribing || audioChunks.length === 0}
                   className="matrix-button"
-                  style={{ 
-                    width: '100%', 
+                  style={{
+                    width: '100%',
                     opacity: isTranscribing || audioChunks.length === 0 ? 0.5 : 1,
                     fontSize: '1.2em',
                     padding: '15px',
                     position: 'relative',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
                   }}
                 >
                   {isTranscribing ? (
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ 
-                        display: 'inline-block', 
-                        animation: 'pulse 1.5s infinite',
-                        marginRight: 10
-                      }}>⌛</span>
+                    <span
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          animation: 'pulse 1.5s infinite',
+                          marginRight: 10,
+                        }}
+                      >
+                        ⌛
+                      </span>
                       [BACKGROUND_PROCESSING...]
                     </span>
                   ) : (
@@ -703,22 +778,23 @@ export const WhisperMatrixTerminal: React.FC = () => {
                   )}
                 </button>
               )}
-              
+
               {whisperError && (
                 <div className="matrix-status error" style={{ marginTop: 10 }}>
                   &gt; [WHISPER_ERROR] {whisperError.message}
                 </div>
               )}
             </div>
-            
+
             {/* Transcription */}
             <div style={{ marginTop: 30 }}>
               {/* Murmuraba Status */}
-              
+
               {transcriptions.length > 0 && (
                 <div className="matrix-transcript">
-                  &gt; MURMURABA_OUTPUT:<br/>
-                  <br/>
+                  &gt; MURMURABA_OUTPUT:
+                  <br />
+                  <br />
                   {transcriptions.map((t, i) => (
                     <div key={i}>
                       [{new Date(t.timestamp).toLocaleTimeString()}] {t.text}
@@ -726,169 +802,203 @@ export const WhisperMatrixTerminal: React.FC = () => {
                   ))}
                 </div>
               )}
-              
+
               {/* Whisper Transcriptions - SUPER HIGHLIGHTED */}
               {whisperTranscriptions.length > 0 && (
-                <div style={{
-                  marginTop: 30,
-                  position: 'relative',
-                  animation: 'whisperGlow 2s ease-in-out infinite'
-                }}>
-                  {/* Glowing border effect */}
-                  <div style={{
-                    position: 'absolute',
-                    inset: '-2px',
-                    background: 'linear-gradient(45deg, #00ff41, #00cc33, #00ff41, #00cc33)',
-                    backgroundSize: '400% 400%',
-                    animation: 'gradientShift 3s ease infinite',
-                    borderRadius: '0',
-                    opacity: 0.8,
-                    filter: 'blur(4px)'
-                  }} />
-                  
-                  {/* Main content container */}
-                  <div className="matrix-transcript" style={{
+                <div
+                  style={{
+                    marginTop: 30,
                     position: 'relative',
-                    background: 'rgba(0, 0, 0, 0.95)',
-                    border: '2px solid #00ff41',
-                    padding: '30px',
-                    boxShadow: `
+                    animation: 'whisperGlow 2s ease-in-out infinite',
+                  }}
+                >
+                  {/* Glowing border effect */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: '-2px',
+                      background: 'linear-gradient(45deg, #00ff41, #00cc33, #00ff41, #00cc33)',
+                      backgroundSize: '400% 400%',
+                      animation: 'gradientShift 3s ease infinite',
+                      borderRadius: '0',
+                      opacity: 0.8,
+                      filter: 'blur(4px)',
+                    }}
+                  />
+
+                  {/* Main content container */}
+                  <div
+                    className="matrix-transcript"
+                    style={{
+                      position: 'relative',
+                      background: 'rgba(0, 0, 0, 0.95)',
+                      border: '2px solid #00ff41',
+                      padding: '30px',
+                      boxShadow: `
                       0 0 40px rgba(0, 255, 65, 0.6),
                       inset 0 0 40px rgba(0, 255, 65, 0.2),
                       0 0 80px rgba(0, 255, 65, 0.3)
                     `,
-                    overflow: 'hidden'
-                  }}>
+                      overflow: 'hidden',
+                    }}
+                  >
                     {/* Animated header */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      marginBottom: 20,
-                      position: 'relative'
-                    }}>
-                      <span style={{
-                        fontSize: '24px',
-                        fontWeight: 'bold',
-                        color: '#00ff41',
-                        textShadow: '0 0 20px #00ff41',
-                        letterSpacing: '3px',
-                        animation: 'textGlitch 4s infinite'
-                      }}>
-                        &gt; WHISPER_TRANSCRIPTION
-                      </span>
-                      <span style={{
-                        marginLeft: 15,
-                        fontSize: '20px',
-                        animation: 'pulse 1s infinite'
-                      }}>
-                        🎙️
-                      </span>
-                      
-                      {/* Status indicator */}
-                      <div style={{
-                        position: 'absolute',
-                        right: 0,
+                    <div
+                      style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '5px'
-                      }}>
-                        <div style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          background: '#00ff41',
-                          boxShadow: '0 0 10px #00ff41',
-                          animation: 'blink 1s infinite'
-                        }} />
-                        <span style={{
-                          fontSize: '12px',
+                        marginBottom: 20,
+                        position: 'relative',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: '24px',
+                          fontWeight: 'bold',
                           color: '#00ff41',
-                          opacity: 0.8
-                        }}>
+                          textShadow: '0 0 20px #00ff41',
+                          letterSpacing: '3px',
+                          animation: 'textGlitch 4s infinite',
+                        }}
+                      >
+                        &gt; WHISPER_TRANSCRIPTION
+                      </span>
+                      <span
+                        style={{
+                          marginLeft: 15,
+                          fontSize: '20px',
+                          animation: 'pulse 1s infinite',
+                        }}
+                      >
+                        🎙️
+                      </span>
+
+                      {/* Status indicator */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: '#00ff41',
+                            boxShadow: '0 0 10px #00ff41',
+                            animation: 'blink 1s infinite',
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            color: '#00ff41',
+                            opacity: 0.8,
+                          }}
+                        >
                           [DECODED]
                         </span>
                       </div>
                     </div>
-                    
+
                     {/* Scanning line effect */}
-                    <div style={{
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      height: '2px',
-                      background: 'linear-gradient(to right, transparent, #00ff41 50%, transparent)',
-                      animation: 'scanLine 3s linear infinite',
-                      opacity: 0.6
-                    }} />
-                    
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        height: '2px',
+                        background:
+                          'linear-gradient(to right, transparent, #00ff41 50%, transparent)',
+                        animation: 'scanLine 3s linear infinite',
+                        opacity: 0.6,
+                      }}
+                    />
+
                     {/* Transcription content with typing effect */}
-                    <div style={{
-                      position: 'relative',
-                      background: 'rgba(0, 255, 65, 0.05)',
-                      padding: '20px',
-                      border: '1px solid rgba(0, 255, 65, 0.2)',
-                      marginTop: '10px'
-                    }}>
+                    <div
+                      style={{
+                        position: 'relative',
+                        background: 'rgba(0, 255, 65, 0.05)',
+                        padding: '20px',
+                        border: '1px solid rgba(0, 255, 65, 0.2)',
+                        marginTop: '10px',
+                      }}
+                    >
                       {whisperTranscriptions.map((text, i) => (
-                        <div key={i} style={{
-                          marginBottom: 20,
-                          position: 'relative',
-                          paddingLeft: '30px',
-                          animation: `slideIn ${0.5 + i * 0.2}s ease-out`
-                        }}>
+                        <div
+                          key={i}
+                          style={{
+                            marginBottom: 20,
+                            position: 'relative',
+                            paddingLeft: '30px',
+                            animation: `slideIn ${0.5 + i * 0.2}s ease-out`,
+                          }}
+                        >
                           {/* Chunk indicator */}
-                          <div style={{
-                            position: 'absolute',
-                            left: 0,
-                            top: 0,
-                            width: '20px',
-                            height: '20px',
-                            background: 'rgba(0, 255, 65, 0.2)',
-                            border: '1px solid #00ff41',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '10px',
-                            fontWeight: 'bold'
-                          }}>
+                          <div
+                            style={{
+                              position: 'absolute',
+                              left: 0,
+                              top: 0,
+                              width: '20px',
+                              height: '20px',
+                              background: 'rgba(0, 255, 65, 0.2)',
+                              border: '1px solid #00ff41',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '10px',
+                              fontWeight: 'bold',
+                            }}
+                          >
                             {i + 1}
                           </div>
-                          
+
                           <div>
-                            <span style={{
-                              color: '#00ff41',
-                              opacity: 0.9,
-                              fontSize: '12px',
-                              textTransform: 'uppercase',
-                              letterSpacing: '2px'
-                            }}>
+                            <span
+                              style={{
+                                color: '#00ff41',
+                                opacity: 0.9,
+                                fontSize: '12px',
+                                textTransform: 'uppercase',
+                                letterSpacing: '2px',
+                              }}
+                            >
                               &gt; CHUNK_{i + 1}_DECODED:
                             </span>
-                            <div style={{
-                              marginTop: '8px',
-                              color: '#00ff41',
-                              fontSize: '14px',
-                              lineHeight: '1.6',
-                              textShadow: '0 0 3px rgba(0, 255, 65, 0.5)',
-                              opacity: 0.95
-                            }}>
+                            <div
+                              style={{
+                                marginTop: '8px',
+                                color: '#00ff41',
+                                fontSize: '14px',
+                                lineHeight: '1.6',
+                                textShadow: '0 0 3px rgba(0, 255, 65, 0.5)',
+                                opacity: 0.95,
+                              }}
+                            >
                               {text}
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
-                    
+
                     {/* Matrix rain effect overlay */}
-                    <div style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      opacity: 0.03,
-                      pointerEvents: 'none',
-                      background: `
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        opacity: 0.03,
+                        pointerEvents: 'none',
+                        background: `
                         repeating-linear-gradient(
                           90deg,
                           transparent,
@@ -897,23 +1007,27 @@ export const WhisperMatrixTerminal: React.FC = () => {
                           rgba(0, 255, 65, 0.1) 11px
                         )
                       `,
-                      animation: 'matrixRain 20s linear infinite'
-                    }} />
+                        animation: 'matrixRain 20s linear infinite',
+                      }}
+                    />
                   </div>
                 </div>
               )}
             </div>
           </>
         )}
-        
+
         {/* Code Example */}
-        <pre className="matrix-code" style={{ 
-          padding: 20, 
-          borderRadius: 0,
-          overflow: 'auto',
-          marginTop: 40
-        }}>
-{`> SYSTEM.IMPORT('@susurro/core')
+        <pre
+          className="matrix-code"
+          style={{
+            padding: 20,
+            borderRadius: 0,
+            overflow: 'auto',
+            marginTop: 40,
+          }}
+        >
+          {`> SYSTEM.IMPORT('@susurro/core')
 
 // Initialize audio processing hook
 const { 
@@ -934,21 +1048,21 @@ await processAudioFile(audioFile)
 > averageVad     // Voice activity detection score
 > [WHISPER_DISABLED] // Transcription temporarily offline`}
         </pre>
-        
-        <p style={{ 
-          textAlign: 'center', 
-          marginTop: 40, 
-          opacity: 0.6,
-          fontSize: '0.9em'
-        }}>
+
+        <p
+          style={{
+            textAlign: 'center',
+            marginTop: 40,
+            opacity: 0.6,
+            fontSize: '0.9em',
+          }}
+        >
           [SYSTEM.READY] - MATRIX_AUDIO_PROCESSOR_ONLINE
         </p>
       </div>
-      
+
       {/* Floating logs for background processing */}
-      {backgroundLogs.length > 0 && (
-        <WhisperEchoLogs logs={backgroundLogs} maxLogs={15} />
-      )}
+      {backgroundLogs.length > 0 && <WhisperEchoLogs logs={backgroundLogs} maxLogs={15} />}
     </div>
-  )
-}
+  );
+};

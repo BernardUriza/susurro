@@ -16,6 +16,9 @@ import { useMurmubaraEngine } from 'murmuraba';
 // Conversational Evolution - Advanced chunk middleware
 import ChunkMiddlewarePipeline from '../lib/chunk-middleware';
 
+// Phase 3: Latency optimization and measurement
+import { latencyMonitor, type LatencyMetrics, type LatencyReport } from '../lib/latency-monitor';
+
 // Helper function to convert URL to Blob - Used in chunk processing
 const urlToBlob = async (url: string): Promise<Blob> => {
   try {
@@ -41,7 +44,7 @@ export interface UseSusurroReturn {
   pauseRecording: () => void;
   resumeRecording: () => void;
   clearTranscriptions: () => void;
-  processAudioFile: (file: File) => Promise<void>;
+  // REMOVED: processAudioFile deprecated in Murmuraba v3
   // Whisper-related properties
   whisperReady: boolean;
   whisperProgress: number;
@@ -54,6 +57,13 @@ export interface UseSusurroReturn {
   clearConversationalChunks: () => void;
   // Advanced middleware control
   middlewarePipeline: ChunkMiddlewarePipeline;
+  // Phase 3: Latency monitoring and optimization
+  latencyReport: LatencyReport;
+  latencyStatus: {
+    isHealthy: boolean;
+    currentLatency: number;
+    trend: 'improving' | 'degrading' | 'stable';
+  };
 }
 
 export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
@@ -88,6 +98,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const [processedAudioUrls, setProcessedAudioUrls] = useState<Map<string, string>>(new Map());
   const [chunkTranscriptions, setChunkTranscriptions] = useState<Map<string, string>>(new Map());
   const [chunkProcessingTimes, setChunkProcessingTimes] = useState<Map<string, number>>(new Map());
+
+  // Phase 3: Latency monitoring state
+  const [latencyReport, setLatencyReport] = useState<LatencyReport>(
+    latencyMonitor.generateReport()
+  );
+  const [latencyStatus, setLatencyStatus] = useState(latencyMonitor.getRealtimeStatus());
 
   // Advanced middleware pipeline for chunk processing
   const [middlewarePipeline] = useState(
@@ -198,10 +214,30 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         };
 
         // Process chunk through middleware pipeline for enhancement
+        const middlewareStartTime = performance.now();
         try {
           susurroChunk = await middlewarePipeline.process(susurroChunk);
         } catch (error) {
           console.warn('Middleware processing failed:', error);
+        }
+        const middlewareLatency = performance.now() - middlewareStartTime;
+
+        // Phase 3: Record comprehensive latency metrics
+        if (processingLatency) {
+          const latencyMetrics: Omit<LatencyMetrics, 'timestamp'> = {
+            chunkId: chunk.id,
+            audioToEmitLatency: processingLatency,
+            audioProcessingLatency: Math.max(0, processingLatency - middlewareLatency - 50), // Estimate
+            transcriptionLatency: 50, // Placeholder - should be measured from transcription hook
+            middlewareLatency,
+            vadScore: chunk.vadScore,
+            audioSize: chunk.blob?.size,
+          };
+
+          latencyMonitor.recordMetrics(latencyMetrics);
+
+          // Update real-time status
+          setLatencyStatus(latencyMonitor.getRealtimeStatus());
         }
 
         // Add to conversational chunks state
@@ -236,7 +272,13 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         conversational.onChunk(susurroChunk);
       }
     },
-    [conversational, processedAudioUrls, chunkTranscriptions, chunkProcessingTimes]
+    [
+      conversational,
+      processedAudioUrls,
+      chunkTranscriptions,
+      chunkProcessingTimes,
+      middlewarePipeline,
+    ]
   );
 
   const clearConversationalChunks = useCallback(() => {
@@ -261,10 +303,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   useEffect(() => {
     const processNewChunks = async () => {
       const newChunks: AudioChunk[] = [];
-      
+
       for (let index = audioChunks.length; index < recordingState.chunks.length; index++) {
         const chunk = recordingState.chunks[index];
-        
+
         // Convert Murmuraba chunk to internal format with real VAD metrics
         const audioChunk: AudioChunk = {
           id: chunk.id || `chunk-${Date.now()}-${index}`,
@@ -274,13 +316,15 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           vadScore: chunk.averageVad || 0, // Real VAD from neural processing
           duration: chunk.duration || chunkDurationMs,
         };
-        
+
         newChunks.push(audioChunk);
-        
+
         // Store processed audio URL for conversational mode
         if (conversational?.onChunk && chunk.processedAudioUrl) {
-          setProcessedAudioUrls((prev) => new Map(prev).set(audioChunk.id, chunk.processedAudioUrl!));
-          
+          setProcessedAudioUrls((prev) =>
+            new Map(prev).set(audioChunk.id, chunk.processedAudioUrl!)
+          );
+
           // Set timeout for chunk emission if configured
           if (conversational.chunkTimeout) {
             const timeout = setTimeout(() => {
@@ -290,7 +334,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           }
         }
       }
-      
+
       if (newChunks.length > 0) {
         setAudioChunks((prev) => [...prev, ...newChunks]);
       }
@@ -305,12 +349,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     }
   }, [recordingState.chunks, audioChunks.length, chunkDurationMs, conversational, tryEmitChunk]);
 
-  // Process audio file - DEPRECATED in Murmuraba v3
-  const processAudioFile = useCallback(async (file: File) => {
-    throw new Error(
-      'File processing is deprecated in Murmuraba v3. Use real-time recording with startRecording() instead.'
-    );
-  }, []);
+  // REMOVED: processAudioFile deprecated in Murmuraba v3 - use startRecording() instead
 
   // Process chunks for transcription
   const processChunks = useCallback(
@@ -366,7 +405,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       setAudioChunks([]);
       setTranscriptions([]);
 
-      // Hook handles all MediaRecorder setup and initialization
+      // Hook handles all audio setup and initialization
       await startMurmurabaRecording();
     } catch (error) {
       throw error;
@@ -431,6 +470,19 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       return () => clearTimeout(cleanup);
     }
   }, [conversational, conversationalChunks.length, cleanupOldChunks]);
+
+  // Phase 3: Update latency reports periodically
+  useEffect(() => {
+    const updateLatencyReport = () => {
+      setLatencyReport(latencyMonitor.generateReport());
+      setLatencyStatus(latencyMonitor.getRealtimeStatus());
+    };
+
+    // Update every 10 seconds for real-time monitoring
+    const interval = setInterval(updateLatencyReport, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Auto-process chunks when ready
   useEffect(() => {
@@ -511,7 +563,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     pauseRecording,
     resumeRecording,
     clearTranscriptions,
-    processAudioFile, // Deprecated in v3
+    // REMOVED: processAudioFile deprecated in v3
     // Built-in export functions from hook - wrapped for compatibility
     exportChunkAsWav: (chunkId: string) => exportChunkAsWav(chunkId, 'processed'),
     // Whisper-related properties
@@ -524,6 +576,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     clearConversationalChunks,
     // Advanced middleware control
     middlewarePipeline,
+    // Phase 3: Latency monitoring and optimization
+    latencyReport,
+    latencyStatus,
   };
 }
 

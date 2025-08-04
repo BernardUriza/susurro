@@ -4,11 +4,13 @@ import { vi } from 'vitest';
 global.navigator = {
   mediaDevices: {
     getUserMedia: vi.fn().mockResolvedValue({
-      getTracks: () => [{
-        stop: vi.fn()
-      }]
-    })
-  }
+      getTracks: () => [
+        {
+          stop: vi.fn(),
+        },
+      ],
+    }),
+  },
 } as any;
 
 global.AudioContext = vi.fn().mockImplementation(() => ({
@@ -17,9 +19,9 @@ global.AudioContext = vi.fn().mockImplementation(() => ({
     duration: 10,
     sampleRate: 44100,
     numberOfChannels: 2,
-    getChannelData: vi.fn().mockReturnValue(new Float32Array(44100))
+    getChannelData: vi.fn().mockReturnValue(new Float32Array(44100)),
   }),
-  close: vi.fn()
+  close: vi.fn(),
 })) as any;
 
 global.MediaRecorder = vi.fn().mockImplementation(() => ({
@@ -29,10 +31,12 @@ global.MediaRecorder = vi.fn().mockImplementation(() => ({
   resume: vi.fn(),
   state: 'inactive',
   stream: {
-    getTracks: () => [{
-      stop: vi.fn()
-    }]
-  }
+    getTracks: () => [
+      {
+        stop: vi.fn(),
+      },
+    ],
+  },
 })) as any;
 
 // Mock IndexedDB
@@ -42,18 +46,18 @@ const mockDB = {
       get: vi.fn(() => ({
         onsuccess: null,
         onerror: null,
-        result: null
+        result: null,
       })),
       put: vi.fn(() => ({
         onsuccess: null,
-        onerror: null
+        onerror: null,
       })),
       clear: vi.fn(() => ({
         onsuccess: null,
-        onerror: null
-      }))
-    }))
-  }))
+        onerror: null,
+      })),
+    })),
+  })),
 };
 
 global.indexedDB = {
@@ -61,15 +65,15 @@ global.indexedDB = {
     onsuccess: null,
     onerror: null,
     onupgradeneeded: null,
-    result: mockDB
-  }))
+    result: mockDB,
+  })),
 } as any;
 
 // Mock storage API
 global.navigator.storage = {
   estimate: vi.fn().mockResolvedValue({
     usage: 1000000,
-    quota: 10000000
+    quota: 10000000,
   }),
-  persist: vi.fn().mockResolvedValue(true)
+  persist: vi.fn().mockResolvedValue(true),
 } as any;

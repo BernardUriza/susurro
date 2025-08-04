@@ -1,1 +1,1 @@
-export { WhisperMatrixTerminal } from './whisper-matrix-terminal'
+export { WhisperMatrixTerminal } from './whisper-matrix-terminal';

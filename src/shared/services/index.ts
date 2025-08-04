@@ -1,1 +1,1 @@
-export * from './silent-thread-processor'
+export * from './silent-thread-processor';

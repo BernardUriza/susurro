@@ -1,23 +1,23 @@
-'use client'
+'use client';
 
 // React and external libraries
-import React from 'react'
+import React from 'react';
 
 interface TemporalSegmentSelectorProps {
-  value: number
-  onChange: (value: number) => void
-  min?: number
-  max?: number
-  label?: string
-  showOverlap?: boolean
-  overlapDuration?: number
-  style?: React.CSSProperties
-  inputStyle?: React.CSSProperties
-  variant?: 'simple' | 'advanced'
-  presets?: number[]
-  showProgressBar?: boolean
-  showIncrementButtons?: boolean
-  description?: string
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  label?: string;
+  showOverlap?: boolean;
+  overlapDuration?: number;
+  style?: React.CSSProperties;
+  inputStyle?: React.CSSProperties;
+  variant?: 'simple' | 'advanced';
+  presets?: number[];
+  showProgressBar?: boolean;
+  showIncrementButtons?: boolean;
+  description?: string;
 }
 
 export const TemporalSegmentSelector: React.FC<TemporalSegmentSelectorProps> = ({
@@ -34,22 +34,24 @@ export const TemporalSegmentSelector: React.FC<TemporalSegmentSelectorProps> = (
   presets = [5, 10, 15, 30],
   showProgressBar = false,
   showIncrementButtons = false,
-  description
+  description,
 }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = parseInt(e.target.value) || min
-    onChange(Math.max(min, Math.min(max, newValue)))
-  }
+    const newValue = parseInt(e.target.value) || min;
+    onChange(Math.max(min, Math.min(max, newValue)));
+  };
 
   if (variant === 'simple') {
     return (
-      <div style={{
-        marginBottom: '30px',
-        padding: '20px',
-        background: 'rgba(0, 255, 65, 0.05)',
-        border: '1px solid rgba(0, 255, 65, 0.3)',
-        ...style
-      }}>
+      <div
+        style={{
+          marginBottom: '30px',
+          padding: '20px',
+          background: 'rgba(0, 255, 65, 0.05)',
+          border: '1px solid rgba(0, 255, 65, 0.3)',
+          ...style,
+        }}
+      >
         <label style={{ fontSize: '1.1rem' }}>&gt; {label}: </label>
         <input
           type="number"
@@ -66,7 +68,7 @@ export const TemporalSegmentSelector: React.FC<TemporalSegmentSelectorProps> = (
             width: '80px',
             fontSize: '1.1rem',
             textAlign: 'center',
-            ...inputStyle
+            ...inputStyle,
           }}
         />
         {showOverlap && (
@@ -75,46 +77,54 @@ export const TemporalSegmentSelector: React.FC<TemporalSegmentSelectorProps> = (
           </span>
         )}
       </div>
-    )
+    );
   }
 
   // Advanced variant
   return (
-    <div style={{
-      marginTop: 20,
-      marginBottom: 20,
-      padding: '20px',
-      background: 'rgba(0, 0, 0, 0.5)',
-      border: '1px solid rgba(0, 255, 65, 0.3)',
-      borderRadius: '0',
-      backdropFilter: 'blur(5px)',
-      position: 'relative',
-      overflow: 'hidden',
-      animation: 'fadeIn 0.5s ease-in',
-      ...style
-    }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '20px',
-        flexWrap: 'wrap'
-      }}>
-        <label style={{
-          color: '#00ff41',
-          fontSize: '14px',
-          fontWeight: 'bold',
-          textTransform: 'uppercase',
-          letterSpacing: '1px'
-        }}>
-          &gt; {label}:
-        </label>
-        
-        <div style={{
-          position: 'relative',
+    <div
+      style={{
+        marginTop: 20,
+        marginBottom: 20,
+        padding: '20px',
+        background: 'rgba(0, 0, 0, 0.5)',
+        border: '1px solid rgba(0, 255, 65, 0.3)',
+        borderRadius: '0',
+        backdropFilter: 'blur(5px)',
+        position: 'relative',
+        overflow: 'hidden',
+        animation: 'fadeIn 0.5s ease-in',
+        ...style,
+      }}
+    >
+      <div
+        style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '10px'
-        }}>
+          gap: '20px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <label
+          style={{
+            color: '#00ff41',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+          }}
+        >
+          &gt; {label}:
+        </label>
+
+        <div
+          style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
+        >
           {showIncrementButtons && (
             <button
               onClick={() => onChange(Math.max(min, value - 1))}
@@ -130,15 +140,15 @@ export const TemporalSegmentSelector: React.FC<TemporalSegmentSelectorProps> = (
                 border: '1px solid #00ff41',
                 color: '#00ff41',
                 cursor: 'pointer',
-                transition: 'all 0.2s'
+                transition: 'all 0.2s',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#00ff41'
-                e.currentTarget.style.color = '#000'
+                e.currentTarget.style.background = '#00ff41';
+                e.currentTarget.style.color = '#000';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
-                e.currentTarget.style.color = '#00ff41'
+                e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
+                e.currentTarget.style.color = '#00ff41';
               }}
             >
               -
@@ -160,7 +170,7 @@ export const TemporalSegmentSelector: React.FC<TemporalSegmentSelectorProps> = (
               fontSize: '16px',
               textAlign: 'center',
               borderRadius: '0',
-              ...inputStyle
+              ...inputStyle,
             }}
           />
 
@@ -179,30 +189,32 @@ export const TemporalSegmentSelector: React.FC<TemporalSegmentSelectorProps> = (
                 border: '1px solid #00ff41',
                 color: '#00ff41',
                 cursor: 'pointer',
-                transition: 'all 0.2s'
+                transition: 'all 0.2s',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#00ff41'
-                e.currentTarget.style.color = '#000'
+                e.currentTarget.style.background = '#00ff41';
+                e.currentTarget.style.color = '#000';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
-                e.currentTarget.style.color = '#00ff41'
+                e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
+                e.currentTarget.style.color = '#00ff41';
               }}
             >
               +
             </button>
           )}
         </div>
-        
+
         {/* Preset buttons */}
         {presets.length > 0 && (
-          <div style={{
-            display: 'flex',
-            gap: '5px',
-            flexWrap: 'wrap'
-          }}>
-            {presets.map(preset => (
+          <div
+            style={{
+              display: 'flex',
+              gap: '5px',
+              flexWrap: 'wrap',
+            }}
+          >
+            {presets.map((preset) => (
               <button
                 key={preset}
                 onClick={() => onChange(preset)}
@@ -215,16 +227,16 @@ export const TemporalSegmentSelector: React.FC<TemporalSegmentSelectorProps> = (
                   border: '1px solid #00ff41',
                   borderRadius: '0',
                   cursor: 'pointer',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
                 }}
                 onMouseEnter={(e) => {
                   if (value !== preset) {
-                    e.currentTarget.style.background = 'rgba(0, 255, 65, 0.2)'
+                    e.currentTarget.style.background = 'rgba(0, 255, 65, 0.2)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (value !== preset) {
-                    e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'
+                    e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
                   }
                 }}
               >
@@ -234,41 +246,47 @@ export const TemporalSegmentSelector: React.FC<TemporalSegmentSelectorProps> = (
           </div>
         )}
       </div>
-      
+
       {/* Visual indicator bar */}
       {showProgressBar && (
-        <div style={{
-          marginTop: '15px',
-          height: '4px',
-          background: 'rgba(0, 255, 65, 0.1)',
-          borderRadius: '2px',
-          overflow: 'hidden',
-          position: 'relative'
-        }}>
-          <div style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            height: '100%',
-            width: `${(value / max) * 100}%`,
-            background: 'linear-gradient(to right, #00ff41, #00cc33)',
-            boxShadow: '0 0 10px #00ff41',
-            transition: 'width 0.3s ease'
-          }} />
+        <div
+          style={{
+            marginTop: '15px',
+            height: '4px',
+            background: 'rgba(0, 255, 65, 0.1)',
+            borderRadius: '2px',
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              height: '100%',
+              width: `${(value / max) * 100}%`,
+              background: 'linear-gradient(to right, #00ff41, #00cc33)',
+              boxShadow: '0 0 10px #00ff41',
+              transition: 'width 0.3s ease',
+            }}
+          />
         </div>
       )}
-      
+
       {description && (
-        <p style={{
-          marginTop: '10px',
-          fontSize: '11px',
-          color: '#00ff41',
-          opacity: 0.6,
-          textAlign: 'center'
-        }}>
+        <p
+          style={{
+            marginTop: '10px',
+            fontSize: '11px',
+            color: '#00ff41',
+            opacity: 0.6,
+            textAlign: 'center',
+          }}
+        >
           &gt; {description}
         </p>
       )}
     </div>
-  )
-}
+  );
+};

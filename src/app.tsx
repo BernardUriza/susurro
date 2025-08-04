@@ -1,11 +1,11 @@
 // React and external libraries
-import React from 'react'
+import React from 'react';
 
 // Relative imports - components
-import { CubeNavigator } from './features/navigation/components'
+import { CubeNavigator } from './features/navigation/components';
 
 function App() {
-  return <CubeNavigator />
+  return <CubeNavigator />;
 }
 
-export default App
+export default App;

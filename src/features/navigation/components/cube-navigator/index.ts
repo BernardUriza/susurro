@@ -1,1 +1,1 @@
-export { CubeNavigator } from './cube-navigator'
+export { CubeNavigator } from './cube-navigator';

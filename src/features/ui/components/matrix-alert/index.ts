@@ -1,2 +1,2 @@
-export { MatrixAlert } from './matrix-alert'
-export type { MatrixAlertProps } from './matrix-alert'
+export { MatrixAlert } from './matrix-alert';
+export type { MatrixAlertProps } from './matrix-alert';

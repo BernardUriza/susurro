@@ -31,7 +31,7 @@ A next-generation conversational AI platform combining Murmuraba's neural audio 
 - **TypeScript** - Full type safety and developer experience
 - **Murmuraba v2** - Neural audio processing engine
 - **Transformers.js** - Client-side Whisper AI models
-- **Advanced Audio APIs** - Web Audio API, MediaRecorder, AudioWorklet
+- **Advanced Audio APIs** - Web Audio API, AudioWorklet, Neural Processing
 
 ## 📦 Installation
 
@@ -64,27 +64,35 @@ npm run dev
 
 ## 🚀 Quick Start
 
-### Basic File Processing
+### Real-time Recording with Neural Processing
 
 ```tsx
 import { useSusurro } from 'susurro'
 
 function AudioProcessor() {
   const { 
-    processAudioFile, 
+    startRecording,
+    stopRecording,
+    isRecording,
     transcriptions, 
     isProcessing,
     whisperReady 
   } = useSusurro()
 
-  const handleFileUpload = async (file: File) => {
-    await processAudioFile(file)
-    // Transcriptions will be available in the transcriptions array
+  const handleRecord = async () => {
+    if (isRecording) {
+      stopRecording()
+    } else {
+      await startRecording()
+    }
   }
 
   return (
     <div>
-      {whisperReady ? 'Ready to process!' : 'Loading models...'}
+      {whisperReady ? 'Ready to record!' : 'Loading models...'}
+      <button onClick={handleRecord}>
+        {isRecording ? 'Stop Recording' : 'Start Recording'}
+      </button>
       {transcriptions.map((t, i) => (
         <p key={i}>{t.text}</p>
       ))}
@@ -104,8 +112,9 @@ function ConversationalApp() {
     text: string
     timestamp: number
   }>>([])
+  const [isRecording, setIsRecording] = useState(false)
 
-  const { processAudioFile } = useSusurro({
+  const { startRecording, stopRecording } = useSusurro({
     // Enable conversational mode
     conversational: {
       onChunk: (chunk: SusurroChunk) => {
@@ -121,8 +130,22 @@ function ConversationalApp() {
     }
   })
 
+  const handleRecord = async () => {
+    if (isRecording) {
+      stopRecording()
+      setIsRecording(false)
+    } else {
+      await startRecording()
+      setIsRecording(true)
+    }
+  }
+
   return (
     <div className="chat-interface">
+      <button onClick={handleRecord}>
+        {isRecording ? 'Stop Recording' : 'Start Recording'}
+      </button>
+      
       {messages.map((msg, i) => (
         <div key={i} className="message">
           <audio src={msg.audioUrl} controls />
@@ -138,10 +161,9 @@ function ConversationalApp() {
 ### Advanced Conversational Configuration
 
 ```tsx
-const { processAudioFile, conversationalChunks } = useSusurro({
+const { startRecording, stopRecording, conversationalChunks } = useSusurro({
   // Audio processing settings
   chunkDurationMs: 6000,    // 6-second chunks for conversations
-  enableVAD: true,          // Voice activity detection
   
   // Whisper configuration
   whisperConfig: {
@@ -170,14 +192,15 @@ Open [http://localhost:3000](http://localhost:3000) to see the demo application
 
 ## 🎨 Features Breakdown
 
-### File Upload
-- Support for WAV audio files
-- Drag-and-drop or click to upload
-- Instant transcription processing
+### Real-time Recording
+- Direct microphone access with neural processing
+- Voice Activity Detection (VAD) for intelligent chunking
+- Instant transcription processing during recording
 
-### Sample Audio
-- Pre-loaded sample.wav for testing
-- One-click loading and transcription
+### Smart Audio Processing
+- Murmuraba v3 neural enhancement for crystal-clear audio
+- Automatic noise reduction and audio optimization
+- Real-time chunk emission with <300ms latency
 
 ## 🔧 Advanced Configuration
 
@@ -271,6 +294,302 @@ Or deploy directly to Vercel:
 
 MIT License - feel free to use this project for your own purposes.
 
+## 🔮 Complete Chat UI Example
+
+### Production-Ready Voice Chat Component
+
+```tsx
+import React, { useState, useRef, useEffect } from 'react'
+import { useSusurro, SusurroChunk } from 'susurro'
+
+interface ChatMessage {
+  id: string
+  type: 'user' | 'assistant'
+  audioUrl?: string
+  text: string
+  timestamp: number
+  isProcessing?: boolean
+}
+
+export function VoiceChatUI() {
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [isRecording, setIsRecording] = useState(false)
+  const [aiResponse, setAiResponse] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const { 
+    startRecording, 
+    stopRecording, 
+    whisperReady,
+    isProcessing 
+  } = useSusurro({
+    chunkDurationMs: 3000, // 3-second chunks for responsive chat
+    conversational: {
+      onChunk: async (chunk: SusurroChunk) => {
+        // Add user message to chat
+        const userMessage: ChatMessage = {
+          id: chunk.id,
+          type: 'user',
+          audioUrl: chunk.audioUrl,
+          text: chunk.transcript,
+          timestamp: chunk.startTime,
+        }
+        
+        setMessages(prev => [...prev, userMessage])
+
+        // Send to AI assistant (example with OpenAI)
+        if (chunk.transcript.trim()) {
+          await handleAIResponse(chunk.transcript)
+        }
+      },
+      enableInstantTranscription: true,
+      chunkTimeout: 2000,
+    }
+  })
+
+  const handleAIResponse = async (userText: string) => {
+    // Add processing indicator
+    const processingMessage: ChatMessage = {
+      id: `processing-${Date.now()}`,
+      type: 'assistant',
+      text: 'Thinking...',
+      timestamp: Date.now(),
+      isProcessing: true,
+    }
+    setMessages(prev => [...prev, processingMessage])
+
+    try {
+      // Example AI integration
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userText }),
+      })
+      
+      const data = await response.json()
+      
+      // Replace processing message with actual response
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === processingMessage.id 
+            ? { ...msg, text: data.response, isProcessing: false }
+            : msg
+        )
+      )
+    } catch (error) {
+      // Handle error
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === processingMessage.id 
+            ? { ...msg, text: 'Sorry, I encountered an error.', isProcessing: false }
+            : msg
+        )
+      )
+    }
+  }
+
+  const handleRecordToggle = async () => {
+    if (isRecording) {
+      stopRecording()
+      setIsRecording(false)
+    } else {
+      await startRecording()
+      setIsRecording(true)
+    }
+  }
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  return (
+    <div className="voice-chat-container">
+      {/* Header */}
+      <div className="chat-header">
+        <h2>🎙️ Voice Assistant</h2>
+        <div className="status">
+          {!whisperReady && <span>Loading AI models...</span>}
+          {whisperReady && !isRecording && <span>Ready to chat</span>}
+          {isRecording && <span>🔴 Recording...</span>}
+          {isProcessing && <span>🔄 Processing...</span>}
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="messages-container">
+        {messages.map((message) => (
+          <div 
+            key={message.id} 
+            className={`message ${message.type}`}
+          >
+            <div className="message-content">
+              {/* Audio playback for user messages */}
+              {message.audioUrl && (
+                <div className="audio-player">
+                  <audio 
+                    src={message.audioUrl} 
+                    controls 
+                    preload="metadata"
+                  />
+                </div>
+              )}
+              
+              {/* Text content */}
+              <div className="text-content">
+                {message.isProcessing ? (
+                  <div className="processing-indicator">
+                    <span className="dots">...</span>
+                    {message.text}
+                  </div>
+                ) : (
+                  message.text
+                )}
+              </div>
+              
+              {/* Timestamp */}
+              <div className="timestamp">
+                {new Date(message.timestamp).toLocaleTimeString()}
+              </div>
+            </div>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Controls */}
+      <div className="chat-controls">
+        <button 
+          onClick={handleRecordToggle}
+          disabled={!whisperReady}
+          className={`record-button ${isRecording ? 'recording' : ''}`}
+        >
+          {isRecording ? '⏹️ Stop' : '🎙️ Record'}
+        </button>
+        
+        <div className="recording-indicator">
+          {isRecording && (
+            <div className="pulse-animation">
+              <div className="pulse-dot"></div>
+              Recording...
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+### Styling (CSS/Tailwind)
+
+```css
+.voice-chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 800px;
+  margin: 0 auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chat-header {
+  background: #f9fafb;
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  background: #ffffff;
+}
+
+.message {
+  margin-bottom: 1rem;
+  display: flex;
+}
+
+.message.user {
+  justify-content: flex-end;
+}
+
+.message.assistant {
+  justify-content: flex-start;
+}
+
+.message-content {
+  max-width: 70%;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: #f3f4f6;
+}
+
+.message.user .message-content {
+  background: #3b82f6;
+  color: white;
+}
+
+.audio-player {
+  margin-bottom: 0.5rem;
+}
+
+.processing-indicator .dots {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.chat-controls {
+  padding: 1rem;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.record-button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  background: #3b82f6;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+
+.record-button.recording {
+  background: #ef4444;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.pulse-animation {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #ef4444;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+```
+
 ## 🔮 Use Cases
 
 ### Real-time Voice Chat Applications
@@ -304,6 +623,244 @@ conversational: {
     })
     speakResponse(aiResponse.choices[0].message.content)
   }
+}
+```
+
+## 🔧 Extension Points & Middleware
+
+Susurro provides a powerful middleware system for extending chunk processing capabilities:
+
+### Chunk Middleware Pipeline
+
+```tsx
+import { ChunkMiddlewarePipeline, translationMiddleware, sentimentMiddleware } from 'susurro'
+
+function MyApp() {
+  const { middlewarePipeline, startRecording } = useSusurro({
+    conversational: {
+      onChunk: (chunk) => {
+        // Chunk has been processed through middleware pipeline
+        console.log('Enhanced chunk:', chunk.metadata)
+      }
+    }
+  })
+
+  // Enable built-in middlewares
+  useEffect(() => {
+    middlewarePipeline.enable('translation')
+    middlewarePipeline.enable('sentiment')
+    middlewarePipeline.enable('intent')
+  }, [])
+
+  return <VoiceInterface />
+}
+```
+
+### Built-in Middlewares
+
+#### 1. Translation Middleware
+```tsx
+middlewarePipeline.enable('translation')
+
+// Chunks will include:
+chunk.metadata = {
+  originalLanguage: 'en',
+  translatedText: 'Hola mundo',
+  translationConfidence: 0.95
+}
+```
+
+#### 2. Sentiment Analysis Middleware
+```tsx
+middlewarePipeline.enable('sentiment')
+
+// Chunks will include:
+chunk.metadata = {
+  sentiment: 'positive',
+  sentimentScore: 0.87,
+  emotion: 'happy'
+}
+```
+
+#### 3. Intent Detection Middleware
+```tsx
+middlewarePipeline.enable('intent')
+
+// Chunks will include:
+chunk.metadata = {
+  intent: 'question',
+  intentConfidence: 0.82,
+  entities: ['weather', 'today']
+}
+```
+
+#### 4. Quality Enhancement Middleware (Always Enabled)
+```tsx
+// Automatically applied to all chunks:
+chunk.metadata = {
+  audioQuality: 0.92,
+  noiseLevel: 0.05,
+  clarity: 0.96,
+  enhancement: ['neural_denoising', 'voice_enhancement']
+}
+```
+
+### Creating Custom Middleware
+
+```tsx
+import { ChunkMiddleware, SusurroChunk } from 'susurro'
+
+const customMiddleware: ChunkMiddleware = {
+  name: 'keyword-detection',
+  enabled: true,
+  priority: 5,
+  async process(chunk: SusurroChunk): Promise<SusurroChunk> {
+    const keywords = detectKeywords(chunk.transcript)
+    
+    return {
+      ...chunk,
+      metadata: {
+        ...chunk.metadata,
+        keywords,
+        hasActionKeywords: keywords.some(k => k.type === 'action'),
+        urgencyLevel: calculateUrgency(keywords)
+      }
+    }
+  }
+}
+
+// Register your custom middleware
+middlewarePipeline.register(customMiddleware)
+
+function detectKeywords(text: string) {
+  // Your custom keyword detection logic
+  return [
+    { word: 'urgent', type: 'urgency', confidence: 0.9 },
+    { word: 'schedule', type: 'action', confidence: 0.8 }
+  ]
+}
+```
+
+### Advanced Hooks & Callbacks
+
+#### 1. Chunk Processing Hooks
+```tsx
+const { conversationalChunks } = useSusurro({
+  conversational: {
+    onChunk: (chunk) => {
+      // Real-time processing as chunks arrive
+      handleNewMessage(chunk)
+    },
+    enableInstantTranscription: true,
+    chunkTimeout: 3000,
+    enableChunkEnrichment: true, // Enables middleware processing
+  }
+})
+```
+
+#### 2. Recording State Hooks
+```tsx
+const { 
+  isRecording,
+  isProcessing,
+  averageVad,
+  processingStatus 
+} = useSusurro()
+
+// Monitor recording state changes
+useEffect(() => {
+  if (isRecording) {
+    console.log('Recording started')
+  }
+}, [isRecording])
+
+// Track processing progress
+useEffect(() => {
+  console.log('VAD Score:', averageVad)
+  console.log('Processing Stage:', processingStatus.stage)
+}, [averageVad, processingStatus])
+```
+
+#### 3. Whisper Integration Hooks
+```tsx
+const { 
+  whisperReady,
+  whisperProgress,
+  whisperError,
+  transcribeWithWhisper 
+} = useSusurro({
+  whisperConfig: {
+    language: 'en',
+    model: 'whisper-1',
+    temperature: 0.2
+  }
+})
+
+// Custom transcription with direct Whisper access
+const handleCustomTranscription = async (audioBlob: Blob) => {
+  const result = await transcribeWithWhisper(audioBlob)
+  console.log('Custom transcription:', result)
+}
+```
+
+### Middleware Management API
+
+```tsx
+const { middlewarePipeline } = useSusurro()
+
+// Enable/disable middlewares dynamically
+middlewarePipeline.enable('sentiment')
+middlewarePipeline.disable('translation')
+
+// Check middleware status
+const status = middlewarePipeline.getStatus()
+console.log('Active middlewares:', status)
+
+// Register custom middleware
+middlewarePipeline.register(myCustomMiddleware)
+
+// Remove middleware
+middlewarePipeline.unregister('sentiment')
+```
+
+### WebSocket Integration Example
+
+```tsx
+import { useSusurro } from 'susurro'
+import { useWebSocket } from 'ws'
+
+function CollaborativeVoiceChat() {
+  const ws = useWebSocket('wss://my-server.com/voice-chat')
+  
+  const { startRecording, stopRecording } = useSusurro({
+    conversational: {
+      onChunk: (chunk) => {
+        // Send chunk to other participants
+        ws.send(JSON.stringify({
+          type: 'voice-chunk',
+          data: {
+            audioUrl: chunk.audioUrl,
+            transcript: chunk.transcript,
+            metadata: chunk.metadata,
+            userId: 'current-user-id'
+          }
+        }))
+      },
+      enableInstantTranscription: true
+    }
+  })
+
+  // Handle incoming chunks from other users
+  useEffect(() => {
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data)
+      if (message.type === 'voice-chunk') {
+        displayRemoteChunk(message.data)
+      }
+    }
+  }, [ws])
+
+  return <VoiceInterface />
 }
 ```
 

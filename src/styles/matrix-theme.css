@@ -8,75 +8,128 @@
 }
 
 @keyframes matrix-glow {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @keyframes matrix-text {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 @keyframes matrix-scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
 }
 
 @keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.1); opacity: 0.8; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
 }
 
 @keyframes matrix-scan-horizontal {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(200px); }
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(200px);
+  }
 }
 
 @keyframes matrix-glitch {
-  0%, 100% { transform: translate(0); }
-  20% { transform: translate(-1px, 1px); }
-  40% { transform: translate(1px, -1px); }
-  60% { transform: translate(-1px, 0); }
-  80% { transform: translate(1px, 0); }
+  0%,
+  100% {
+    transform: translate(0);
+  }
+  20% {
+    transform: translate(-1px, 1px);
+  }
+  40% {
+    transform: translate(1px, -1px);
+  }
+  60% {
+    transform: translate(-1px, 0);
+  }
+  80% {
+    transform: translate(1px, 0);
+  }
 }
 
 @keyframes fadeIn {
-  0% { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes whisperGlow {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.01); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.01);
+  }
 }
 
 @keyframes gradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 @keyframes textGlitch {
-  0%, 100% { 
-    text-shadow: 
+  0%,
+  100% {
+    text-shadow:
       0 0 20px #00ff41,
       2px 2px 0 #00cc33,
       -2px -2px 0 #00ff41;
   }
-  25% { 
-    text-shadow: 
+  25% {
+    text-shadow:
       0 0 20px #00ff41,
       -2px 2px 0 #00cc33,
       2px -2px 0 #00ff41;
   }
-  50% { 
-    text-shadow: 
+  50% {
+    text-shadow:
       0 0 25px #00ff41,
       2px -2px 0 #00cc33,
       -2px 2px 0 #00ff41;
   }
-  75% { 
-    text-shadow: 
+  75% {
+    text-shadow:
       0 0 20px #00ff41,
       -2px -2px 0 #00cc33,
       2px 2px 0 #00ff41;
@@ -84,39 +137,52 @@
 }
 
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 @keyframes scanLine {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(300px); }
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(300px);
+  }
 }
 
 @keyframes slideIn {
-  0% { 
+  0% {
     opacity: 0;
     transform: translateX(-20px);
   }
-  100% { 
+  100% {
     opacity: 1;
     transform: translateX(0);
   }
 }
 
 @keyframes matrixRain {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(20px); }
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(20px);
+  }
 }
 
 /* Remove number input spinners */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-input[type="number"] {
+input[type='number'] {
   -moz-appearance: textfield;
 }
 
@@ -289,8 +355,12 @@ input[type="number"] {
 
 /* Typing effect for loading */
 @keyframes typing {
-  from { width: 0; }
-  to { width: 100%; }
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
 }
 
 .matrix-loading {

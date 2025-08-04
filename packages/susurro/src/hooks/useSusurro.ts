@@ -56,7 +56,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const startTimeRef = useRef<number>(0);
-  const audioContextRef = useRef<AudioContext | null>(null);
 
   // Use existing hooks
   const { 
@@ -101,11 +100,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       
       // Step 2: Process with Murmuraba to clean audio with metrics
       const cleanedResult = await murmurabaManager.processFileWithMetrics(file, (metrics) => {
-      });
-      
-        hasProcessedBuffer: !!cleanedResult.processedBuffer,
-        hasVadScores: !!cleanedResult.vadScores,
-        averageVad: cleanedResult.averageVad
+        // Handle metrics callback if needed
       });
       
       // Step 3: Use Murmuraba's chunking if available
@@ -129,13 +124,19 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         audioContextRef.current = audioContext;
         let audioBuffer: AudioBuffer;
         
+        if (!cleanedResult.processedBuffer) {
+          throw new Error('No processed buffer available from Murmuraba');
+        }
+        
         if (cleanedResult.processedBuffer instanceof ArrayBuffer) {
           audioBuffer = await audioContext.decodeAudioData(cleanedResult.processedBuffer);
         } else if (cleanedResult.processedBuffer instanceof Blob) {
           const arrayBuffer = await cleanedResult.processedBuffer.arrayBuffer();
           audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        } else {
+        } else if (cleanedResult.processedBuffer instanceof AudioBuffer) {
           audioBuffer = cleanedResult.processedBuffer;
+        } else {
+          throw new Error('Unsupported processed buffer type');
         }
         
         

@@ -7,7 +7,7 @@ export interface WhisperProgress {
   total?: number;
 }
 
-export interface WhisperConfig {
+export interface WhisperTransformersConfig {
   language?: string;
   task?: 'transcribe' | 'translate';
   return_timestamps?: boolean;
@@ -24,7 +24,7 @@ export interface WhisperOutput {
 }
 
 export interface Pipeline<T extends string = 'automatic-speech-recognition'> {
-  (input: string | ArrayBuffer, options?: WhisperConfig): Promise<WhisperOutput>;
+  (input: string | ArrayBuffer, options?: WhisperTransformersConfig): Promise<WhisperOutput>;
 }
 
 export interface TransformersEnvironment {

@@ -102,6 +102,7 @@ class MurmurabaManager {
     const murmuraba = await this.getMurmuraba()
     
     // Log for debugging
+    console.log('Processing file:', {
       type: file.constructor.name, 
       size: file.size,
       fileType: file.type 
@@ -166,6 +167,7 @@ class MurmurabaManager {
     const murmuraba = await this.getMurmuraba()
     
     // Log for debugging
+    console.log('Processing file with metrics:', {
       type: file.constructor.name, 
       size: file.size,
       fileType: file.type 
@@ -181,6 +183,8 @@ class MurmurabaManager {
           arrayBuffer, 
           onFrameProcessed  // Pass callback as second param
         )
+        
+        console.log('Processed with metrics:', {
           hasMetrics: !!result.metrics,
           metricsLength: result.metrics?.length,
           averageVad: result.averageVad,

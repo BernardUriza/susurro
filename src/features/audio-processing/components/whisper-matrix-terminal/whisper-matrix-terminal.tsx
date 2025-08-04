@@ -9,20 +9,19 @@ import { useWhisperOrchestrator } from '../../../../shared/hooks';
 // Relative imports - components
 import { DigitalRainfall } from '../../../visualization/components';
 import { WhisperEchoLogs } from '../../../visualization/components';
-import { TemporalSegmentSelector } from '../temporal-segment-selector';
+// import { TemporalSegmentSelector } from '../temporal-segment-selector'; // TODO: Implement if needed
 
 // Relative imports - utilities
 import { SilentThreadProcessor } from '../../../../shared/services';
 
 // Styles (last)
-import '../../../styles/matrix-theme.css';
+import '../../../../styles/matrix-theme.css';
 
 export const WhisperMatrixTerminal: React.FC = () => {
-  const [temporalSegmentDuration, setTemporalSegmentDuration] = React.useState(15); // Default 15 seconds
+  const [temporalSegmentDuration] = React.useState(15); // Default 15 seconds
 
   const {
     isProcessing,
-    revelations,
     audioFragments,
     averageResonance,
     processAudioFile,
@@ -37,10 +36,18 @@ export const WhisperMatrixTerminal: React.FC = () => {
   });
 
   const [originalUrl, setOriginalUrl] = React.useState('');
-  const [fragmentUrls, setFragmentUrls] = React.useState<string[]>([]);
   const [status, setStatus] = React.useState('');
-  const [isDecoding, setIsDecoding] = React.useState(false);
-  const [whisperRevelations, setWhisperRevelations] = React.useState<string[]>([]);
+
+  // Additional state for component functionality
+  const [chunkUrls, setChunkUrls] = React.useState<string[]>([]);
+  const [chunkDuration, setChunkDuration] = React.useState(15);
+  const [transcriptions] = React.useState<Array<{ timestamp: number; text: string }>>([]);
+  const [whisperTranscriptions, setWhisperTranscriptions] = React.useState<string[]>([]);
+  const [isTranscribing, setIsTranscribing] = React.useState(false);
+
+  // Derived values from useWhisperOrchestrator
+  const audioChunks = audioFragments || [];
+  const averageVad = averageResonance || 0;
   const [backgroundLogs, setBackgroundLogs] = React.useState<
     Array<{
       id: string;
@@ -70,18 +77,19 @@ export const WhisperMatrixTerminal: React.FC = () => {
   // Create URLs for each audio fragment
   React.useEffect(() => {
     if (audioFragments && audioFragments.length > 0) {
-      console.log('[WhisperMatrixTerminal] Creating URLs for', audioFragments.length, 'fragments');
+      // console.log('[WhisperMatrixTerminal] Creating URLs for', audioFragments.length, 'fragments');
 
       // Create URL for each fragment
       const urls = audioFragments.map((fragment) => URL.createObjectURL(fragment.audioEssence));
       setFragmentUrls(urls);
+      setChunkUrls(urls); // Also set chunk URLs for component compatibility
 
       return () => {
         // Cleanup old URLs
         urls.forEach((url) => URL.revokeObjectURL(url));
       };
     }
-  }, [audioChunks]);
+  }, [audioFragments]);
 
   const handleFileProcess = async (file: File) => {
     try {
@@ -100,7 +108,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
       return true;
     } catch (err) {
-      console.error('File processing error:', err);
+      // console.error('File processing error:', err);
       setStatus(`[ERROR] ${err instanceof Error ? err.message : 'Unknown error'}`);
       return false;
     }
@@ -117,7 +125,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
       const file = new File([blob], 'sample.wav', { type: 'audio/wav' });
       await handleFileProcess(file);
     } catch (error) {
-      console.error('Error loading sample:', error);
+      // console.error('Error loading sample:', error);
       setStatus(`[ERROR] ${error instanceof Error ? error.message : 'Failed to load sample'}`);
     }
   };
@@ -224,9 +232,8 @@ export const WhisperMatrixTerminal: React.FC = () => {
                   )
                 `,
               }}
-              onLoad={(e) => {
-                const img = e.target as HTMLImageElement;
-                console.log('[Banner] Dimensions:', img.naturalWidth, 'x', img.naturalHeight);
+              onLoad={() => {
+                // Banner loaded successfully
               }}
             />
           </div>
@@ -690,8 +697,8 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
                       // Process each chunk in background
                       audioChunks.forEach((chunk, index) => {
-                        silentThreadProcessorRef
-                          .current!.processTranscriptionAsync(
+                        silentThreadProcessorRef.current
+                          ?.processTranscriptionAsync(
                             chunk.blob,
                             transcribeWithWhisper,
                             (progress) => {

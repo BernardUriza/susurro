@@ -47,7 +47,8 @@
       "Bash(timeout:*)",
       "Bash(touch:*)",
       "Bash(npm outdated)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(npm:*)"
     ],
     "deny": []
   }

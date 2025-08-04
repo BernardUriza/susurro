@@ -13,6 +13,9 @@ import type {
 // Direct import from Murmuraba v3 - Real package integration
 import { useMurmubaraEngine } from 'murmuraba';
 
+// Conversational Evolution - Advanced chunk middleware
+import ChunkMiddlewarePipeline from '../lib/chunk-middleware';
+
 // Helper function to convert URL to Blob - Used in chunk processing
 const urlToBlob = async (url: string): Promise<Blob> => {
   try {
@@ -49,6 +52,8 @@ export interface UseSusurroReturn {
   // Conversational features
   conversationalChunks: SusurroChunk[];
   clearConversationalChunks: () => void;
+  // Advanced middleware control
+  middlewarePipeline: ChunkMiddlewarePipeline;
 }
 
 export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
@@ -83,6 +88,15 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const [processedAudioUrls, setProcessedAudioUrls] = useState<Map<string, string>>(new Map());
   const [chunkTranscriptions, setChunkTranscriptions] = useState<Map<string, string>>(new Map());
   const [chunkProcessingTimes, setChunkProcessingTimes] = useState<Map<string, number>>(new Map());
+
+  // Advanced middleware pipeline for chunk processing
+  const [middlewarePipeline] = useState(
+    () =>
+      new ChunkMiddlewarePipeline({
+        processingStage: 'pre-emit',
+        metadata: { sessionId: `session-${Date.now()}` },
+      })
+  );
 
   // Refs - Minimal refs for conversational features only
   const startTimeRef = useRef<number>(0);
@@ -159,7 +173,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   );
 
   const tryEmitChunk = useCallback(
-    (chunk: AudioChunk, forceEmit = false) => {
+    async (chunk: AudioChunk, forceEmit = false) => {
       if (!conversational?.onChunk) return;
 
       const audioUrl = processedAudioUrls.get(chunk.id);
@@ -172,7 +186,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           ? Date.now() - processingStartTime
           : undefined;
 
-        const susurroChunk: SusurroChunk = {
+        let susurroChunk: SusurroChunk = {
           id: chunk.id,
           audioUrl,
           transcript,
@@ -182,6 +196,13 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           isComplete: true,
           processingLatency,
         };
+
+        // Process chunk through middleware pipeline for enhancement
+        try {
+          susurroChunk = await middlewarePipeline.process(susurroChunk);
+        } catch (error) {
+          console.warn('Middleware processing failed:', error);
+        }
 
         // Add to conversational chunks state
         setConversationalChunks((prev) => [...prev, susurroChunk]);
@@ -501,6 +522,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     // Conversational features
     conversationalChunks,
     clearConversationalChunks,
+    // Advanced middleware control
+    middlewarePipeline,
   };
 }
 

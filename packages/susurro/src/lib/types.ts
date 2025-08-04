@@ -66,6 +66,7 @@ export interface SusurroChunk {
   vadScore: number;          // Voice activity confidence (0-1)
   isComplete: boolean;       // Both audio + transcript ready
   processingLatency?: number; // Time to process in ms
+  metadata?: Record<string, any>; // Extensible metadata from middleware
 }
 
 // Conversational chunk callback type

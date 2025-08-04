@@ -11,13 +11,13 @@
   ],
   "scripts": {
     "dev": "npm run dev:all",
-    "dev:all": "npm run dev:package & npm run dev:next",
-    "dev:next": "next dev",
+    "dev:all": "npm run dev:package & npm run dev:vite",
+    "dev:vite": "vite",
     "dev:package": "npm -w @susurro/core run dev",
-    "build": "npm run build:package && next build",
+    "build": "npm run build:package && vite build",
     "build:package": "npm -w @susurro/core run build",
-    "start": "next start",
-    "lint": "next lint",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "vitest run test/e2e",
@@ -47,7 +47,6 @@
     "url": "https://github.com/BernardUriza/susurro.git"
   },
   "peerDependencies": {
-    "next": ">=13.0.0",
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
   },
@@ -74,8 +73,8 @@
     "copy-webpack-plugin": "^13.0.0",
     "esbuild": "^0.19.12",
     "eslint": "^8.57.0",
-    "eslint-config-next": "^15.0.3",
-    "next": "^15.0.3",
+    "eslint-plugin-react": "^7.34.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.5.3",

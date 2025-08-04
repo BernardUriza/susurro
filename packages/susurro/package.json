@@ -27,8 +27,12 @@
   ],
   "author": "Bernard Uriza Orozco",
   "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  },
   "peerDependencies": {
-    "react": ">=18.0.0",
+    "react": ">=19.0.0",
     "murmuraba": ">=2.0.0",
     "@xenova/transformers": ">=2.0.0"
   },
@@ -38,6 +42,8 @@
   "devDependencies": {
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4",

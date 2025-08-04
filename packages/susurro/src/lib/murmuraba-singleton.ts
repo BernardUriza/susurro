@@ -86,7 +86,9 @@ class MurmurabaManager {
 
   async destroy(): Promise<void> {
     if (this.murmurabaModule && this.murmurabaModule.isInitialized) {
-      await this.murmurabaModule.destroyEngine()
+      if (this.murmurabaModule.destroyEngine) {
+        await this.murmurabaModule.destroyEngine()
+      }
       this.initPromise = null
       this.isInitializing = false
     }
@@ -101,12 +103,14 @@ class MurmurabaManager {
     
     const murmuraba = await this.getMurmuraba()
     
-    // Log for debugging
-    console.log('Processing file:', {
-      type: file.constructor.name, 
-      size: file.size,
-      fileType: file.type 
-    })
+    // Log for debugging in development
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('Processing file:', {
+        type: file.constructor.name, 
+        size: file.size,
+        fileType: file.type 
+      })
+    }
     
     // Convert File/Blob to ArrayBuffer as murmuraba expects ArrayBuffer
     try {
@@ -117,10 +121,10 @@ class MurmurabaManager {
         setTimeout(() => reject(new Error('File processing timeout')), 20000)
       })
       
-      const result: MurmurabaResult | ArrayBuffer = await Promise.race([
+      const result = await Promise.race([
         murmuraba.processFile(arrayBuffer, options),
         processTimeout
-      ])
+      ]) as MurmurabaResult | ArrayBuffer
       
       
       // Handle different return formats from murmuraba
@@ -134,11 +138,12 @@ class MurmurabaManager {
       }
       
       // Ensure result has expected structure
+      const murmurabaResult = result as MurmurabaResult
       return {
-        processedBuffer: result.processedAudio || result.processedBuffer || result,
-        vadScores: result.vadScores || [],
-        metrics: result.metrics || [],
-        averageVad: result.averageVad || 0
+        processedBuffer: murmurabaResult.processedAudio || murmurabaResult.processedBuffer,
+        vadScores: murmurabaResult.vadScores || [],
+        metrics: murmurabaResult.metrics || [],
+        averageVad: murmurabaResult.averageVad || 0
       }
     } catch (error: any) {
       throw error
@@ -166,12 +171,14 @@ class MurmurabaManager {
     await this.initialize()
     const murmuraba = await this.getMurmuraba()
     
-    // Log for debugging
-    console.log('Processing file with metrics:', {
-      type: file.constructor.name, 
-      size: file.size,
-      fileType: file.type 
-    })
+    // Log for debugging in development
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('Processing file with metrics:', {
+        type: file.constructor.name, 
+        size: file.size,
+        fileType: file.type 
+      })
+    }
     
     // Convert File/Blob to ArrayBuffer as murmuraba expects ArrayBuffer
     try {
@@ -184,12 +191,14 @@ class MurmurabaManager {
           onFrameProcessed  // Pass callback as second param
         )
         
-        console.log('Processed with metrics:', {
-          hasMetrics: !!result.metrics,
-          metricsLength: result.metrics?.length,
-          averageVad: result.averageVad,
-          sampleMetric: result.metrics?.[0]
-        })
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('Processed with metrics:', {
+            hasMetrics: !!result.metrics,
+            metricsLength: result.metrics?.length,
+            averageVad: result.averageVad,
+            sampleMetric: result.metrics?.[0]
+          })
+        }
         
         // Log some VAD values for debugging
         if (result.metrics && result.metrics.length > 0) {
@@ -212,11 +221,19 @@ class MurmurabaManager {
         }
         
         // Return combined result
+        const murmurabaResult = result as MurmurabaResult | ArrayBuffer
+        const processedBuffer = murmurabaResult instanceof ArrayBuffer 
+          ? murmurabaResult 
+          : (murmurabaResult.processedAudio || murmurabaResult.processedBuffer)
+        const vadScores = murmurabaResult instanceof ArrayBuffer 
+          ? [] 
+          : (murmurabaResult.vadScores || [])
+        
         return {
-          processedBuffer: result.processedAudio || result.processedBuffer || result,
+          processedBuffer,
           metrics: vadData?.metrics || [],
           averageVad: vadData?.averageVad || vadData?.average || 0,
-          vadScores: vadData?.scores || result.vadScores || []
+          vadScores: vadData?.scores || vadScores
         }
       }
     } catch (error: any) {

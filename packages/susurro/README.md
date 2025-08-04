@@ -1,6 +1,14 @@
-# @susurro/core
+# @susurro/core 🎵
 
-Audio processing and transcription library for web applications.
+**Real-Time AI Conversational Audio Processing — El Murmullo del Futuro**
+
+Audio processing and transcription library for web applications with ChatGPT-style real-time chunk interaction.
+
+## 🚀 Next Evolution: Conversational Chunks
+
+Transform audio into interactive conversations. Each whisper becomes a complete message with both clean audio and AI transcription, ready for reactive UIs.
+
+**No more post-processing, no more waiting**: Each chunk is a complete response, like ChatGPT messages but with real audio.
 
 ## Installation
 
@@ -14,7 +22,71 @@ npm install @susurro/core
 npm install react murmuraba @xenova/transformers
 ```
 
-## Usage
+## 🎯 Real-Time Usage (Future Implementation)
+
+```typescript
+import { useSusurro } from '@susurro/core';
+
+function ConversationalApp() {
+  const {
+    isRecording,
+    startRecording,
+    stopRecording,
+    onChunk // 🆕 Real-time chunk callback
+  } = useSusurro({
+    onChunk: (chunk: SusurroChunk) => {
+      // Each chunk arrives with BOTH audio and transcript ready
+      console.log('New conversation chunk:', {
+        audio: chunk.audioUrl,      // Clean neural-processed audio
+        text: chunk.transcript,     // AI transcription
+        timing: `${chunk.startTime}-${chunk.endTime}ms`,
+        confidence: chunk.vadScore
+      });
+      
+      // Add to UI immediately - ChatGPT style
+      addMessageToChat({
+        type: 'audio-message',
+        audioUrl: chunk.audioUrl,
+        text: chunk.transcript,
+        timestamp: new Date()
+      });
+    }
+  });
+
+  return (
+    <div>
+      <button onClick={isRecording ? stopRecording : startRecording}>
+        {isRecording ? 'Stop Conversation' : 'Start Conversation'}
+      </button>
+      
+      {/* Real-time chat-like interface */}
+      <ConversationFeed />
+    </div>
+  );
+}
+```
+
+## 🔄 The Conversational Flow
+
+```
+🎤 Audio Input → 🧠 Murmuraba (Neural Clean) → 🤖 Whisper (AI Transcribe) → ✨ SusurroChunk → 💬 UI Update
+```
+
+Each chunk is a complete conversational unit:
+
+```typescript
+type SusurroChunk = {
+  id: string;                // Unique identifier
+  audioUrl: string;          // Clean neural-processed audio (Blob URL)
+  transcript: string;        // AI-transcribed text 
+  startTime: number;         // Start time in ms
+  endTime: number;           // End time in ms
+  vadScore: number;          // Voice activity confidence
+  isComplete: boolean;       // Both audio + transcript ready
+}
+```
+
+## Current Implementation
 
 ```typescript
 import { useSusurro } from '@susurro/core';
@@ -24,6 +96,7 @@ function App() {
     isRecording,
     isProcessing,
     transcriptions,
+    audioChunks,
     startRecording,
     stopRecording,
     processAudioFile
@@ -54,16 +127,25 @@ function App() {
 }
 ```
 
-## Features
+## 🌟 Features
 
-- Audio recording from microphone
-- File processing with automatic chunking
-- Voice Activity Detection (VAD)
-- Whisper-based transcription
-- Real-time processing status
-- TypeScript support
+### Current Features
+- 🎙️ **Audio recording** from microphone
+- 📁 **File processing** with automatic chunking
+- 🔊 **Voice Activity Detection (VAD)**
+- 🤖 **Whisper-based AI transcription**
+- ⚡ **Real-time processing** status
+- 🔧 **TypeScript** full support
 
-## API
+### 🚀 Next Evolution Features (Coming Soon)
+- 🎯 **Conversational chunks** - ChatGPT-style real-time responses
+- 🧠 **Neural noise reduction** - Professional audio quality with RNNoise
+- ⚡ **Zero MediaRecorder** - Complete abstraction from manual recording
+- 💬 **Chat-like UX** - Each chunk as a complete message
+- 🔄 **Real-time callbacks** - Instant UI updates per chunk
+- 🎨 **Extensible processing** - Hooks for translation, enrichment
+
+## API Reference
 
 ### `useSusurro(options?)`
 
@@ -73,6 +155,7 @@ function App() {
 - `whisperConfig?: object` - Whisper configuration
   - `model?: string` - Whisper model to use (default: 'Xenova/whisper-tiny')
   - `language?: string` - Language for transcription (default: 'en')
+- `onChunk?: (chunk: SusurroChunk) => void` - **🆕 Real-time chunk callback** (coming soon)
 
 #### Returns
 - `isRecording: boolean` - Recording state
@@ -87,9 +170,26 @@ function App() {
 - `clearTranscriptions: () => void` - Clear all transcriptions
 - `processAudioFile: (file: File) => Promise<void>` - Process an audio file
 
+## 🔮 Migration Roadmap
+
+### Phase 1: Murmuraba v3 Integration (Current)
+- Replace singleton with hooks
+- Neural noise reduction with RNNoise
+- Eliminate MediaRecorder boilerplate
+
+### Phase 2: Conversational Chunks (Next)
+- Real-time chunk emission with `onChunk` callback
+- Synchronized audio + transcript delivery
+- Chat-like UX patterns
+- Complete MediaRecorder abstraction
+
 ## Publishing
 
 ```bash
 cd packages/susurro
 npm publish --access public
 ```
+
+---
+
+**El Murmullo del Futuro** - Where every whisper becomes an intelligent conversation. 🎵✨

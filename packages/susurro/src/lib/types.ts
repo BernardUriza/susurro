@@ -55,3 +55,35 @@ export interface UseWhisperReturn {
   loadingProgress: number
   isLoadingFromCache?: boolean
 }
+
+// 🎯 Next Evolution: Conversational Chunks — El Murmullo del Futuro
+export interface SusurroChunk {
+  id: string;                // Unique identifier
+  audioUrl: string;          // Clean neural-processed audio (Blob URL)
+  transcript: string;        // AI-transcribed text 
+  startTime: number;         // Start time in ms
+  endTime: number;           // End time in ms
+  vadScore: number;          // Voice activity confidence (0-1)
+  isComplete: boolean;       // Both audio + transcript ready
+  processingLatency?: number; // Time to process in ms
+}
+
+// Conversational chunk callback type
+export type OnChunkCallback = (chunk: SusurroChunk) => void;
+
+// Enhanced options for conversational mode
+export interface ConversationalOptions {
+  onChunk?: OnChunkCallback;        // Real-time chunk callback
+  enableInstantTranscription?: boolean; // Transcribe as soon as chunk is ready
+  chunkTimeout?: number;            // Max time to wait for transcript (ms)
+  enableChunkEnrichment?: boolean;  // Allow processing hooks before emission
+}
+
+// Extended UseSusurroOptions for conversational features
+export interface UseSusurroOptions {
+  chunkDurationMs?: number;
+  enableVAD?: boolean;
+  whisperConfig?: WhisperConfig;
+  // 🆕 Conversational features
+  conversational?: ConversationalOptions;
+}

@@ -66,7 +66,13 @@ class AudioEngineManager {
         
         this.isInitialized = true;
         console.log('[AudioEngineManager] Engine initialized successfully');
-      } catch (error) {
+      } catch (error: any) {
+        // Check if error is about already initialized engine
+        if (error?.message?.includes('already initialized')) {
+          console.log('[AudioEngineManager] Engine was already initialized, marking as ready');
+          this.isInitialized = true;
+          return; // Don't throw, just mark as initialized
+        }
         console.error('[AudioEngineManager] Initialization failed:', error);
         this.isInitialized = false;
         throw error;

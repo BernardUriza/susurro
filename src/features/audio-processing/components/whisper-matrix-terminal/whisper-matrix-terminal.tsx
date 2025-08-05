@@ -38,7 +38,6 @@ export const WhisperMatrixTerminal: React.FC = () => {
     // NEW CONSOLIDATED METHODS - Everything through useSusurro
     processAndTranscribeFile,
     initializeAudioEngine,
-    resetAudioEngine,
     isEngineInitialized,
     engineError,
     isInitializingEngine,
@@ -87,10 +86,9 @@ export const WhisperMatrixTerminal: React.FC = () => {
     ]);
   };
 
-  // Reset engine when component mounts to ensure clean state
+  // Component lifecycle logging
   React.useEffect(() => {
-    console.log('[WhisperMatrixTerminal] Component mounted, resetting audio engine');
-    resetAudioEngine();
+    console.log('[WhisperMatrixTerminal] Component mounted');
     
     return () => {
       console.log('[WhisperMatrixTerminal] Component unmounting');

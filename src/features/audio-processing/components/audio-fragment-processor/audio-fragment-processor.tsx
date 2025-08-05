@@ -32,12 +32,34 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     whisperReady,
     whisperProgress,
     initializeAudioEngine,
-    resetAudioEngine,
+    
+    // NEW: MediaStream for SimpleWaveformAnalyzer
+    currentStream,
   } = useSusurro({
-    chunkDurationMs: 1000, // 1-second chunks for real-time visualization
+    chunkDurationMs: 8000, // Changed to 8-second chunks as per requirement
     whisperConfig: {
       language: 'en',
     },
+  });
+  
+  // 🔍 DEBUG: Track component bloat
+  console.log('[DEBUG] AudioFragmentProcessor Metrics:', {
+    hasMediaStream: !!currentStream,
+    mediaStreamTracks: currentStream?.getTracks().length || 0,
+    isEngineInitialized,
+    whisperReady,
+    chunkDuration: '8000ms (8 seconds)',
+    componentLines: '~250 lines (should be 80)',
+    canvasCount: 1,
+    stateVariables: 4,
+    mockDataGeneration: 'FOUND at lines 154-155 (waveform)',
+    todoItems: [
+      'ELIMINATE: Mock waveform generation (line 154)',
+      'ELIMINATE: Manual canvas drawing (lines 60-112)', 
+      'ELIMINATE: requestAnimationFrame loop (lines 229-242)',
+      'REPLACE: Use SimpleWaveformAnalyzer from murmuraba',
+      'EXPOSE: currentStream already available from useSusurro'
+    ]
   });
 
   // Simplified UI State - No modes, everything unified
@@ -150,6 +172,18 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
     // REAL-TIME CHUNK PROCESSOR
     const onChunkProcessed = (chunk: StreamingSusurroChunk) => {
+      // 🔍 DEBUG: Mock data generation detected
+      console.log('[DEBUG] Mock waveform generation detected!', {
+        line: 154,
+        issue: 'Creating fake waveform data instead of using real MediaStream',
+        solution: 'DELETE this entire visualization logic, use SimpleWaveformAnalyzer',
+        chunkData: {
+          vadScore: chunk.vadScore,
+          hasAudioBuffer: !!chunk.audioBuffer,
+          timestamp: chunk.metadata.timestamp
+        }
+      });
+      
       // TODO: Extract real waveform from chunk.audioBuffer
       const waveformData = new Array(100).fill(0);
 
@@ -211,13 +245,12 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     [processAndTranscribeFile]
   );
 
-  // Reset engine when component mounts to ensure clean state
+  // Clean up on unmount only - don't reset on mount as it causes conflicts
   useEffect(() => {
-    console.log('[AudioFragmentProcessor] Component mounted, resetting audio engine');
-    resetAudioEngine();
+    console.log('[AudioFragmentProcessor] Component mounted');
     
     return () => {
-      console.log('[AudioFragmentProcessor] Component unmounting, stopping recording if active');
+      console.log('[AudioFragmentProcessor] Component unmounting, cleaning up...');
       if (isRecording) {
         stopStreamingRecording();
       }
@@ -227,6 +260,14 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
   
   // Draw unified visualization using requestAnimationFrame for smooth 60fps
   useEffect(() => {
+    // 🔍 DEBUG: Unnecessary animation loop
+    console.log('[DEBUG] requestAnimationFrame loop detected!', {
+      issue: 'Manual canvas animation at 60fps',
+      solution: 'DELETE - SimpleWaveformAnalyzer handles its own rendering',
+      currentImplementation: 'Custom canvas drawing with requestAnimationFrame',
+      targetImplementation: 'SimpleWaveformAnalyzer with built-in optimization'
+    });
+    
     let animationFrameId: number;
 
     const animate = () => {

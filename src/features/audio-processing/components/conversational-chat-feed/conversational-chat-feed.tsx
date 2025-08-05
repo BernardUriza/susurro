@@ -184,7 +184,7 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
   }, [stopStreamingRecording, currentMessage, recordingChunks, onChatEnd, generateAIResponse]);
 
   // 🤖 AI RESPONSE GENERATOR
-  const generateAIResponse = useCallback((userText: string) => {
+  const generateAIResponse = useCallback(async (userText: string) => {
     setIsTyping(true);
 
     // Add typing indicator

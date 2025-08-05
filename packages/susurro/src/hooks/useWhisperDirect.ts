@@ -158,11 +158,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         pipelineRef.current = await WhisperPipelineSingleton.getInstance(
           (progress: WhisperProgress) => {
             const percent = progress.progress || 0;
-            // Only update if progress has actually changed (avoid fractional updates)
-            setLoadingProgress((prev) => {
-              const rounded = Math.round(Math.max(1, percent));
-              return rounded !== Math.round(prev) ? rounded : prev;
-            });
+            setLoadingProgress(Math.max(1, percent));
 
             // Update progress alert
             if (progressAlertRef.current) {

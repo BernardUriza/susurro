@@ -226,8 +226,17 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       console.log('[useSusurro] Audio engine initialized successfully');
       setIsEngineInitialized(true);
       setEngineError(null);
-    } catch (error) {
+    } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : 'Audio engine initialization failed';
+      
+      // Special handling for already initialized error
+      if (errorMsg.includes('already initialized')) {
+        console.log('[useSusurro] Engine reported as already initialized, accepting state');
+        setIsEngineInitialized(true);
+        setEngineError(null);
+        return; // Don't throw, just accept the state
+      }
+      
       console.error('[useSusurro] Audio engine initialization failed:', error);
       setEngineError(errorMsg);
       throw new Error(`Audio engine initialization failed: ${errorMsg}`);
@@ -329,9 +338,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       } catch (error: any) {
         // If error is about already initialized, try to recover
         if (error?.message?.includes('already initialized')) {
-          console.log('[useSusurro] Engine already initialized error, attempting recovery...');
-          // Mark as initialized and continue
+          console.log('[useSusurro] Engine already initialized error, force resetting...');
+          // Force reset the singleton state
+          audioEngineManager.forceReset();
+          // Mark as initialized locally and continue
           setIsEngineInitialized(true);
+          console.log('[useSusurro] Recovered from initialization error, continuing...');
         } else {
           throw error;
         }

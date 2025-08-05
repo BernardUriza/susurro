@@ -112,10 +112,14 @@ class AudioEngineManager {
       console.log('[AudioEngineManager] Force destroying any existing engine...');
       await murmubaraDestroy();
       this.isInitialized = false;
+      // Add small delay to ensure cleanup completes
+      await new Promise(resolve => setTimeout(resolve, 50));
     } catch (error) {
       // Ignore errors during force destroy
       console.log('[AudioEngineManager] Force destroy completed (error ignored):', error);
       this.isInitialized = false;
+      // Add small delay even on error
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
   
@@ -131,6 +135,14 @@ class AudioEngineManager {
       isInitialized: this.isInitialized,
       isInitializing: this.isInitializing
     };
+  }
+  
+  // Force complete reset of singleton state
+  forceReset(): void {
+    console.log('[AudioEngineManager] Force resetting singleton state');
+    this.isInitialized = false;
+    this.isInitializing = false;
+    this.initPromise = null;
   }
 }
 

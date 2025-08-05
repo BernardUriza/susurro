@@ -35,7 +35,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
     whisperError,
     transcribeWithWhisper,
     transcriptions,
-    
+
     // NEW CONSOLIDATED METHODS - Everything through useSusurro
     processAndTranscribeFile,
     initializeAudioEngine,
@@ -54,7 +54,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
   const [chunkDuration, setChunkDuration] = React.useState(15);
   const [whisperTranscriptions, setWhisperTranscriptions] = React.useState<string[]>([]);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
-  
+
   // Complete audio result from processAndTranscribeFile
   const [completeResult, setCompleteResult] = React.useState<CompleteAudioResult | null>(null);
 
@@ -146,19 +146,21 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
       // ONE METHOD CALL - Everything included: processing + transcription + VAD
       const result = await processAndTranscribeFile(file);
-      
+
       // Store complete result
       setCompleteResult(result);
-      
+
       // Update status and logs
       const vadPercentage = (result.vadAnalysis.averageVad * 100).toFixed(1);
-      setStatus(`[PROCESSING_COMPLETE] VAD: ${vadPercentage}% | Duration: ${result.metadata.duration.toFixed(2)}s`);
-      
+      setStatus(
+        `[PROCESSING_COMPLETE] VAD: ${vadPercentage}% | Duration: ${result.metadata.duration.toFixed(2)}s`
+      );
+
       addBackgroundLog(`File processed successfully - VAD: ${vadPercentage}%`, 'success');
       addBackgroundLog(`Processing time: ${result.processingTime.toFixed(0)}ms`, 'info');
       addBackgroundLog(`Audio duration: ${result.metadata.duration.toFixed(2)}s`, 'info');
       addBackgroundLog('Complete pipeline: Murmuraba + Whisper + VAD', 'success');
-      
+
       // Set transcription if available
       if (result.transcriptionText) {
         setWhisperTranscriptions([result.transcriptionText]);
@@ -193,7 +195,6 @@ export const WhisperMatrixTerminal: React.FC = () => {
   };
 
   const getCubeClass = () => {
-    console.log('Current face:', currentFace);
     switch (currentFace) {
       case 'right':
         return 'cube rotate-to-right';
@@ -432,15 +433,14 @@ export const WhisperMatrixTerminal: React.FC = () => {
                             enableEchoCancellation: true,
                             vadThreshold: 0.5,
                           });
-                          
+
                           setStatus('[SYSTEM] Audio neural processor ready');
                           addBackgroundLog(
                             'Audio engine initialized successfully on retry',
                             'success'
                           );
                         } catch (error) {
-                          const errorMsg =
-                            error instanceof Error ? error.message : 'Unknown error';
+                          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
                           setStatus(`[ERROR] Audio engine initialization failed: ${errorMsg}`);
                           addBackgroundLog(
                             `Engine initialization retry failed: ${errorMsg}`,
@@ -575,8 +575,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
                           marginRight: 20,
                         }}
                       >
-                        VAD:{' '}
-                        {(completeResult.vadAnalysis.averageVad * 100).toFixed(1)}%
+                        VAD: {(completeResult.vadAnalysis.averageVad * 100).toFixed(1)}%
                       </div>
                     </div>
 
@@ -589,8 +588,8 @@ export const WhisperMatrixTerminal: React.FC = () => {
                       <p className="chunk-info">
                         &gt; PROCESSED_FILE | DURATION:{' '}
                         {completeResult.metadata.duration.toFixed(2)}s | VAD:{' '}
-                        {(completeResult.vadAnalysis.averageVad * 100).toFixed(1)}% | PROCESSING_TIME:{' '}
-                        {completeResult.processingTime.toFixed(0)}ms
+                        {(completeResult.vadAnalysis.averageVad * 100).toFixed(1)}% |
+                        PROCESSING_TIME: {completeResult.processingTime.toFixed(0)}ms
                       </p>
                       <audio
                         src={completeResult.processedAudioUrl}
@@ -598,19 +597,22 @@ export const WhisperMatrixTerminal: React.FC = () => {
                         style={{ width: '100%', height: '35px' }}
                       />
                     </div>
-                    
+
                     {/* Show voice segments if available */}
                     {completeResult.vadAnalysis.voiceSegments.length > 0 && (
                       <div style={{ marginTop: 10, fontSize: '12px', opacity: 0.8 }}>
-                        &gt; VOICE_SEGMENTS_DETECTED: {completeResult.vadAnalysis.voiceSegments.length}
+                        &gt; VOICE_SEGMENTS_DETECTED:{' '}
+                        {completeResult.vadAnalysis.voiceSegments.length}
                         {completeResult.vadAnalysis.voiceSegments.slice(0, 3).map((segment, i) => (
                           <div key={i} style={{ marginLeft: 20 }}>
-                            [{segment.startTime.toFixed(1)}s - {segment.endTime.toFixed(1)}s] VAD: {(segment.vadScore * 100).toFixed(1)}%
+                            [{segment.startTime.toFixed(1)}s - {segment.endTime.toFixed(1)}s] VAD:{' '}
+                            {(segment.vadScore * 100).toFixed(1)}%
                           </div>
                         ))}
                         {completeResult.vadAnalysis.voiceSegments.length > 3 && (
                           <div style={{ marginLeft: 20, opacity: 0.6 }}>
-                            ... and {completeResult.vadAnalysis.voiceSegments.length - 3} more segments
+                            ... and {completeResult.vadAnalysis.voiceSegments.length - 3} more
+                            segments
                           </div>
                         )}
                       </div>
@@ -621,9 +623,9 @@ export const WhisperMatrixTerminal: React.FC = () => {
                       style={{ marginTop: 10, marginBottom: 0, opacity: 0.7 }}
                     >
                       &gt; FILE_SIZE: {(completeResult.metadata.fileSize / 1024).toFixed(1)}KB -&gt;
-                      {(completeResult.metadata.processedSize / 1024).toFixed(1)}KB |
-                      SAMPLE_RATE: {completeResult.metadata.sampleRate}Hz |
-                      CHANNELS: {completeResult.metadata.channels}
+                      {(completeResult.metadata.processedSize / 1024).toFixed(1)}KB | SAMPLE_RATE:{' '}
+                      {completeResult.metadata.sampleRate}Hz | CHANNELS:{' '}
+                      {completeResult.metadata.channels}
                     </p>
                   </div>
 
@@ -920,28 +922,36 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
                             // SIMPLIFIED: processAndTranscribeFile already handled transcription
                             // This button is now mainly for re-transcription if needed
-                            addBackgroundLog('Transcription already completed via consolidated pipeline', 'info');
-                            
+                            addBackgroundLog(
+                              'Transcription already completed via consolidated pipeline',
+                              'info'
+                            );
+
                             if (completeResult.transcriptionText) {
                               setWhisperTranscriptions([completeResult.transcriptionText]);
-                              addBackgroundLog('Using existing transcription from complete result', 'success');
+                              addBackgroundLog(
+                                'Using existing transcription from complete result',
+                                'success'
+                              );
                               setIsTranscribing(false);
                               setStatus('[TRANSCRIPTION_ALREADY_AVAILABLE]');
                             } else {
                               // Fallback: re-transcribe the processed audio
                               addBackgroundLog('Re-transcribing processed audio', 'info');
-                              
+
                               fetch(completeResult.processedAudioUrl)
                                 .then((res) => res.blob())
                                 .then((blob) => {
-                                  return silentThreadProcessorRef.current
-                                    ?.processTranscriptionAsync(
-                                      blob,
-                                      transcribeWithWhisper,
-                                      (progress) => {
-                                        addBackgroundLog(`Re-transcription: ${progress}% complete`, 'info');
-                                      }
-                                    );
+                                  return silentThreadProcessorRef.current?.processTranscriptionAsync(
+                                    blob,
+                                    transcribeWithWhisper,
+                                    (progress) => {
+                                      addBackgroundLog(
+                                        `Re-transcription: ${progress}% complete`,
+                                        'info'
+                                      );
+                                    }
+                                  );
                                 })
                                 .then((text) => {
                                   if (text) {

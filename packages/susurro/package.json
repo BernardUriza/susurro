@@ -1,0 +1,90 @@
+{
+  "name": "susurro-audio",
+  "version": "2.0.0",
+  "description": "🎙️ Real-time conversational audio with AI transcription. Build ChatGPT-style voice interfaces in minutes with <300ms latency",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "prepublishOnly": "npm run build",
+    "prepare": "husky"
+  },
+  "keywords": [
+    "audio",
+    "transcription",
+    "whisper",
+    "speech-to-text",
+    "voice",
+    "voice-ai",
+    "voice-chat",
+    "voice-recognition",
+    "chatgpt",
+    "conversational-ai",
+    "real-time",
+    "streaming",
+    "web-audio",
+    "murmuraba",
+    "vad",
+    "voice-activity-detection",
+    "react",
+    "react-hooks",
+    "typescript",
+    "neural-audio",
+    "noise-reduction",
+    "voice-interface",
+    "voice-assistant",
+    "speech-recognition",
+    "audio-processing",
+    "webrtc",
+    "voice-commands",
+    "voice-notes",
+    "audio-streaming",
+    "openai-whisper"
+  ],
+  "author": "Bernard Uriza Orozco",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  },
+  "peerDependencies": {
+    "@xenova/transformers": ">=2.0.0",
+    "murmuraba": ">=3.0.0",
+    "react": ">=19.0.0"
+  },
+  "dependencies": {
+    "@ricky0123/vad-web": "^0.0.24"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.0.0",
+    "@vitest/ui": "^3.2.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.4",
+    "prettier": "^3.6.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BernardUriza/susurro"
+  },
+  "bugs": {
+    "url": "https://github.com/BernardUriza/susurro/issues"
+  },
+  "homepage": "https://github.com/BernardUriza/susurro#readme",
+  "publishConfig": {
+    "access": "public"
+  }
+}

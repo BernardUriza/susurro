@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSusurro } from '@susurro/core';
 import type { CompleteAudioResult, StreamingSusurroChunk } from '@susurro/core';
-import { TemporalSegmentSelector } from '../temporal-segment-selector';
+// import { TemporalSegmentSelector } from '../temporal-segment-selector';
 import { ConversationalChatFeed } from '../conversational-chat-feed';
 
 export interface AudioFragmentProcessorProps {
@@ -53,7 +53,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
   );
   const [isRecording, setIsRecording] = useState(false);
   const [status, setStatus] = useState('');
-  const [chunkDuration, setChunkDuration] = useState(2);
+  const [chunkDuration] = useState(2);
   const [fileResult, setFileResult] = useState<CompleteAudioResult | null>(null);
 
   // Visualization state
@@ -225,25 +225,21 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
     // REAL-TIME CHUNK PROCESSOR WITH VISUALIZATIONS
     const onChunkProcessed = (chunk: StreamingSusurroChunk) => {
-      // Simulate real-time audio analysis data
-      const mockWaveform = new Array(100)
-        .fill(0)
-        .map(() => (Math.random() - 0.5) * chunk.vadScore * 2);
-
-      const mockFrequency = new Array(50)
-        .fill(0)
-        .map((_, i) => Math.random() * chunk.vadScore * (i < 10 ? 1 : 0.5));
+      // TODO: Replace with real audio data from chunk.audioBuffer
+      // For now, using minimal placeholder until real data integration
+      const waveformData = new Array(100).fill(0);
+      const frequencyData = new Array(50).fill(0);
 
       setVisualData((prev) => ({
-        waveform: mockWaveform,
-        frequency: mockFrequency,
+        waveform: waveformData,
+        frequency: frequencyData,
         vadHistory: [...prev.vadHistory.slice(1), chunk.vadScore],
         chunkHistory: [...prev.chunkHistory.slice(-19), chunk], // Keep last 20 chunks
         realTimeMetrics: {
           currentVAD: chunk.vadScore,
-          averageLatency: chunk.duration / 2, // Placeholder
+          averageLatency: chunk.duration / 2,
           chunksProcessed: prev.realTimeMetrics.chunksProcessed + 1,
-          activeFrequency: mockFrequency.reduce((a, b) => a + b, 0) / mockFrequency.length,
+          activeFrequency: 0, // Will be calculated from real frequency data
         },
       }));
     };
@@ -287,18 +283,14 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
         setFileResult(result);
 
         // Update visualization with file analysis
-        const mockWaveform = new Array(100)
-          .fill(0)
-          .map(() => (Math.random() - 0.5) * result.vadAnalysis.averageVad * 2);
-
-        const mockFrequency = new Array(50)
-          .fill(0)
-          .map(() => Math.random() * result.vadAnalysis.averageVad);
+        // TODO: Extract real waveform data from result.processedAudioUrl
+        const placeholderWaveform = new Array(100).fill(0);
+        const placeholderFrequency = new Array(50).fill(0);
 
         setVisualData((prev) => ({
           ...prev,
-          waveform: mockWaveform,
-          frequency: mockFrequency,
+          waveform: placeholderWaveform,
+          frequency: placeholderFrequency,
           vadHistory: result.vadAnalysis.vadScores.slice(-50),
           realTimeMetrics: {
             ...prev.realTimeMetrics,
@@ -566,7 +558,6 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
               {/* Controls */}
               <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-
                 <div style={{ marginTop: '20px' }}>
                   <button
                     onClick={isRecording ? handleStopRecording : handleStartRecording}

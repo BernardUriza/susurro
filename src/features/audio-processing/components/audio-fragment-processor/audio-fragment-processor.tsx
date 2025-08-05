@@ -9,18 +9,12 @@ export interface AudioFragmentProcessorProps {
   onBack: () => void;
 }
 
-// Real-time visualization data structure
+// Simplified visualization data
 interface VisualizationData {
   waveform: number[];
-  frequency: number[];
   vadHistory: number[];
   chunkHistory: StreamingSusurroChunk[];
-  realTimeMetrics: {
-    currentVAD: number;
-    averageLatency: number;
-    chunksProcessed: number;
-    activeFrequency: number;
-  };
+  chunksProcessed: number;
 }
 
 export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ onBack }) => {
@@ -50,18 +44,12 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
   const [status, setStatus] = useState('');
   const [fileResult, setFileResult] = useState<CompleteAudioResult | null>(null);
 
-  // Visualization state
+  // Minimal visualization state
   const [visualData, setVisualData] = useState<VisualizationData>({
     waveform: new Array(100).fill(0),
-    frequency: new Array(50).fill(0),
     vadHistory: new Array(50).fill(0),
     chunkHistory: [],
-    realTimeMetrics: {
-      currentVAD: 0,
-      averageLatency: 0,
-      chunksProcessed: 0,
-      activeFrequency: 0,
-    },
+    chunksProcessed: 0,
   });
 
   // Single unified canvas for all visualizations
@@ -119,7 +107,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     ctx.fillStyle = '#00ff41';
     ctx.font = '12px monospace';
     ctx.fillText(`VAD: ${(currentVad * 100).toFixed(0)}%`, 10, 15);
-    ctx.fillText(`Chunks: ${visualData.realTimeMetrics.chunksProcessed}`, width - 80, 15);
+    ctx.fillText(`Chunks: ${visualData.chunksProcessed}`, width - 80, 15);
   }, [visualData]);
 
   // 🎤 STREAMING RECORDING WITH REAL-TIME VISUALIZATION
@@ -140,38 +128,23 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     setStatus('[REAL_TIME_VISUALIZATION_ACTIVE]');
 
     // Reset visualization data
-    setVisualData((prev) => ({
-      ...prev,
+    setVisualData({
       waveform: new Array(100).fill(0),
-      frequency: new Array(50).fill(0),
       vadHistory: new Array(50).fill(0),
       chunkHistory: [],
-      realTimeMetrics: {
-        currentVAD: 0,
-        averageLatency: 0,
-        chunksProcessed: 0,
-        activeFrequency: 0,
-      },
-    }));
+      chunksProcessed: 0,
+    });
 
-    // REAL-TIME CHUNK PROCESSOR WITH VISUALIZATIONS
+    // REAL-TIME CHUNK PROCESSOR
     const onChunkProcessed = (chunk: StreamingSusurroChunk) => {
-      // TODO: Replace with real audio data from chunk.audioBuffer
-      // For now, using minimal placeholder until real data integration
+      // TODO: Extract real waveform from chunk.audioBuffer
       const waveformData = new Array(100).fill(0);
-      const frequencyData = new Array(50).fill(0);
 
       setVisualData((prev) => ({
         waveform: waveformData,
-        frequency: frequencyData,
         vadHistory: [...prev.vadHistory.slice(1), chunk.vadScore],
         chunkHistory: [...prev.chunkHistory.slice(-19), chunk], // Keep last 20 chunks
-        realTimeMetrics: {
-          currentVAD: chunk.vadScore,
-          averageLatency: chunk.duration / 2,
-          chunksProcessed: prev.realTimeMetrics.chunksProcessed + 1,
-          activeFrequency: 0, // Will be calculated from real frequency data
-        },
+        chunksProcessed: prev.chunksProcessed + 1,
       }));
     };
 
@@ -208,19 +181,10 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
         setFileResult(result);
 
         // Update visualization with file analysis
-        // TODO: Extract real waveform data from result.processedAudioUrl
-        const placeholderWaveform = new Array(100).fill(0);
-        const placeholderFrequency = new Array(50).fill(0);
-
         setVisualData((prev) => ({
           ...prev,
-          waveform: placeholderWaveform,
-          frequency: placeholderFrequency,
+          waveform: new Array(100).fill(0), // TODO: Extract from result
           vadHistory: result.vadAnalysis.vadScores.slice(-50),
-          realTimeMetrics: {
-            ...prev.realTimeMetrics,
-            currentVAD: result.vadAnalysis.averageVad,
-          },
         }));
 
         setStatus(`[FILE_ANALYSIS_COMPLETE] ${result.processingTime.toFixed(0)}ms`);

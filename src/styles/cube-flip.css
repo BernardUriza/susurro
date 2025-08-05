@@ -31,7 +31,6 @@
 
 .cube-face-right {
   transform: rotateY(90deg) translateZ(50vw) translateX(-50vw);
-  background: #000;
 }
 
 .cube-face-back {

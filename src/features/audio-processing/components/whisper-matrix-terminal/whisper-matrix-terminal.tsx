@@ -180,42 +180,40 @@ export const WhisperMatrixTerminal: React.FC = () => {
   };
 
   return (
-    <div className="matrix-theme">
-      {/* Matrix rain background - outside cube for global effect */}
-      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}>
-        <DigitalRainfall />
-      </div>
+    <div style={{ position: 'relative', width: '100%', minHeight: '100vh', background: '#000', overflow: 'hidden' }}>
+      {/* Matrix rain background */}
+      <DigitalRainfall />
       
-      {/* Version indicator in top-left corner */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 20,
-          left: 20,
-          fontSize: '12px',
-          fontFamily: 'monospace',
-          color: '#00ff41',
-          opacity: 0.8,
-          zIndex: 1000,
-          textShadow: '0 0 10px rgba(0, 255, 65, 0.5)',
-          letterSpacing: '2px',
-        }}
-      >
-        SUSURRO_MATRIX_v1.0
-      </div>
-      
-      <div className="cube-container">
-        <div className={getCubeClass()}>
-          {/* Front face - Main App */}
-          <div className="cube-face cube-face-front">
-            <div
-              className="matrix-container"
-              style={{
-                maxWidth: 600,
-                margin: '40px auto',
-                padding: 20,
-              }}
-            >
+      {/* Main content */}
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        {/* Version indicator in top-left corner */}
+        <div
+          style={{
+            position: 'fixed',
+            top: 20,
+            left: 20,
+            fontSize: '12px',
+            fontFamily: 'monospace',
+            color: '#00ff41',
+            opacity: 0.8,
+            zIndex: 1000,
+            textShadow: '0 0 10px rgba(0, 255, 65, 0.5)',
+            letterSpacing: '2px',
+          }}
+        >
+          SUSURRO_MATRIX_v1.0
+        </div>
+        
+        {currentFace === 'front' ? (
+          <div
+            style={{
+              maxWidth: 600,
+              margin: '40px auto',
+              padding: 20,
+              background: 'rgba(0, 0, 0, 0.8)',
+              position: 'relative',
+            }}
+          >
         {/* Banner with advanced transparency effects */}
         <div
           style={{
@@ -1124,42 +1122,9 @@ await processAudioFile(audioFile)
         >
           [SYSTEM.READY] - MATRIX_AUDIO_PROCESSOR_ONLINE
         </p>
-            </div>
-
-            {/* Navigation button */}
-            <button
-              style={{
-                position: 'fixed',
-                bottom: 20,
-                right: 20,
-                background: 'transparent',
-                border: '1px solid #00ff41',
-                color: '#00ff41',
-                padding: '12px 24px',
-                fontFamily: 'Courier New, monospace',
-                cursor: 'pointer',
-                transition: 'all 0.3s',
-                textTransform: 'uppercase',
-                zIndex: 1000
-              }}
-              onClick={() => setCurrentFace('right')}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = '#00ff41';
-                e.currentTarget.style.color = '#000';
-                e.currentTarget.style.boxShadow = '0 0 20px #00ff41';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#00ff41';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              [AUDIO_FRAGMENT_PROCESSOR →]
-            </button>
           </div>
-
-          {/* Right face - Audio Fragment Processor */}
-          <div className="cube-face cube-face-right">
+        ) : (
+          /* Audio Fragment Processor View */
             <div className="fragment-processor-page" style={{ position: 'relative', zIndex: 1 }}>
               <button 
                 className="matrix-back-button"
@@ -1227,22 +1192,40 @@ await processAudioFile(audioFile)
               [RESERVED]
             </div>
           </div>
-
-          {/* Left face - Reserved */}
-          <div className="cube-face cube-face-left">
-            <div style={{ 
-              background: '#000', 
-              height: '100%', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
+        )}
+        
+        {/* Navigation button - only show on front face */}
+        {currentFace === 'front' && (
+          <button
+            style={{
+              position: 'fixed',
+              bottom: 20,
+              right: 20,
+              background: 'transparent',
+              border: '1px solid #00ff41',
               color: '#00ff41',
-              fontFamily: 'Courier New, monospace'
-            }}>
-              [RESERVED]
-            </div>
-          </div>
-        </div>
+              padding: '12px 24px',
+              fontFamily: 'Courier New, monospace',
+              cursor: 'pointer',
+              transition: 'all 0.3s',
+              textTransform: 'uppercase',
+              zIndex: 1000
+            }}
+            onClick={() => setCurrentFace('right')}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#00ff41';
+              e.currentTarget.style.color = '#000';
+              e.currentTarget.style.boxShadow = '0 0 20px #00ff41';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#00ff41';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            [AUDIO_FRAGMENT_PROCESSOR →]
+          </button>
+        )}
       </div>
 
       {/* Floating logs for background processing - only show on front face */}

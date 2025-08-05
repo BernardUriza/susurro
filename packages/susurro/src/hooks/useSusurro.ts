@@ -102,6 +102,9 @@ export interface UseSusurroReturn {
   // Auxiliary methods
   analyzeVAD: (buffer: ArrayBuffer) => Promise<VADAnalysisResult>;
   convertBlobToBuffer: (blob: Blob) => Promise<ArrayBuffer>;
+  
+  // NEW: Expose MediaStream for waveform visualization
+  currentStream: MediaStream | null;
 }
 
 export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
@@ -149,6 +152,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     latencyMonitor.generateReport()
   );
   const [latencyStatus, setLatencyStatus] = useState(latencyMonitor.getRealtimeStatus());
+
+  // NEW: MediaStream state for waveform visualization
+  const [currentStream, setCurrentStream] = useState<MediaStream | null>(null);
 
   // Advanced middleware pipeline for chunk processing
   const [middlewarePipeline] = useState(
@@ -675,14 +681,36 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     setAudioChunks([]);
     setTranscriptions([]);
 
+    // NEW: Get MediaStream for visualization
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
+      setCurrentStream(stream);
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Failed to get MediaStream for visualization:', error);
+      }
+    }
+
     // Hook handles all audio setup and initialization
     await startMurmurabaRecording();
   }, [startMurmurabaRecording]);
 
   const stopRecording = useCallback(() => {
+    // Clean up MediaStream
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => track.stop());
+      setCurrentStream(null);
+    }
+
     // Hook handles all cleanup automatically
     stopMurmurabaRecording();
-  }, [stopMurmurabaRecording]);
+  }, [stopMurmurabaRecording, currentStream]);
 
   const pauseRecording = useCallback(() => {
     // Built-in pause functionality
@@ -884,6 +912,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     // Auxiliary methods
     analyzeVAD,
     convertBlobToBuffer,
+    
+    // NEW: Expose MediaStream for waveform visualization
+    currentStream,
   };
 }
 

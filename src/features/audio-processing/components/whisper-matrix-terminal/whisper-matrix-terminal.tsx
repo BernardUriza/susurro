@@ -7,6 +7,7 @@ import type { MurmurabaConfig, MurmurabaResult } from '@susurro/core';
 import { processFileWithMetrics as murmubaraProcessFile, initializeAudioEngine } from 'murmuraba';
 import type { ProcessingMetrics } from 'murmuraba';
 
+
 // Real Murmuraba VAD processing
 const processFileWithMetrics = async (buffer: ArrayBuffer): Promise<MurmurabaResult> => {
   try {
@@ -14,7 +15,7 @@ const processFileWithMetrics = async (buffer: ArrayBuffer): Promise<MurmurabaRes
     await initializeAudioEngine({
       enableVAD: true,
       enableNoiseSuppression: true
-    });
+    } as any);
 
     // Process with real Murmuraba VAD and noise reduction
     const result = await murmubaraProcessFile(buffer, (metrics: ProcessingMetrics) => {
@@ -45,7 +46,7 @@ const initializeAudioEngineWrapper = async (config: MurmurabaConfig): Promise<vo
       enableVAD: true,
       enableNoiseSuppression: true,
       ...config
-    });
+    } as any);
   } catch (error) {
     console.error('Failed to initialize Murmuraba engine:', error);
     throw error;
@@ -402,44 +403,52 @@ export const WhisperMatrixTerminal: React.FC = () => {
             `,
             }}
           >
-            <img
-              src="/banner.png"
-              alt="Susurro Banner"
-              style={{
-                width: '100%',
-                height: 'auto',
-                display: 'block',
-                opacity: 0.9,
-                filter: `
-                  contrast(1.2) 
-                  brightness(0.9) 
-                  saturate(1.5)
-                  drop-shadow(0 0 20px rgba(0, 255, 65, 0.5))
-                `,
-                mixBlendMode: 'screen',
-                maskImage: `
-                  linear-gradient(
-                    to right,
-                    transparent 0%,
-                    black 10%,
-                    black 90%,
-                    transparent 100%
-                  )
-                `,
-                WebkitMaskImage: `
-                  linear-gradient(
-                    to right,
-                    transparent 0%,
-                    black 10%,
-                    black 90%,
-                    transparent 100%
-                  )
-                `,
-              }}
-              onLoad={() => {
-                // Banner loaded successfully
-              }}
-            />
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <h1 
+                className="matrix-title" 
+                data-text="SUSURRO MATRIX"
+                style={{
+                  fontSize: '4rem',
+                  fontWeight: 'bold',
+                  letterSpacing: '0.3em',
+                  textTransform: 'uppercase',
+                  background: 'linear-gradient(45deg, #00ff41 0%, #00ff41 25%, #ffffff 50%, #00ff41 75%, #00ff41 100%)',
+                  backgroundSize: '200% auto',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  animation: 'textShine 3s linear infinite',
+                  position: 'relative',
+                  margin: '0 0 1rem 0',
+                  filter: 'drop-shadow(0 0 30px rgba(0, 255, 65, 0.6))',
+                  userSelect: 'none',
+                }}
+              >
+                SUSURRO<span style={{ opacity: 0.8 }}>⚡</span>MATRIX
+              </h1>
+              <p className="matrix-subtitle fade-in" style={{
+                fontSize: '1.1rem',
+                letterSpacing: '0.3em',
+                color: 'rgba(0, 255, 65, 0.8)',
+                textTransform: 'uppercase',
+                margin: '0',
+                textShadow: '0 0 10px rgba(0, 255, 65, 0.5)',
+              }}>
+                Neural Audio Processing Terminal
+              </p>
+              <div style={{
+                marginTop: '20px',
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '20px',
+                fontSize: '0.9rem',
+                color: 'rgba(0, 255, 65, 0.6)',
+              }}>
+                <span className="fade-in" style={{ animationDelay: '0.5s' }}>◆ v2.0</span>
+                <span className="fade-in" style={{ animationDelay: '0.7s' }}>◆ Matrix UI</span>
+                <span className="fade-in" style={{ animationDelay: '0.9s' }}>◆ Realtime Processing</span>
+              </div>
+            </div>
           </div>
 
           {/* Animated scan line effect */}
@@ -521,7 +530,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
                       await initializeAudioEngine({
                         enableNoiseSuppression: true,
                         enableEchoCancellation: true,
-                      });
+                      } as any);
                       
                       setEngineInitialized(true);
                       setEngineError(null);
@@ -1402,7 +1411,7 @@ const {
 await initializeAudioEngine({
   enableNoiseSuppression: true,
   enableEchoCancellation: true
-})
+} as any)
 
 // Process audio with Murmuraba pipeline
 await processFileWithMetrics(audioBuffer)

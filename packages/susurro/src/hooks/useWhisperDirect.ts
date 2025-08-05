@@ -17,11 +17,11 @@ import {
   defaultToastService,
 } from '../lib/ui-interfaces';
 
-// Smart logging system
-const DEBUG_MODE = typeof window !== 'undefined' ? false : (typeof process !== 'undefined' && process.env.NODE_ENV === 'development');
+// Smart logging system - Reduced verbosity for production
+const DEBUG_MODE = false; // Disabled for cleaner console
 const log = {
   info: (...args: any[]) => DEBUG_MODE && console.log('[WHISPER]', ...args),
-  warn: (...args: any[]) => console.warn('[WHISPER]', ...args),
+  warn: (...args: any[]) => DEBUG_MODE && console.warn('[WHISPER]', ...args),
   error: (...args: any[]) => console.error('[WHISPER]', ...args),
   progress: (...args: any[]) => DEBUG_MODE && console.log('[WHISPER-PROGRESS]', ...args),
 };
@@ -526,26 +526,12 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
 
   // Initialize Transformers.js
   useEffect(() => {
-    console.log('[WHISPER HOOK] useEffect triggered for model initialization');
-    console.log('[WHISPER HOOK] Initial state:', {
-      hasInstance: !!WhisperPipelineSingleton.instance,
-      isLoading: WhisperPipelineSingleton.isLoading,
-      currentModel: WhisperPipelineSingleton.currentModel,
-      pipelineRef: !!pipelineRef.current,
-      windowDefined: typeof window !== 'undefined'
-    });
-
     const loadModel = async () => {
-      console.log('[WHISPER HOOK] loadModel function called');
-      
       // Only show loading alert if not already loaded and not currently loading
       const shouldShowAlert =
         !WhisperPipelineSingleton.instance && !WhisperPipelineSingleton.isLoading;
 
-      console.log('[WHISPER HOOK] Should show alert:', shouldShowAlert);
-
       if (shouldShowAlert) {
-        console.log('[WHISPER HOOK] Showing loading alert');
         // Show loading alert
         progressAlertRef.current = alertService.show({
           title: '[WHISPER_AI_INITIALIZATION]',
@@ -556,22 +542,12 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       }
 
       try {
-        console.log('[WHISPER HOOK] Starting model load with config:', {
-          model: whisperConfig.model || 'default',
-          language: whisperConfig.language || 'default'
-        });
-        
         const loadStartTime = performance.now();
         
         // Get pipeline instance with progress callback and model
         pipelineRef.current = await WhisperPipelineSingleton.getInstance(
           (progress: WhisperProgress) => {
             const percent = progress.progress || 0;
-            console.log('[WHISPER HOOK] Progress callback:', {
-              percent: `${percent.toFixed(2)}%`,
-              status: progress.status,
-              file: progress.file
-            });
             
             // Only update if progress has actually changed (avoid fractional updates)
             setLoadingProgress((prev) => {
@@ -593,15 +569,12 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         );
 
         const loadEndTime = performance.now();
-        console.log('[WHISPER HOOK] Model loaded successfully in', (loadEndTime - loadStartTime).toFixed(2), 'ms');
-        console.log('[WHISPER HOOK] Pipeline reference set:', !!pipelineRef.current);
 
         setModelReady(true);
         setLoadingProgress(100);
 
         // Close loading alert and show success only if we showed it
         if (progressAlertRef.current && shouldShowAlert) {
-          console.log('[WHISPER HOOK] Closing loading alert and showing success');
           progressAlertRef.current.close();
           progressAlertRef.current = null;
 
@@ -609,12 +582,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load model';
-        console.error('[WHISPER HOOK] Model loading failed:', err);
-        console.error('[WHISPER HOOK] Error details:', {
-          message: errorMessage,
-          stack: err instanceof Error ? err.stack : 'No stack trace',
-          type: err instanceof Error ? err.constructor.name : typeof err
-        });
+        log.error('Model loading failed:', err);
         
         // Check for specific error types and provide detailed feedback
         if (err instanceof Error) {
@@ -660,22 +628,14 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
 
     // Check if model is already loaded
     if (WhisperPipelineSingleton.instance) {
-      console.log('[WHISPER HOOK] Model already loaded, reusing instance');
       pipelineRef.current = WhisperPipelineSingleton.instance;
       setModelReady(true);
       setLoadingProgress(100);
     } else if (!pipelineRef.current && typeof window !== 'undefined') {
-      console.log('[WHISPER HOOK] No instance found, initiating model load');
       loadModel();
-    } else {
-      console.log('[WHISPER HOOK] Skipping load:', {
-        hasPipelineRef: !!pipelineRef.current,
-        isWindowDefined: typeof window !== 'undefined'
-      });
     }
 
     return () => {
-      console.log('[WHISPER HOOK] Cleanup function called');
       if (progressAlertRef.current) {
         progressAlertRef.current.close();
         progressAlertRef.current = null;
@@ -697,30 +657,13 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
 
   const transcribe = useCallback(
     async (audioBlob: Blob): Promise<TranscriptionResult | null> => {
-      console.log('[WHISPER TRANSCRIBE] Transcribe called with blob:', {
-        size: audioBlob.size,
-        type: audioBlob.type
-      });
-
       // Queue transcriptions to prevent concurrent calls
       const transcriptionPromise = transcriptionQueueRef.current.then(async () => {
-        console.log('[WHISPER TRANSCRIBE] Starting transcription process');
-        console.log('[WHISPER TRANSCRIBE] Current state:', {
-          isTranscribing,
-          modelReady,
-          hasPipeline: !!pipelineRef.current
-        });
-
         if (isTranscribing) {
-          console.warn('[WHISPER TRANSCRIBE] Already transcribing, skipping');
           return null;
         }
 
         if (!pipelineRef.current || !modelReady) {
-          console.error('[WHISPER TRANSCRIBE] Model not ready:', {
-            pipeline: !!pipelineRef.current,
-            modelReady
-          });
           setError(new Error('Model not ready'));
           return null;
         }
@@ -729,27 +672,11 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         setError(null);
 
         try {
-          console.log('[WHISPER TRANSCRIBE] Converting blob to data URL...');
-          const conversionStart = performance.now();
-          
           // Convert blob to data URL
           const audioDataUrl = await audioToBase64(audioBlob);
-          
-          const conversionTime = performance.now() - conversionStart;
-          console.log('[WHISPER TRANSCRIBE] Blob converted in', conversionTime.toFixed(2), 'ms');
-          console.log('[WHISPER TRANSCRIBE] Data URL length:', audioDataUrl.length);
 
           // Perform transcription
           const startTime = Date.now();
-          const transcriptionStart = performance.now();
-
-          console.log('[WHISPER TRANSCRIBE] Starting pipeline transcription with config:', {
-            chunk_length_s: 30,
-            stride_length_s: 5,
-            language: whisperConfig.language || 'english',
-            task: 'transcribe',
-            return_timestamps: false
-          });
 
           const output: WhisperOutput = await pipelineRef.current(audioDataUrl, {
             chunk_length_s: 30,
@@ -757,16 +684,6 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
             language: whisperConfig.language || 'english',
             task: 'transcribe',
             return_timestamps: false,
-          });
-
-          const transcriptionTime = performance.now() - transcriptionStart;
-          console.log('[WHISPER TRANSCRIBE] Transcription completed in', transcriptionTime.toFixed(2), 'ms');
-          console.log('[WHISPER TRANSCRIBE] Output:', {
-            hasText: !!output.text,
-            textLength: output.text?.length || 0,
-            textPreview: output.text?.substring(0, 50) + (output.text?.length > 50 ? '...' : ''),
-            hasChunks: !!output.chunks,
-            chunksCount: output.chunks?.length || 0
           });
 
           // Processing completed
@@ -788,26 +705,13 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
             timestamp: Date.now(),
           };
 
-          console.log('[WHISPER TRANSCRIBE] Result formatted:', {
-            text: result.text.substring(0, 50) + (result.text.length > 50 ? '...' : ''),
-            segmentsCount: result.segments?.length || 0,
-            timestamp: result.timestamp
-          });
-
           setTranscript(result.text);
           setIsTranscribing(false);
-          
-          console.log('[WHISPER TRANSCRIBE] Transcription successful, total time:', 
-            (Date.now() - startTime), 'ms');
           
           return result;
         } catch (err) {
           const error = err instanceof Error ? err : new Error('Transcription failed');
-          console.error('[WHISPER TRANSCRIBE] Transcription failed:', err);
-          console.error('[WHISPER TRANSCRIBE] Error details:', {
-            message: error.message,
-            stack: error.stack
-          });
+          log.error('Transcription failed:', err);
           
           setError(error);
           setIsTranscribing(false);

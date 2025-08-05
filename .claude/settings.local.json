@@ -65,7 +65,8 @@
       "Bash(npm run type-check:*)",
       "Bash(npx tsc:*)",
       "Bash(copy:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(git tag:*)"
     ],
     "deny": []
   }

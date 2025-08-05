@@ -1,10 +1,10 @@
 // React and external libraries
 
 // Relative imports - components
-import { CubeNavigator } from './features/navigation/components';
+import { MatrixNavigation } from './components/MatrixNavigation';
 
 function App() {
-  return <CubeNavigator />;
+  return <MatrixNavigation />;
 }
 
 export default App;

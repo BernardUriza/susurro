@@ -10,8 +10,8 @@
     "README.md"
   ],
   "scripts": {
-    "dev": "npm run copy:wasm && vite",
-    "dev:all": "npm run dev:package & npm run dev:vite",
+    "dev": "npm run copy:wasm && concurrently -n \"SUSURRO,VITE\" -c \"bgYellow.bold,bgGreen.bold\" \"npm run dev:package\" \"npm run dev:vite\"",
+    "dev:simple": "npm run copy:wasm && vite",
     "dev:vite": "vite",
     "dev:package": "npm -w susurro-audio run dev",
     "build": "npm run copy:wasm && vite build",
@@ -68,22 +68,24 @@
   ],
   "dependencies": {
     "@susurro/core": "file:./packages/susurro",
+    "@types/three": "^0.179.0",
+    "eslint-config-prettier": "^10.1.8",
     "framer-motion": "^12.23.12",
     "murmuraba": "^3.0.2",
     "react-virtuoso": "^4.13.0",
-    "three": "^0.178.0"
+    "three": "^0.179.1"
   },
   "devDependencies": {
-    "@testing-library/react": "^16.3.0",
     "@types/node": "^20.14.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/three": "^0.178.1",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "@vitejs/plugin-react": "^4.7.0",
     "@vitest/ui": "^3.2.4",
+    "concurrently": "^9.2.0",
     "eslint": "^8.57.1",
+    "eslint-plugin-prettier": "^5.5.3",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^4.6.2",
     "happy-dom": "^18.0.1",

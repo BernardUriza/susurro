@@ -1,0 +1,24 @@
+:root {
+  /* Matrix Core */
+  --matrix-green: #00ff41;
+  --matrix-green-dim: rgb(0 255 65 / 0.2);
+  --matrix-black: #000000;
+  --matrix-gray: #001100;
+  
+  /* Typography */
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-4: 1rem;
+  --space-8: 2rem;
+  
+  /* Animation */
+  --duration-fast: 0.15s;
+  --duration-normal: 0.3s;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}

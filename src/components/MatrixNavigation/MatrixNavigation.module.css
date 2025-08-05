@@ -1,0 +1,201 @@
+/* Import design tokens */
+@import '../../styles/tokens.css';
+
+.container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #000000;
+  color: var(--matrix-green);
+  font-family: var(--font-mono);
+  display: grid;
+  grid-template-areas:
+    "nav content"
+    "status status";
+  grid-template-columns: 200px 1fr;
+  grid-template-rows: 1fr 40px;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* Navigation Grid */
+.navigation {
+  grid-area: nav;
+  display: grid;
+  grid-template-rows: repeat(6, 1fr);
+  padding: var(--space-4);
+  background: rgba(0, 17, 0, 0.8);
+  border-right: 1px solid var(--matrix-green);
+}
+
+.navButton {
+  background: transparent;
+  border: 1px solid var(--matrix-green-dim);
+  color: var(--matrix-green-dim);
+  padding: var(--space-2);
+  margin-bottom: var(--space-1);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  min-height: 60px;
+}
+
+.navButton:hover:not(.disabled) {
+  border-color: var(--matrix-green);
+  color: var(--matrix-green);
+  background: rgba(0, 255, 65, 0.05);
+}
+
+.navButton.active {
+  border-color: var(--matrix-green);
+  color: var(--matrix-black);
+  background: var(--matrix-green);
+  box-shadow: 0 0 10px var(--matrix-green-dim);
+}
+
+.navButton.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.keyHint {
+  font-size: var(--font-size-xs);
+  opacity: 0.7;
+  margin-bottom: var(--space-1);
+}
+
+.title {
+  font-weight: bold;
+  font-size: var(--font-size-xs);
+  line-height: 1.2;
+}
+
+/* Content Area */
+.content {
+  grid-area: content;
+  position: relative;
+  overflow: auto;
+  padding: var(--space-4);
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+.content.transitioning {
+  opacity: 0.3;
+}
+
+.contentInner {
+  max-width: 100%;
+  max-height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid var(--matrix-green);
+  border-radius: 4px;
+  padding: var(--space-4);
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.1);
+}
+
+/* Placeholder content styling */
+.placeholder {
+  text-align: center;
+  padding: var(--space-8);
+}
+
+.placeholder h2 {
+  color: var(--matrix-green);
+  margin-bottom: var(--space-4);
+}
+
+.placeholder p {
+  opacity: 0.7;
+  margin-bottom: var(--space-4);
+}
+
+.icon {
+  font-size: 2rem;
+  opacity: 0.8;
+}
+
+/* Status Bar */
+.statusBar {
+  grid-area: status;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 var(--space-4);
+  background: rgba(0, 17, 0, 0.9);
+  border-top: 1px solid var(--matrix-green);
+  font-size: var(--font-size-xs);
+  opacity: 0.8;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .container {
+    grid-template-areas:
+      "nav"
+      "content"
+      "status";
+    grid-template-columns: 1fr;
+    grid-template-rows: 60px 1fr 40px;
+  }
+
+  .navigation {
+    grid-template-rows: none;
+    grid-template-columns: repeat(6, 1fr);
+    padding: var(--space-2);
+    overflow-x: auto;
+  }
+
+  .navButton {
+    min-height: 40px;
+    margin-bottom: 0;
+    margin-right: var(--space-1);
+    padding: var(--space-1);
+  }
+
+  .title {
+    display: none;
+  }
+
+  .keyHint {
+    font-size: var(--font-size-sm);
+    margin-bottom: 0;
+  }
+
+  .statusBar {
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-1);
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .navButton {
+    border-width: 2px;
+  }
+  
+  .container {
+    background: #000000;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .navButton,
+  .content {
+    transition: none;
+  }
+}
+
+/* Focus management */
+.navButton:focus-visible {
+  outline: 2px solid var(--matrix-green);
+  outline-offset: 2px;
+}

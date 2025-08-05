@@ -1,13 +1,15 @@
+'use server';
+
 // React 19 Server Component for audio metadata preprocessing
-import { WhisperFragment } from '../../../shared/types';
+import { ReactNode } from 'react';
 
 interface WhisperServerProcessorProps {
   audioFile: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
 // Server-side audio preprocessing component
-export default async function WhisperServerProcessor({
+export async function WhisperServerProcessor({
   audioFile,
   children,
 }: WhisperServerProcessorProps) {

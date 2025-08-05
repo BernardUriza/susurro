@@ -14,7 +14,7 @@ import type {
 import { useMurmubaraEngine } from 'murmuraba';
 
 // Conversational Evolution - Advanced chunk middleware
-import ChunkMiddlewarePipeline from '../lib/chunk-middleware';
+import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
 
 // Phase 3: Latency optimization and measurement
 import { latencyMonitor, type LatencyMetrics, type LatencyReport } from '../lib/latency-monitor';
@@ -127,6 +127,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     transcribe: transcribeWhisper,
   } = useWhisperDirect({
     language: whisperConfig?.language || 'en',
+    model: whisperConfig?.model,
   });
 
   // Helper functions - moved before usage

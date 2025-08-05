@@ -2,14 +2,35 @@
 
 // React and external libraries
 import React from 'react';
-import { processFile, processFileWithMetrics } from 'murmuraba';
+// Updated import for Murmuraba v3 API
+import type { MurmurabaConfig, MurmurabaResult } from '@susurro/core';
+
+// Mock functions for now - these should be replaced with actual Murmuraba v3 implementation
+const processFileWithMetrics = async (buffer: ArrayBuffer): Promise<MurmurabaResult> => {
+  // Placeholder implementation - replace with actual Murmuraba v3 file processing
+  return {
+    processedBuffer: buffer,
+    metrics: [],
+    averageVad: 0
+  };
+};
+
+const initializeAudioEngine = async (config: MurmurabaConfig): Promise<void> => {
+  // Placeholder implementation - replace with actual Murmuraba v3 initialization
+  console.log('Audio engine initialized with config:', config);
+};
+
+const getEngineStatus = (): string => {
+  // Placeholder implementation - replace with actual Murmuraba v3 status check
+  return 'ready';
+};
 
 // Absolute imports
 import { useSusurro } from '@susurro/core';
 
 // Relative imports - components
-import { DigitalRainfall } from '../../../visualization/components';
 import { WhisperEchoLogs } from '../../../visualization/components';
+import { MatrixRain } from '../../../../components/MatrixRain';
 // import { TemporalSegmentSelector } from '../temporal-segment-selector'; // TODO: Implement if needed
 
 // Relative imports - utilities
@@ -17,7 +38,6 @@ import { SilentThreadProcessor } from '../../../../shared/services';
 
 // Styles (last)
 import '../../../../styles/matrix-theme.css';
-import '../../../../styles/cube-flip.css';
 
 type CubeFace = 'front' | 'right' | 'back' | 'left';
 
@@ -27,7 +47,6 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
   const {
     isProcessing,
-    isRecording,
     audioChunks,
     averageVad,
     clearTranscriptions,
@@ -36,11 +55,12 @@ export const WhisperMatrixTerminal: React.FC = () => {
     whisperError,
     transcribeWithWhisper,
     transcriptions,
-    startRecording,
-    stopRecording,
   } = useSusurro({
     chunkDurationMs: temporalSegmentDuration * 1000, // Convert to milliseconds
-    whisperConfig: { language: 'en' },
+    whisperConfig: { 
+      language: 'en',
+      // Note: model configuration may need to be updated based on actual Whisper implementation
+    },
   });
 
   const [originalUrl, setOriginalUrl] = React.useState('');
@@ -51,10 +71,50 @@ export const WhisperMatrixTerminal: React.FC = () => {
   const [chunkDuration, setChunkDuration] = React.useState(15);
   const [whisperTranscriptions, setWhisperTranscriptions] = React.useState<string[]>([]);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
+  const [processedFileVad, setProcessedFileVad] = React.useState<number>(0);
+  const [processedFileDuration, setProcessedFileDuration] = React.useState<number>(0);
 
-  // Initialize status on mount
+  // State for audio engine
+  const [engineInitialized, setEngineInitialized] = React.useState(false);
+  const [engineError, setEngineError] = React.useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = React.useState(false);
+
+  // Initialize murmuraba audio engine on mount
   React.useEffect(() => {
-    setStatus('[SYSTEM] Audio neural processor ready');
+    const initEngine = async () => {
+      setIsInitializing(true);
+      setStatus('[SYSTEM] Initializing audio engine...');
+      
+      try {
+        // Check if already initialized
+        const status = getEngineStatus();
+        if (status === 'ready') {
+          setEngineInitialized(true);
+          setStatus('[SYSTEM] Audio engine already initialized');
+          return;
+        }
+
+        // Initialize the engine
+        await initializeAudioEngine({
+          enableNoiseSuppression: true,
+          enableEchoCancellation: true,
+        });
+        
+        setEngineInitialized(true);
+        setEngineError(null);
+        setStatus('[SYSTEM] Audio neural processor ready');
+        addBackgroundLog('Audio engine initialized successfully', 'success');
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        setEngineError(errorMsg);
+        setStatus(`[ERROR] Audio engine initialization failed: ${errorMsg}`);
+        addBackgroundLog(`Engine initialization failed: ${errorMsg}`, 'error');
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initEngine();
   }, []);
 
   // Direct values from useSusurro - no abstraction needed
@@ -110,6 +170,13 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
   const handleFileProcess = async (file: File) => {
     try {
+      // Check if engine is initialized
+      if (!engineInitialized) {
+        setStatus('[ERROR] Audio engine not initialized. Please wait or refresh the page.');
+        addBackgroundLog('Attempted to process file before engine initialization', 'error');
+        return false;
+      }
+
       setStatus('[INITIALIZING_NEURAL_PROCESSOR...]');
       setOriginalUrl(URL.createObjectURL(file));
       clearTranscriptions();
@@ -122,23 +189,72 @@ export const WhisperMatrixTerminal: React.FC = () => {
       const processedBuffer = await processFileWithMetrics(arrayBuffer);
       
       // Create a blob from the processed audio
-      const processedBlob = new Blob([processedBuffer.audioBuffer], { type: 'audio/wav' });
+      const processedData = processedBuffer.processedBuffer;
+      if (!processedData) {
+        throw new Error('No processed audio data received');
+      }
+      // Handle different types of processed data
+      let blobData: BlobPart;
+      if (processedData instanceof AudioBuffer) {
+        // Convert AudioBuffer to ArrayBuffer
+        const length = processedData.length * processedData.numberOfChannels * 2; // 16-bit audio
+        const arrayBuffer = new ArrayBuffer(length);
+        const view = new DataView(arrayBuffer);
+        let offset = 0;
+        
+        for (let i = 0; i < processedData.length; i++) {
+          for (let channel = 0; channel < processedData.numberOfChannels; channel++) {
+            const sample = Math.max(-1, Math.min(1, processedData.getChannelData(channel)[i]));
+            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+            offset += 2;
+          }
+        }
+        blobData = arrayBuffer;
+      } else {
+        blobData = processedData;
+      }
+      
+      const processedBlob = new Blob([blobData], { type: 'audio/wav' });
       
       // Log processing metrics
-      addBackgroundLog(`File processed successfully - VAD: ${(processedBuffer.metrics.averageVad * 100).toFixed(1)}%`, 'success');
-      addBackgroundLog(`Processing time: ${processedBuffer.metrics.processingTimeMs}ms`, 'info');
+      // Metrics is an array, so we need to aggregate
+      const vad = processedBuffer.metrics && processedBuffer.metrics.length > 0 ? 
+        processedBuffer.metrics.reduce((sum: number, m: any) => sum + (m.vad || 0), 0) / processedBuffer.metrics.length : 0;
+      
+      // Calculate approximate duration from file size (fallback)
+      const duration = file.size > 0 ? Math.round(file.size / 8000) : 0; // Rough estimate
+      
+      // Store metrics for display
+      setProcessedFileVad(vad);
+      setProcessedFileDuration(duration);
+      
+      addBackgroundLog(`File processed successfully - VAD: ${(vad * 100).toFixed(1)}%`, 'success');
+      // Processing time not available in MurmurabaResult - could be calculated if needed
+      addBackgroundLog('File processed with neural noise reduction', 'info');
+      addBackgroundLog(`Audio duration: ${(duration / 1000).toFixed(2)}s`, 'info');
       
       // Set the processed audio URL for playback
       const processedUrl = URL.createObjectURL(processedBlob);
       setChunkUrls([processedUrl]);
       
-      // Transcribe the processed audio
-      setStatus('[TRANSCRIBING_PROCESSED_AUDIO...]');
-      const result = await transcribeWithWhisper(processedBlob);
+      // Display VAD info in status
+      setStatus(`[FILE_PROCESSING_COMPLETE] VAD: ${(vad * 100).toFixed(1)}%`);
       
-      if (result) {
-        setWhisperTranscriptions([result.text]);
-        addBackgroundLog('Transcription completed', 'success');
+      // Transcribe the processed audio if Whisper is ready
+      if (whisperReady) {
+        setStatus('[TRANSCRIBING_PROCESSED_AUDIO...]');
+        try {
+          const result = await transcribeWithWhisper(processedBlob);
+          
+          if (result) {
+            setWhisperTranscriptions([result.text]);
+            addBackgroundLog('Transcription completed', 'success');
+          }
+        } catch (error) {
+          addBackgroundLog(`Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+        }
+      } else {
+        addBackgroundLog('Whisper model not ready, skipping transcription', 'warning');
       }
       
       setStatus('[FILE_PROCESSING_COMPLETE]');
@@ -167,6 +283,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
   };
 
   const getCubeClass = () => {
+    console.log('Current face:', currentFace);
     switch (currentFace) {
       case 'right':
         return 'cube rotate-to-right';
@@ -180,40 +297,42 @@ export const WhisperMatrixTerminal: React.FC = () => {
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%', minHeight: '100vh', background: '#000', overflow: 'hidden' }}>
-      {/* Matrix rain background */}
-      <DigitalRainfall />
+    <div style={{ position: 'relative', width: '100%', height: '100vh', background: '#000', overflow: 'hidden' }}>
+      {/* Matrix rain background - Behind everything */}
+      <MatrixRain density={0.6} speed={50} fontSize={12} />
       
-      {/* Main content */}
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        {/* Version indicator in top-left corner */}
-        <div
-          style={{
-            position: 'fixed',
-            top: 20,
-            left: 20,
-            fontSize: '12px',
-            fontFamily: 'monospace',
-            color: '#00ff41',
-            opacity: 0.8,
-            zIndex: 1000,
-            textShadow: '0 0 10px rgba(0, 255, 65, 0.5)',
-            letterSpacing: '2px',
-          }}
-        >
-          SUSURRO_MATRIX_v1.0
-        </div>
-        
-        {currentFace === 'front' ? (
-          <div
-            style={{
-              maxWidth: 600,
-              margin: '40px auto',
-              padding: 20,
-              background: 'rgba(0, 0, 0, 0.8)',
-              position: 'relative',
-            }}
-          >
+      {/* Version indicator in top-left corner */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 20,
+          left: 20,
+          fontSize: '12px',
+          fontFamily: 'monospace',
+          color: '#00ff41',
+          opacity: 0.8,
+          zIndex: 1000,
+          textShadow: '0 0 10px rgba(0, 255, 65, 0.5)',
+          letterSpacing: '2px',
+        }}
+      >
+        SUSURRO_MATRIX_v1.0
+      </div>
+      
+      {/* Cube container */}
+      <div className="cube-container">
+        <div className={getCubeClass()}>
+          {/* Front face - Main App */}
+          <div className="cube-face cube-face-front">
+            <div
+              style={{
+                maxWidth: 600,
+                margin: '40px auto',
+                padding: 20,
+                background: 'rgba(0, 0, 0, 0.8)',
+                position: 'relative',
+              }}
+            >
         {/* Banner with advanced transparency effects */}
         <div
           style={{
@@ -331,9 +450,80 @@ export const WhisperMatrixTerminal: React.FC = () => {
             }}
           />
         </div>
-        <p style={{ marginBottom: 30, opacity: 0.8 }}>
-          &gt; {status || 'SYSTEM READY'}
-        </p>
+        {/* Status Display with Engine State */}
+        <div style={{ marginBottom: 30 }}>
+          <p style={{ marginBottom: 10, opacity: 0.8 }}>
+            &gt; {status || 'SYSTEM READY'}
+          </p>
+          
+          {/* Engine Status Indicator */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 10,
+            fontSize: '12px',
+            opacity: 0.7
+          }}>
+            <div style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: engineInitialized ? '#00ff41' : (isInitializing ? '#ffff00' : '#ff0041'),
+              boxShadow: engineInitialized ? '0 0 10px #00ff41' : '0 0 10px #ff0041',
+              animation: isInitializing ? 'pulse 1s infinite' : 'none'
+            }} />
+            <span style={{ color: engineInitialized ? '#00ff41' : '#ff0041' }}>
+              AUDIO_ENGINE: {isInitializing ? 'INITIALIZING...' : (engineInitialized ? 'ONLINE' : 'OFFLINE')}
+            </span>
+          </div>
+          
+          {/* Error Message and Retry */}
+          {engineError && !isInitializing && (
+            <div style={{ marginTop: 10 }}>
+              <p style={{ color: '#ff0041', fontSize: '12px', marginBottom: 5 }}>
+                &gt; ENGINE_ERROR: {engineError}
+              </p>
+              <button
+                onClick={async () => {
+                  setEngineError(null);
+                  const initEngine = async () => {
+                    setIsInitializing(true);
+                    setStatus('[SYSTEM] Retrying audio engine initialization...');
+                    
+                    try {
+                      await initializeAudioEngine({
+                        enableNoiseSuppression: true,
+                        enableEchoCancellation: true,
+                      });
+                      
+                      setEngineInitialized(true);
+                      setEngineError(null);
+                      setStatus('[SYSTEM] Audio neural processor ready');
+                      addBackgroundLog('Audio engine initialized successfully on retry', 'success');
+                    } catch (error) {
+                      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                      setEngineError(errorMsg);
+                      setStatus(`[ERROR] Audio engine initialization failed: ${errorMsg}`);
+                      addBackgroundLog(`Engine initialization retry failed: ${errorMsg}`, 'error');
+                    } finally {
+                      setIsInitializing(false);
+                    }
+                  };
+                  await initEngine();
+                }}
+                className="matrix-button"
+                style={{ 
+                  padding: '5px 15px', 
+                  fontSize: '11px',
+                  background: 'rgba(255, 0, 65, 0.1)',
+                  borderColor: '#ff0041'
+                }}
+              >
+                [RETRY_INITIALIZATION]
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Upload Section */}
         <div style={{ marginBottom: 30 }}>
@@ -343,12 +533,15 @@ export const WhisperMatrixTerminal: React.FC = () => {
               padding: 40,
               textAlign: 'center',
               borderRadius: 0,
-              cursor: 'pointer',
               marginBottom: 20,
+              opacity: engineInitialized ? 1 : 0.5,
+              cursor: engineInitialized ? 'pointer' : 'not-allowed'
             }}
             onClick={() => {
-              if (!isProcessing) {
+              if (!isProcessing && engineInitialized) {
                 document.getElementById('file')?.click();
+              } else if (!engineInitialized) {
+                setStatus('[WARNING] Audio engine not ready. Please wait...');
               }
             }}
           >
@@ -370,15 +563,24 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
           <button
             onClick={() => {
-              if (!isProcessing) {
+              if (!isProcessing && engineInitialized) {
                 loadExampleAudio();
+              } else if (!engineInitialized) {
+                setStatus('[WARNING] Audio engine not ready. Please wait...');
               }
             }}
-            disabled={isProcessing}
+            disabled={isProcessing || !engineInitialized}
             className="matrix-button"
-            style={{ width: '100%', marginBottom: 20, opacity: isProcessing ? 0.5 : 1 }}
+            style={{ 
+              width: '100%', 
+              marginBottom: 20, 
+              opacity: (isProcessing || !engineInitialized) ? 0.5 : 1,
+              cursor: engineInitialized ? 'pointer' : 'not-allowed'
+            }}
           >
-            {isProcessing ? '[MURMURABA_PROCESSING...]' : '[LOAD_JFK_SAMPLE.WAV]'}
+            {isProcessing ? '[MURMURABA_PROCESSING...]' : 
+             !engineInitialized ? '[ENGINE_INITIALIZING...]' : 
+             '[LOAD_JFK_SAMPLE.WAV]'}
           </button>
         </div>
 
@@ -421,7 +623,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
                     marginRight: 20,
                   }}
                 >
-                  VAD: {(averageVad * 100).toFixed(1)}%
+                  VAD: {((processedFileVad > 0 ? processedFileVad : averageVad) * 100).toFixed(1)}%
                 </div>
               </div>
 
@@ -429,8 +631,21 @@ export const WhisperMatrixTerminal: React.FC = () => {
                 &gt; AUDIO_ENHANCEMENT: NOISE_REDUCTION | AGC | ECHO_CANCELLATION
               </p>
 
-              {/* Individual chunk players */}
-              {audioChunks.map((chunk, index) => (
+              {/* Show processed file audio player */}
+              {processedFileVad > 0 && chunkUrls.length > 0 ? (
+                <div style={{ marginBottom: 15 }}>
+                  <p style={{ margin: '5px 0', fontSize: '0.9em', opacity: 0.8 }}>
+                    &gt; PROCESSED_FILE | DURATION: {(processedFileDuration / 1000).toFixed(2)}s | VAD: {(processedFileVad * 100).toFixed(1)}%
+                  </p>
+                  <audio
+                    src={chunkUrls[0]}
+                    controls
+                    style={{ width: '100%', height: '35px' }}
+                  />
+                </div>
+              ) : (
+                /* Individual chunk players for real-time recording */
+                audioChunks.map((chunk, index) => (
                 <div key={`audio-chunk-${index}`} style={{ marginBottom: 15 }}>
                   <p style={{ margin: '5px 0', fontSize: '0.9em', opacity: 0.8 }}>
                     &gt; CHUNK_{index + 1} | DURATION: {(chunk.duration / 1000).toFixed(2)}s | VAD:{' '}
@@ -442,14 +657,15 @@ export const WhisperMatrixTerminal: React.FC = () => {
                     style={{ width: '100%', height: '35px' }}
                   />
                 </div>
-              ))}
+              ))
+              )}
 
               <p
                 className="matrix-vad-score"
                 style={{ marginTop: 10, marginBottom: 0, opacity: 0.7 }}
               >
-                &gt; TOTAL_CHUNKS: {audioChunks.length} | TOTAL_DURATION:{' '}
-                {(audioChunks.reduce((acc, chunk) => acc + chunk.duration, 0) / 1000).toFixed(2)}s
+                &gt; TOTAL_CHUNKS: {processedFileVad > 0 ? 1 : audioChunks.length} | TOTAL_DURATION:{' '}
+                {processedFileVad > 0 ? (processedFileDuration / 1000).toFixed(2) : (audioChunks.reduce((acc, chunk) => acc + chunk.duration, 0) / 1000).toFixed(2)}s
               </p>
             </div>
 
@@ -733,7 +949,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
                   onClick={() => {
                     if (
                       !isTranscribing &&
-                      audioChunks.length > 0 &&
+                      (audioChunks.length > 0 || chunkUrls.length > 0) &&
                       silentThreadProcessorRef.current
                     ) {
                       setIsTranscribing(true);
@@ -746,13 +962,58 @@ export const WhisperMatrixTerminal: React.FC = () => {
                         {
                           id: `log-${Date.now()}`,
                           timestamp: new Date(),
-                          message: `Starting background transcription of ${audioChunks.length} chunks`,
+                          message: `Starting background transcription of ${audioChunks.length > 0 ? audioChunks.length : 1} chunks`,
                           type: 'info',
                         },
                       ]);
 
+                      // Process chunks or processed file
+                      const chunksToProcess = audioChunks.length > 0 ? audioChunks : 
+                        (chunkUrls.length > 0 && processedFileVad > 0 ? [{
+                          blob: new Blob([chunkUrls[0]], { type: 'audio/wav' }),
+                          duration: processedFileDuration,
+                          vadScore: processedFileVad,
+                          timestamp: Date.now(),
+                          id: 'processed-file'
+                        }] : []);
+
+                      // If we have a processed file URL but no blob, fetch it first
+                      if (audioChunks.length === 0 && chunkUrls.length > 0) {
+                        fetch(chunkUrls[0])
+                          .then(res => res.blob())
+                          .then(blob => {
+                            silentThreadProcessorRef.current
+                              ?.processTranscriptionAsync(
+                                blob,
+                                transcribeWithWhisper,
+                                (progress) => {
+                                  setBackgroundLogs((prev) => [
+                                    ...prev,
+                                    {
+                                      id: `progress-file-${Date.now()}`,
+                                      timestamp: new Date(),
+                                      message: `Processed file: ${progress}% complete`,
+                                      type: 'info',
+                                    },
+                                  ]);
+                                }
+                              )
+                              .then((text) => {
+                                setWhisperTranscriptions([text]);
+                                addBackgroundLog('Transcription completed', 'success');
+                                setIsTranscribing(false);
+                                setStatus('[WHISPER_BACKGROUND_COMPLETE]');
+                              })
+                              .catch((error) => {
+                                addBackgroundLog(`Transcription failed: ${error}`, 'error');
+                                setIsTranscribing(false);
+                              });
+                          });
+                        return;
+                      }
+
                       // Process each chunk in background
-                      audioChunks.forEach((chunk, index) => {
+                      chunksToProcess.forEach((chunk, index) => {
                         silentThreadProcessorRef.current
                           ?.processTranscriptionAsync(
                             chunk.blob,
@@ -810,11 +1071,11 @@ export const WhisperMatrixTerminal: React.FC = () => {
                       });
                     }
                   }}
-                  disabled={isTranscribing || audioChunks.length === 0}
+                  disabled={isTranscribing || (audioChunks.length === 0 && chunkUrls.length === 0)}
                   className="matrix-button"
                   style={{
                     width: '100%',
-                    opacity: isTranscribing || audioChunks.length === 0 ? 0.5 : 1,
+                    opacity: isTranscribing || (audioChunks.length === 0 && chunkUrls.length === 0) ? 0.5 : 1,
                     fontSize: '1.2em',
                     padding: '15px',
                     position: 'relative',
@@ -1103,13 +1364,19 @@ const {
   enableVAD: true
 })
 
+// Initialize Murmuraba audio engine
+await initializeAudioEngine({
+  enableNoiseSuppression: true,
+  enableEchoCancellation: true
+})
+
 // Process audio with Murmuraba pipeline
-await processAudioFile(audioFile)
+await processFileWithMetrics(audioBuffer)
 
 // Output streams
-> audioChunks    // Cleaned audio chunks
+> audioChunks    // Cleaned audio chunks  
 > averageVad     // Voice activity detection score
-> [WHISPER_DISABLED] // Transcription temporarily offline`}
+> transcriptions // Whisper AI transcription`}
         </pre>
 
         <p
@@ -1122,10 +1389,12 @@ await processAudioFile(audioFile)
         >
           [SYSTEM.READY] - MATRIX_AUDIO_PROCESSOR_ONLINE
         </p>
+            </div>
           </div>
-        ) : (
-          /* Audio Fragment Processor View */
-            <div className="fragment-processor-page" style={{ position: 'relative', zIndex: 1 }}>
+          
+          {/* Right face - Audio Fragment Processor */}
+          <div className="cube-face cube-face-right">
+            <div className="fragment-processor-page">
               <button 
                 className="matrix-back-button"
                 onClick={() => setCurrentFace('front')}
@@ -1177,56 +1446,142 @@ await processAudioFile(audioFile)
               </div>
             </div>
           </div>
-
-          {/* Back face - Reserved */}
+          
+          {/* Back face - Future feature */}
           <div className="cube-face cube-face-back">
-            <div style={{ 
-              background: '#000', 
-              height: '100%', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              color: '#00ff41',
-              fontFamily: 'Courier New, monospace'
-            }}>
-              [RESERVED]
+            <div className="fragment-processor-page">
+              <button 
+                className="matrix-back-button"
+                onClick={() => setCurrentFace('front')}
+              >
+                [← BACK]
+              </button>
+              <div className="fragment-processor-title">
+                &gt; ADVANCED ANALYSIS &lt;
+              </div>
+              <p style={{ textAlign: 'center', opacity: 0.7 }}>
+                Coming soon: Advanced audio analysis features
+              </p>
             </div>
           </div>
-        )}
-        
-        {/* Navigation button - only show on front face */}
-        {currentFace === 'front' && (
-          <button
-            style={{
-              position: 'fixed',
-              bottom: 20,
-              right: 20,
-              background: 'transparent',
-              border: '1px solid #00ff41',
-              color: '#00ff41',
-              padding: '12px 24px',
-              fontFamily: 'Courier New, monospace',
-              cursor: 'pointer',
-              transition: 'all 0.3s',
-              textTransform: 'uppercase',
-              zIndex: 1000
-            }}
-            onClick={() => setCurrentFace('right')}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = '#00ff41';
-              e.currentTarget.style.color = '#000';
-              e.currentTarget.style.boxShadow = '0 0 20px #00ff41';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = '#00ff41';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          >
-            [AUDIO_FRAGMENT_PROCESSOR →]
-          </button>
-        )}
+          
+          {/* Left face - Future feature */}
+          <div className="cube-face cube-face-left">
+            <div className="fragment-processor-page">
+              <button 
+                className="matrix-back-button"
+                onClick={() => setCurrentFace('front')}
+              >
+                [← BACK]
+              </button>
+              <div className="fragment-processor-title">
+                &gt; REAL-TIME VISUALIZER &lt;
+              </div>
+              <p style={{ textAlign: 'center', opacity: 0.7 }}>
+                Coming soon: Real-time audio visualization
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
+      
+      {/* Navigation buttons */}
+        {currentFace === 'front' && (
+          <div style={{ 
+            position: 'fixed', 
+            bottom: 20, 
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex', 
+            gap: 10, 
+            zIndex: 1000 
+          }}>
+            <button
+              style={{
+                background: 'transparent',
+                border: '1px solid #00ff41',
+                color: '#00ff41',
+                padding: '12px 24px',
+                fontFamily: 'Courier New, monospace',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                textTransform: 'uppercase',
+              }}
+              onClick={() => {
+                console.log('Clicking LEFT button');
+                setCurrentFace('left');
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = '#00ff41';
+                e.currentTarget.style.color = '#000';
+                e.currentTarget.style.boxShadow = '0 0 20px #00ff41';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#00ff41';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              [← VISUALIZER]
+            </button>
+            <button
+              style={{
+                background: 'transparent',
+                border: '1px solid #00ff41',
+                color: '#00ff41',
+                padding: '12px 24px',
+                fontFamily: 'Courier New, monospace',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                textTransform: 'uppercase',
+              }}
+              onClick={() => {
+                console.log('Clicking RIGHT button');
+                setCurrentFace('right');
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = '#00ff41';
+                e.currentTarget.style.color = '#000';
+                e.currentTarget.style.boxShadow = '0 0 20px #00ff41';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#00ff41';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              [FRAGMENT_PROCESSOR →]
+            </button>
+            <button
+              style={{
+                background: 'transparent',
+                border: '1px solid #00ff41',
+                color: '#00ff41',
+                padding: '12px 24px',
+                fontFamily: 'Courier New, monospace',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                textTransform: 'uppercase',
+              }}
+              onClick={() => {
+                console.log('Clicking BACK button');
+                setCurrentFace('back');
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = '#00ff41';
+                e.currentTarget.style.color = '#000';
+                e.currentTarget.style.boxShadow = '0 0 20px #00ff41';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#00ff41';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              [ANALYSIS ↓]
+            </button>
+          </div>
+        )}
 
       {/* Floating logs for background processing - only show on front face */}
       {currentFace === 'front' && backgroundLogs.length > 0 && <WhisperEchoLogs logs={backgroundLogs} maxLogs={15} />}

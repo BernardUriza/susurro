@@ -221,17 +221,16 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
               width: '100%',
             }}
             components={{
-              Scroller: React.forwardRef<HTMLDivElement>((props, ref) => (
+              Scroller: (props: any) => (
                 <div
                   {...props}
-                  ref={ref}
                   style={{
-                    ...(props as any).style,
+                    ...props.style,
                     scrollbarWidth: 'thin',
                     scrollbarColor: '#00ff41 transparent',
                   }}
                 />
-              )),
+              ),
             }}
           />
         </AnimatePresence>

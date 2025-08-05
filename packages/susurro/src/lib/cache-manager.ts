@@ -92,6 +92,7 @@ class ModelCacheManager {
 
   // Get cache status
   async getCacheStatus(): Promise<CacheStatus> {
+    console.log('[CACHE MANAGER] Getting cache status...');
     try {
       const db = await this.initDB();
       const transaction = db.transaction([this.storeName], 'readonly');
@@ -101,9 +102,22 @@ class ModelCacheManager {
         const request = store.getAll();
         request.onsuccess = () => {
           const models = request.result;
+          console.log('[CACHE MANAGER] Found', models.length, 'cached models');
+          
           if (models.length > 0) {
             const totalSize = models.reduce((sum, model) => sum + (model.size || 0), 0);
             const lastUpdated = new Date(Math.max(...models.map((m) => m.timestamp || 0)));
+
+            console.log('[CACHE MANAGER] Cache details:', {
+              modelCount: models.length,
+              totalSize: `${(totalSize / 1048576).toFixed(2)} MB`,
+              lastUpdated: lastUpdated.toISOString(),
+              models: models.map(m => ({
+                id: m.id,
+                size: `${((m.size || 0) / 1048576).toFixed(2)} MB`,
+                timestamp: new Date(m.timestamp || 0).toISOString()
+              }))
+            });
 
             resolve({
               hasCache: true,
@@ -111,12 +125,17 @@ class ModelCacheManager {
               lastUpdated: lastUpdated,
             });
           } else {
+            console.log('[CACHE MANAGER] No cached models found');
             resolve({ hasCache: false });
           }
         };
-        request.onerror = () => resolve({ hasCache: false });
+        request.onerror = () => {
+          console.error('[CACHE MANAGER] Error reading cache:', request.error);
+          resolve({ hasCache: false });
+        };
       });
     } catch (error) {
+      console.error('[CACHE MANAGER] Failed to get cache status:', error);
       return { hasCache: false };
     }
   }
@@ -156,14 +175,41 @@ class ModelCacheManager {
 
   // Request persistent storage
   async requestPersistentStorage(): Promise<boolean> {
+    console.log('[CACHE MANAGER] Requesting persistent storage...');
+    
     if ('storage' in navigator && 'persist' in navigator.storage) {
       try {
+        // Check current persistence status
+        const currentlyPersisted = await navigator.storage.persisted();
+        console.log('[CACHE MANAGER] Current persistence status:', currentlyPersisted);
+        
+        if (currentlyPersisted) {
+          console.log('[CACHE MANAGER] Storage is already persistent');
+          return true;
+        }
+        
+        // Request persistence
         const isPersisted = await navigator.storage.persist();
+        console.log('[CACHE MANAGER] Persistence request result:', isPersisted);
+        
+        // Get storage estimate after persistence request
+        if ('estimate' in navigator.storage) {
+          const estimate = await navigator.storage.estimate();
+          console.log('[CACHE MANAGER] Storage estimate after persistence:', {
+            usage: `${((estimate.usage || 0) / 1048576).toFixed(2)} MB`,
+            quota: `${((estimate.quota || 0) / 1048576).toFixed(2)} MB`,
+            percentUsed: `${(((estimate.usage || 0) / (estimate.quota || 1)) * 100).toFixed(2)}%`
+          });
+        }
+        
         return isPersisted;
       } catch (error) {
+        console.error('[CACHE MANAGER] Failed to request persistent storage:', error);
         return false;
       }
     }
+    
+    console.warn('[CACHE MANAGER] Persistent storage API not available');
     return false;
   }
 }

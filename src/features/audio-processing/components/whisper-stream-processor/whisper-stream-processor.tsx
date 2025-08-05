@@ -2,7 +2,7 @@
 
 // React 19 streaming transcription processor
 import React, { Suspense, useMemo, use } from 'react';
-import { WhisperRevelation, WhisperFragment, AudioTimestamp } from '../../../shared/types';
+import { WhisperRevelation, WhisperFragment, AudioTimestamp } from '../../../../shared/types';
 
 interface WhisperStreamProcessorProps {
   audioFragments: WhisperFragment[];
@@ -45,7 +45,7 @@ function createStreamingTranscription(
     }
 
     // Process fragments as a stream
-    const processFragmentStream = async (fragment: WhisperFragment, index: number) => {
+    const processFragmentStream = async (_fragment: WhisperFragment, index: number) => {
       try {
         // Simulate streaming transcription processing
         const revelation = await transcribeFragmentStreaming(index);

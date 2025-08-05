@@ -104,7 +104,7 @@ export const qualityMiddleware: ChunkMiddleware = {
 // Middleware Pipeline Manager
 export class ChunkMiddlewarePipeline {
   private middlewares: ChunkMiddleware[] = [];
-  private context: MiddlewareContext;
+  private context: MiddlewareContext; // Used to store middleware execution context
 
   constructor(_context: Partial<MiddlewareContext> = {}) {
     this.context = {
@@ -239,4 +239,3 @@ function analyzeAudioQuality(chunk: SusurroChunk): {
   };
 }
 
-export default ChunkMiddlewarePipeline;

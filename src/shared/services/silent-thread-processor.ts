@@ -38,7 +38,7 @@ export class SilentThreadProcessor {
             try {
               // Process in chunks to avoid blocking
               const chunkSize = 50; // ms
-              const _startTime = performance.now();
+              // const _startTime = performance.now(); // Reserved for future performance monitoring
 
               // If we have enough idle time, process the task
               if (deadline.timeRemaining() > chunkSize || deadline.didTimeout) {
@@ -80,16 +80,16 @@ export class SilentThreadProcessor {
         try {
           this.onLog?.('Starting transcription...', 'info');
 
-          // Simulate processing in smaller chunks
-          const _chunkSize = 1024 * 1024; // 1MB chunks
-          const totalSize = blob.size;
-          let _processed = 0;
+          // For future implementation: processing in smaller chunks
+          // const _chunkSize = 1024 * 1024; // 1MB chunks
+          // const totalSize = blob.size;
+          // let _processed = 0;
 
           // For actual implementation, we'd split the blob
           // For now, we'll just process the whole blob
           const result = await transcribe(blob);
 
-          _processed = totalSize;
+          // _processed = totalSize;
           onProgress(100);
 
           this.onLog?.('Transcription complete', 'success');

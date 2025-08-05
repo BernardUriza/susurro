@@ -566,12 +566,6 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
               {/* Controls */}
               <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <TemporalSegmentSelector
-                  value={chunkDuration}
-                  onChange={setChunkDuration}
-                  variant="simple"
-                  label="VISUALIZATION_CHUNK_DURATION_SEC"
-                />
 
                 <div style={{ marginTop: '20px' }}>
                   <button

@@ -17,13 +17,12 @@ import { SilentThreadProcessor } from '../../../../shared/services';
 // Styles (last)
 import '../../../../styles/matrix-theme.css';
 import '../../../../styles/improved-layout.css';
-import styles from './whisper-matrix-terminal.module.css';
 
 type CubeFace = 'front' | 'right' | 'back' | 'left';
 
 export const WhisperMatrixTerminal: React.FC = () => {
   const [temporalSegmentDuration] = React.useState(15); // Default 15 seconds
-  const [currentFace, setCurrentFace] = React.useState<CubeFace>('front');
+  const [currentFace] = React.useState<CubeFace>('front');
 
   // CONSOLIDATED useSusurro - All audio functionality in one hook
   const {
@@ -1297,124 +1296,10 @@ const result = await processAndTranscribeFile(file)
               </div>
             </div>
           </div>
-
-          {/* Right face - Audio Fragment Processor */}
-          <div className="cube-face cube-face-right">
-            <div className="fragment-processor-page">
-              <button className="matrix-back-button" onClick={() => setCurrentFace('front')}>
-                [← BACK]
-              </button>
-
-              <div className="matrix-grid" />
-
-              <div className="fragment-processor-title">&gt; AUDIO FRAGMENT PROCESSOR &lt;</div>
-
-              <div className="processor-grid">
-                <div className="processor-card">
-                  <h3>CHUNK ANALYZER</h3>
-                  <p>Real-time audio chunk analysis</p>
-                </div>
-                <div className="processor-card">
-                  <h3>VAD METRICS</h3>
-                  <p>Voice activity detection stats</p>
-                </div>
-                <div className="processor-card">
-                  <h3>WAVEFORM VIEWER</h3>
-                  <p>Visual audio representation</p>
-                </div>
-                <div className="processor-card">
-                  <h3>FREQUENCY ANALYZER</h3>
-                  <p>FFT spectrum analysis</p>
-                </div>
-                <div className="processor-card">
-                  <h3>SEGMENT EDITOR</h3>
-                  <p>Manual chunk adjustment</p>
-                </div>
-                <div className="processor-card">
-                  <h3>EXPORT MANAGER</h3>
-                  <p>Download processed chunks</p>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  marginTop: 40,
-                  fontSize: '1rem',
-                  opacity: 0.8,
-                  textAlign: 'center',
-                }}
-              >
-                <p>STATUS: EXPERIMENTAL</p>
-                <p>Select a module to begin processing</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Back face - Future feature */}
-          <div className="cube-face cube-face-back">
-            <div className="fragment-processor-page">
-              <button className="matrix-back-button" onClick={() => setCurrentFace('front')}>
-                [← BACK]
-              </button>
-              <div className="fragment-processor-title">&gt; ADVANCED ANALYSIS &lt;</div>
-              <p style={{ textAlign: 'center', opacity: 0.7 }}>
-                Coming soon: Advanced audio analysis features
-              </p>
-            </div>
-          </div>
-
-          {/* Left face - Future feature */}
-          <div className="cube-face cube-face-left">
-            <div className="fragment-processor-page">
-              <button className="matrix-back-button" onClick={() => setCurrentFace('front')}>
-                [← BACK]
-              </button>
-              <div className="fragment-processor-title">&gt; REAL-TIME VISUALIZER &lt;</div>
-              <p style={{ textAlign: 'center', opacity: 0.7 }}>
-                Coming soon: Real-time audio visualization
-              </p>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Navigation buttons - Enhanced responsive layout */}
-      {currentFace === 'front' && (
-        <div className={styles.navigationContainer}>
-          <button
-            className={styles.matrixButton}
-            onClick={() => {
-              console.log('Clicking LEFT button');
-              setCurrentFace('left');
-            }}
-          >
-            [← VISUALIZER]
-          </button>
-          <button
-            className={styles.matrixButton}
-            onClick={() => {
-              console.log('Clicking RIGHT button');
-              setCurrentFace('right');
-            }}
-          >
-            [FRAGMENT_PROCESSOR →]
-          </button>
-          <button
-            className={styles.matrixButton}
-            onClick={() => {
-              console.log('Clicking BACK button');
-              setCurrentFace('back');
-            }}
-          >
-            [ANALYSIS ↓]
-          </button>
-        </div>
-      )}
-
-      {/* Floating logs for background processing - only show on front face */}
-      {currentFace === 'front' && backgroundLogs.length > 0 && (
-        <WhisperEchoLogs logs={backgroundLogs} maxLogs={15} />
-      )}
+      <WhisperEchoLogs logs={backgroundLogs} maxLogs={15} />
     </div>
   );
 };

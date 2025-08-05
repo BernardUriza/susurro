@@ -1,0 +1,167 @@
+/* Modern scroll-driven animations using CSS */
+
+/* Scroll-triggered fade in */
+@keyframes scroll-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scroll-triggered slide from left */
+@keyframes scroll-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Scroll-triggered slide from right */
+@keyframes scroll-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Matrix-style glitch effect */
+@keyframes matrix-glitch-in {
+  0% {
+    opacity: 0;
+    filter: blur(10px) hue-rotate(90deg);
+    transform: scale(0.9) translateY(20px);
+  }
+  50% {
+    filter: blur(5px) hue-rotate(45deg);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0) hue-rotate(0deg);
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Progressive reveal animation */
+@keyframes progressive-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* Utility classes for scroll animations */
+.scroll-animate {
+  animation-timeline: view();
+  animation-range: entry 0% entry 100%;
+  animation-fill-mode: both;
+}
+
+.scroll-fade-in {
+  animation-name: scroll-fade-in;
+  animation-duration: 0.6s;
+  animation-timing-function: ease-out;
+}
+
+.scroll-slide-left {
+  animation-name: scroll-slide-left;
+  animation-duration: 0.8s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scroll-slide-right {
+  animation-name: scroll-slide-right;
+  animation-duration: 0.8s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scroll-matrix-glitch {
+  animation-name: matrix-glitch-in;
+  animation-duration: 1s;
+  animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.scroll-progressive {
+  animation-name: progressive-reveal;
+  animation-duration: 1.2s;
+  animation-timing-function: ease-in-out;
+}
+
+/* Stagger delays for multiple elements */
+.scroll-stagger-1 { animation-delay: 0.1s; }
+.scroll-stagger-2 { animation-delay: 0.2s; }
+.scroll-stagger-3 { animation-delay: 0.3s; }
+.scroll-stagger-4 { animation-delay: 0.4s; }
+.scroll-stagger-5 { animation-delay: 0.5s; }
+
+/* Parallax scroll effects */
+.parallax-slow {
+  transform: translateY(calc(var(--scroll-y, 0) * 0.5));
+}
+
+.parallax-medium {
+  transform: translateY(calc(var(--scroll-y, 0) * 0.3));
+}
+
+.parallax-fast {
+  transform: translateY(calc(var(--scroll-y, 0) * 0.1));
+}
+
+/* Scroll-based color changes */
+.scroll-color-shift {
+  background: linear-gradient(
+    180deg,
+    var(--matrix-green) 0%,
+    var(--matrix-green-dim) 50%,
+    transparent 100%
+  );
+  background-size: 100% 200%;
+  background-position: 0% calc(var(--scroll-progress, 0) * 100%);
+}
+
+/* Scale on scroll */
+.scroll-scale {
+  transform: scale(calc(0.8 + var(--scroll-progress, 0) * 0.2));
+}
+
+/* Rotate on scroll */
+.scroll-rotate {
+  transform: rotate(calc(var(--scroll-progress, 0) * 360deg));
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .scroll-animate,
+  .scroll-fade-in,
+  .scroll-slide-left,
+  .scroll-slide-right,
+  .scroll-matrix-glitch,
+  .scroll-progressive {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+    clip-path: none;
+  }
+  
+  .parallax-slow,
+  .parallax-medium,
+  .parallax-fast,
+  .scroll-scale,
+  .scroll-rotate {
+    transform: none;
+  }
+}

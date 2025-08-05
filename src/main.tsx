@@ -4,6 +4,7 @@ import App from './app';
 import './styles/reset.css';
 import './styles/tokens.css';
 import './styles/matrix-theme.css';
+import './styles/scroll-animations.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

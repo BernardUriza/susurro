@@ -28,8 +28,7 @@ import {
   extractAudioMetadata
 } from 'murmuraba';
 
-// Use global engine manager for initialization
-import { audioEngineManager } from '../lib/engine-manager';
+// audioEngineManager removed - useMurmubaraEngine handles engine internally
 import type { ProcessingMetrics as MurmurabaProcessingMetrics } from 'murmuraba';
 
 // Conversational Evolution - Advanced chunk middleware
@@ -190,50 +189,13 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   // NEW REFACTORED METHODS - Core functionality
   
-  // Audio engine initialization using global manager
+  // Audio engine initialization - NO-OP since useMurmubaraEngine handles it
   const initializeAudioEngine = useCallback(async (config?: AudioEngineConfig) => {
-    const engineState = audioEngineManager.getState();
-    
-    // Check if already initialized or initializing
-    if (engineState.isInitialized) {
-      console.log('[useSusurro] Engine already initialized via manager');
-      setIsEngineInitialized(true);
-      return;
-    }
-    
-    if (engineState.isInitializing) {
-      console.log('[useSusurro] Engine initialization already in progress');
-      return;
-    }
-    
-    setIsInitializingEngine(true);
+    // The useMurmubaraEngine hook handles initialization internally
+    // We just mark it as initialized for our state tracking
+    console.log('[useSusurro] Engine initialization handled by useMurmubaraEngine');
+    setIsEngineInitialized(true);
     setEngineError(null);
-    
-    try {
-      console.log('[useSusurro] Initializing audio engine via manager...');
-      
-      // Convert our config to MurmubaraConfig format
-      const murmubaraConfig = {
-        logLevel: 'info' as const,
-        noiseReductionLevel: 'high' as const,
-        algorithm: 'rnnoise' as const,
-        useAudioWorklet: true,
-        autoCleanup: true
-      };
-      
-      await audioEngineManager.initialize(murmubaraConfig);
-      
-      console.log('[useSusurro] Audio engine initialized successfully');
-      setIsEngineInitialized(true);
-      setEngineError(null);
-    } catch (error: any) {
-      const errorMsg = error instanceof Error ? error.message : 'Audio engine initialization failed';
-      console.error('[useSusurro] Audio engine initialization failed:', error);
-      setEngineError(errorMsg);
-      throw new Error(`Audio engine initialization failed: ${errorMsg}`);
-    } finally {
-      setIsInitializingEngine(false);
-    }
   }, []);
   
   // VAD analysis helper  
@@ -321,11 +283,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       throw new Error('Already recording. Stop current recording first.');
     }
     
-    // Ensure engine is initialized
-    if (!isEngineInitialized) {
-      console.log('[useSusurro] Engine not initialized, initializing...');
-      await initializeAudioEngine();
-    }
+    // Don't initialize here - let useMurmubaraEngine handle it
+    // The murmuraba hook will initialize when startRecording is called
     
     setIsStreamingRecording(true);
     setCurrentStreamingChunks([]);
@@ -546,9 +505,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     chunkEmissionTimeoutRef.current.clear();
   }, []);
 
-  // Reset audio engine - cleanup and reinitialize
+  // Reset - just cleanup state since useMurmubaraEngine manages the engine
   const resetAudioEngine = useCallback(async () => {
-    console.log('[useSusurro] Resetting audio engine...');
+    console.log('[useSusurro] Resetting state...');
     
     // Stop any ongoing recordings
     if (recordingState.isRecording) {
@@ -567,12 +526,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       setCurrentStream(null);
     }
     
-    // Use the global engine manager to reset
-    await audioEngineManager.reset();
-    
     // Clear all state
-    setIsEngineInitialized(false);
-    setEngineError(null);
     setIsStreamingRecording(false);
     setCurrentStreamingChunks([]);
     streamingCallbackRef.current = null;
@@ -582,7 +536,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     setTranscriptions([]);
     clearConversationalChunks();
     
-    console.log('[useSusurro] Audio engine reset complete');
+    console.log('[useSusurro] State reset complete');
     
     // Optionally reinitialize after a short delay
     setTimeout(async () => {

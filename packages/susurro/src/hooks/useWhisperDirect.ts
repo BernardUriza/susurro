@@ -158,7 +158,7 @@ class RetryManager {
 // Singleton pattern for Whisper pipeline
 class WhisperPipelineSingleton {
   static task = 'automatic-speech-recognition' as const;
-  static model = 'Xenova/whisper-tiny'; // Use standard model identifier
+  static model = 'whisper-tiny'; // Use local model identifier
   static currentCDNIndex = 0;
   static instance: Pipeline | null = null;
   static pipeline: TransformersModule['pipeline'] | null = null;
@@ -193,21 +193,11 @@ class WhisperPipelineSingleton {
       log.warn('No HuggingFace token available for authentication');
     }
 
-    // Try local models first, fallback to remote
-    try {
-      // Check if local model exists
-      const localModelCheck = await fetch('/models/whisper-tiny/config.json');
-      if (localModelCheck.ok) {
-        log.info('Local model found, using local path');
-        this.env.remoteURL = '/models/';
-        this.env.allowLocalModels = true;
-      } else {
-        throw new Error('Local model not found');
-      }
-    } catch {
-      log.info('Local model not available, using HuggingFace with authentication');
-      this.env.remoteURL = 'https://huggingface.co/';
-    }
+    // Always use local models - they're already downloaded
+    log.info('Using local model files from /models/whisper-tiny/');
+    this.env.remoteURL = '/models/';
+    this.env.allowLocalModels = true;
+    this.env.allowRemoteModels = false; // Prevent remote fetching
 
     this.isFirewalled = false;
 
@@ -425,7 +415,7 @@ class WhisperPipelineSingleton {
             quantized: true,
             revision: 'main',
             cache_dir: '.transformers-cache',
-            local_files_only: false,
+            local_files_only: true, // Force use of local files
             timeout: 60000,
             retries: 0,
           } as any);

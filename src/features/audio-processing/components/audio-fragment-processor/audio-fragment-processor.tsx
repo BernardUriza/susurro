@@ -81,21 +81,22 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
   }, [processAndTranscribeFile]);
 
   return (
-    <div style={{ padding: '20px', background: '#000', minHeight: '100vh', color: '#00ff41' }}>
+    <div style={{ padding: '20px', minHeight: '100vh', color: '#00ff41' }}>
       <button onClick={onBack} style={{ marginBottom: '20px' }}>[← BACK]</button>
       
-      <h1>SUSURRO WAVEFORM</h1>
+      <h1>AUDIO FRAGMENT PROCESSOR</h1>
       
       {status && <div style={{ marginBottom: '10px' }}>{status}</div>}
       
       {/* SimpleWaveformAnalyzer - The entire visualization solution */}
-      <SimpleWaveformAnalyzer 
-        stream={currentStream || undefined}
-        isActive={isRecording}
-        width={800}
-        height={200}
-        style={{ marginBottom: '20px' }}
-      />
+      <div style={{ marginBottom: '20px' }}>
+        <SimpleWaveformAnalyzer 
+          stream={currentStream || undefined}
+          isActive={isRecording}
+          width={800}
+          height={200}
+        />
+      </div>
       
       <button
         onClick={isRecording ? handleStopRecording : handleStartRecording}

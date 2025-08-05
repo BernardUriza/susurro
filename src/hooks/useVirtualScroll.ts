@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 
 interface VirtualScrollOptions {
   itemHeight: number;
@@ -13,13 +13,14 @@ interface VirtualScrollReturn {
   totalHeight: number;
   offsetY: number;
   visibleItems: number[];
+  handleScroll: (event: Event) => void;
 }
 
 export const useVirtualScroll = ({
   itemHeight,
   containerHeight,
   itemCount,
-  overscan = 5
+  overscan = 5,
 }: VirtualScrollOptions): VirtualScrollReturn => {
   const [scrollTop, setScrollTop] = useState(0);
 
@@ -54,7 +55,8 @@ export const useVirtualScroll = ({
     endIndex: visibleRange.endIndex,
     totalHeight,
     offsetY,
-    visibleItems
+    visibleItems,
+    handleScroll,
   };
 };
 
@@ -68,11 +70,11 @@ export const useSmoothScroll = () => {
     const animateScroll = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
+
       // Easing function (ease out cubic)
       const easeOutCubic = 1 - Math.pow(1 - progress, 3);
-      
-      element.scrollTop = start + (change * easeOutCubic);
+
+      element.scrollTop = start + change * easeOutCubic;
 
       if (progress < 1) {
         requestAnimationFrame(animateScroll);

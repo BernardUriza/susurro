@@ -24,10 +24,12 @@ import { useMurmubaraEngine } from 'murmuraba';
 // Import Murmuraba processing functions - ONLY useSusurro should access these
 import {
   processFileWithMetrics as murmubaraProcess,
-  initializeAudioEngine as murmubaraInit,
   murmubaraVAD,
   extractAudioMetadata
 } from 'murmuraba';
+
+// Use global engine manager for initialization
+import { audioEngineManager } from '../lib/engine-manager';
 import type { ProcessingMetrics as MurmurabaProcessingMetrics } from 'murmuraba';
 
 // Conversational Evolution - Advanced chunk middleware
@@ -188,33 +190,40 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   // NEW REFACTORED METHODS - Core functionality
   
-  // Audio engine initialization
+  // Audio engine initialization using global manager
   const initializeAudioEngine = useCallback(async (config?: AudioEngineConfig) => {
-    if (isInitializingEngine) return;
+    const engineState = audioEngineManager.getState();
+    
+    // Check if already initialized or initializing
+    if (engineState.isInitialized) {
+      console.log('[useSusurro] Engine already initialized via manager');
+      setIsEngineInitialized(true);
+      return;
+    }
+    
+    if (engineState.isInitializing) {
+      console.log('[useSusurro] Engine initialization already in progress');
+      return;
+    }
     
     setIsInitializingEngine(true);
     setEngineError(null);
     
     try {
-      console.log('[useSusurro] Initializing Murmuraba audio engine...');
+      console.log('[useSusurro] Initializing audio engine via manager...');
       
-      // Ensure WASM path is correct - use absolute path
-      const wasmPath = typeof window !== 'undefined' 
-        ? `${window.location.origin}/wasm/` 
-        : '/wasm/';
+      // Convert our config to MurmubaraConfig format
+      const murmubaraConfig = {
+        logLevel: 'info' as const,
+        noiseReductionLevel: 'high' as const,
+        algorithm: 'rnnoise' as const,
+        useAudioWorklet: true,
+        autoCleanup: true
+      };
       
-      console.log('[useSusurro] Using WASM path:', wasmPath);
+      await audioEngineManager.initialize(murmubaraConfig);
       
-      await murmubaraInit({
-        enableVAD: true,
-        enableNoiseSuppression: true,
-        enableEchoCancellation: true,
-        vadThreshold: 0.5,
-        wasmPath,
-        ...config
-      } as Record<string, unknown>);
-      
-      console.log('[useSusurro] Murmuraba audio engine initialized successfully');
+      console.log('[useSusurro] Audio engine initialized successfully');
       setIsEngineInitialized(true);
       setEngineError(null);
     } catch (error) {
@@ -225,7 +234,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     } finally {
       setIsInitializingEngine(false);
     }
-  }, [isInitializingEngine]);
+  }, []);
   
   // VAD analysis helper  
   const analyzeVAD = useCallback(async (buffer: ArrayBuffer): Promise<VADAnalysisResult> => {
@@ -556,6 +565,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       setCurrentStream(null);
     }
     
+    // Use the global engine manager to reset
+    await audioEngineManager.reset();
+    
     // Clear all state
     setIsEngineInitialized(false);
     setEngineError(null);
@@ -584,7 +596,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     stopMurmurabaRecording,
     currentStream,
     clearConversationalChunks,
-    initializeAudioEngine
+    initializeAudioEngine,
+    isEngineInitialized
   ]);
 
   // Enhanced transcription handler with conversational support

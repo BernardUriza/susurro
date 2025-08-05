@@ -2,31 +2,26 @@ import React, { useEffect, useRef, useState } from 'react';
 import styles from './MatrixRain.module.css';
 
 interface MatrixRainProps {
-  density?: number; // Number of columns (default: 100)
-  speed?: number; // Fall speed (default: 30)
-  opacity?: number; // Opacity of the rain (default: 0.15)
-  fontSize?: number; // Font size of characters (default: 16)
-  color?: string; // Color of characters (default: '#00ff41')
-  glowIntensity?: number; // Glow intensity (default: 1)
-  waveEffect?: boolean; // Enable wave effect (default: true)
-  colorMode?: 'mono' | 'gradient' | 'rainbow'; // Color mode (default: 'gradient')
+  density?: number;
+  speed?: number;
+  opacity?: number;
+  fontSize?: number;
+  color?: string;
 }
 
 export const MatrixRain: React.FC<MatrixRainProps> = ({
-  density = 100,
-  speed = 30,
-  opacity = 0.15,
+  density = 50,
+  speed = 50,
+  opacity = 0.08,
   fontSize = 16,
   color = '#00ff41',
-  glowIntensity = 1,
-  waveEffect = true,
-  colorMode = 'gradient',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const dropsRef = useRef<{ pos: number; speed: number; brightness: number; trail: string[] }[]>([]);
+  const animationRef = useRef<number>();
 
-  // Japanese characters for Matrix effect
-  const matrixChars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワンガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  const matrixChars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const chars = matrixChars.split('');
 
   useEffect(() => {
@@ -44,136 +39,124 @@ export const MatrixRain: React.FC<MatrixRainProps> = ({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || dimensions.width === 0 || dimensions.height === 0) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Skip if dimensions are not ready
-    if (dimensions.width === 0 || dimensions.height === 0) return;
-
     canvas.width = dimensions.width;
     canvas.height = dimensions.height;
 
-    const columnWidth = dimensions.width / density;
-    const drops: number[] = new Array(density).fill(1);
-    const columnSpeeds: number[] = new Array(density).fill(0).map(() => 0.5 + Math.random() * 1.5);
-    const columnOpacities: number[] = new Array(density).fill(0).map(() => 0.3 + Math.random() * 0.7);
-    const columnBrightness: number[] = new Array(density).fill(0).map(() => Math.random());
-    const columnPhases: number[] = new Array(density).fill(0).map((_, i) => (i / density) * Math.PI * 2);
+    const columnWidth = fontSize;
+    const columns = Math.floor(dimensions.width / columnWidth);
     
-    let waveOffset = 0;
-    const waveFrequency = 0.05;
-    const waveAmplitude = 20;
+    // Initialize drops with enhanced properties
+    if (dropsRef.current.length !== columns) {
+      dropsRef.current = Array.from({ length: columns }, () => ({
+        pos: Math.floor(Math.random() * -dimensions.height / fontSize),
+        speed: 0.5 + Math.random() * 1.5, // Variable speed between 0.5 and 2
+        brightness: Math.random(),
+        trail: Array(5).fill('') // Store last 5 characters for trail effect
+      }));
+    }
+
+    const hexToRgb = (hex: string) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : { r: 0, g: 255, b: 65 };
+    };
+
+    const rgb = hexToRgb(color);
 
     const draw = () => {
-      // Semi-transparent black background for trail effect with slight blue tint
-      ctx.fillStyle = `rgba(0, 0, 1, 0.04)`;
+      // Enhanced fade effect with slight blue tint
+      ctx.fillStyle = 'rgba(0, 0, 2, 0.05)';
       ctx.fillRect(0, 0, dimensions.width, dimensions.height);
-      
-      // Update wave offset for animation
-      if (waveEffect) {
-        waveOffset += 0.02;
-      }
 
-      // Set text properties
       ctx.font = `${fontSize}px monospace`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
 
-      // Draw characters
-      for (let i = 0; i < drops.length; i++) {
+      for (let i = 0; i < dropsRef.current.length; i++) {
+        const drop = dropsRef.current[i];
+        const x = i * columnWidth;
+        const y = drop.pos * fontSize;
+        
+        // Generate new character
         const text = chars[Math.floor(Math.random() * chars.length)];
-        const x = i * columnWidth + columnWidth / 2;
         
-        // Apply wave effect to y position
-        const waveY = waveEffect 
-          ? Math.sin(columnPhases[i] + waveOffset) * waveAmplitude 
-          : 0;
-        const y = drops[i] * fontSize + waveY;
+        // Update trail
+        drop.trail.shift();
+        drop.trail.push(text);
 
-        // Fade effect based on position
-        const fadeStart = dimensions.height * 0.7;
-        const fadeOpacity = y > fadeStart 
-          ? Math.max(0, 1 - (y - fadeStart) / (dimensions.height - fadeStart))
-          : 1;
-
-        // Apply column-specific opacity with fade effect and brightness pulse
-        const brightnessPulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.001 + columnPhases[i]);
-        ctx.globalAlpha = opacity * columnOpacities[i] * fadeOpacity * (0.7 + 0.3 * brightnessPulse);
-        
-        // Color based on mode
-        if (colorMode === 'rainbow') {
-          const hue = (Date.now() * 0.05 + i * 10) % 360;
-          ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
-        } else if (colorMode === 'gradient') {
-          // Enhanced gradient with multiple color stops
-          const gradient = ctx.createLinearGradient(0, y - fontSize * 2, 0, y + fontSize);
-          gradient.addColorStop(0, 'rgba(0, 255, 255, 0)');
-          gradient.addColorStop(0.3, 'rgba(0, 255, 100, 0.8)');
-          gradient.addColorStop(0.5, color);
-          gradient.addColorStop(0.7, 'rgba(0, 200, 65, 0.8)');
-          gradient.addColorStop(1, 'rgba(0, 100, 30, 0)');
-          ctx.fillStyle = gradient;
-        } else {
-          ctx.fillStyle = color;
-        }
-
-        // Add multi-layer glow effect
-        if (columnBrightness[i] > 0.7 || Math.random() > 0.95) {
-          // Outer glow
-          ctx.shadowBlur = 30 * glowIntensity;
-          ctx.shadowColor = colorMode === 'rainbow' 
-            ? `hsl(${(Date.now() * 0.05 + i * 10) % 360}, 100%, 50%)`
-            : color;
-          ctx.fillText(text, x, y);
-          
-          // Inner glow
-          ctx.shadowBlur = 15 * glowIntensity;
-          ctx.shadowColor = '#ffffff';
-          ctx.fillText(text, x, y);
-          
-          // Core text
-          ctx.shadowBlur = 5 * glowIntensity;
-          ctx.shadowColor = color;
-          ctx.fillText(text, x, y);
-          ctx.shadowBlur = 0;
-        } else {
-          ctx.fillText(text, x, y);
-        }
-        
-        // Trailing characters with decreasing opacity
-        for (let j = 1; j <= 3; j++) {
-          const trailY = y - (j * fontSize);
-          if (trailY > 0) {
-            ctx.globalAlpha = (opacity * columnOpacities[i] * fadeOpacity) / (j * 2);
-            const trailText = chars[Math.floor(Math.random() * chars.length)];
-            ctx.fillText(trailText, x, trailY);
+        // Draw trail with fading effect
+        drop.trail.forEach((char, index) => {
+          if (char) {
+            const trailY = y - (drop.trail.length - index) * fontSize;
+            if (trailY >= 0) {
+              const trailOpacity = (index / drop.trail.length) * opacity * 0.6;
+              ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${trailOpacity})`;
+              ctx.fillText(char, x, trailY);
+            }
           }
+        });
+
+        // Draw main character with glow effect for bright ones
+        if (Math.random() > 0.98) {
+          // Occasional bright flash
+          drop.brightness = 1;
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = color;
+          ctx.fillStyle = '#ffffff';
+        } else {
+          drop.brightness *= 0.98; // Gradual fade
+          const brightness = 0.3 + drop.brightness * 0.7;
+          ctx.shadowBlur = drop.brightness > 0.5 ? 10 : 0;
+          ctx.shadowColor = color;
+          ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity * brightness})`;
         }
 
-        // Reset drop to top when it reaches bottom
-        if (y > dimensions.height && Math.random() > 0.975) {
-          drops[i] = 0;
-          // Randomize properties on reset
-          columnSpeeds[i] = 0.5 + Math.random() * 1.5;
-          columnBrightness[i] = Math.random();
-          columnOpacities[i] = 0.3 + Math.random() * 0.7;
+        // Apply fade based on position
+        const fadePoint = dimensions.height * 0.7;
+        if (y > fadePoint) {
+          const fadeFactor = 1 - (y - fadePoint) / (dimensions.height - fadePoint);
+          ctx.globalAlpha = fadeFactor;
+        } else {
+          ctx.globalAlpha = 1;
         }
 
-        // Move drop down with variable speed and slight horizontal drift
-        drops[i] += columnSpeeds[i];
-        
-        // Occasionally boost speed for dynamic effect
-        if (Math.random() > 0.995) {
-          columnSpeeds[i] = Math.min(columnSpeeds[i] * 1.5, 3);
+        ctx.fillText(text, x, y);
+        ctx.shadowBlur = 0; // Reset shadow
+
+        // Reset drop when it goes off screen
+        if (drop.pos * fontSize > dimensions.height + fontSize * 10) {
+          drop.pos = -Math.floor(Math.random() * 30);
+          drop.speed = 0.5 + Math.random() * 1.5;
+          drop.brightness = Math.random() * 0.5;
+          drop.trail = Array(5).fill('');
         }
+
+        // Move drop down at variable speed
+        drop.pos += drop.speed;
       }
     };
 
-    const interval = setInterval(draw, speed);
-    return () => clearInterval(interval);
-  }, [dimensions, fontSize, speed, color, opacity, density, glowIntensity, waveEffect, colorMode]);
+    const animate = () => {
+      draw();
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+    
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [dimensions, fontSize, color, opacity]);
 
   return (
     <div className={styles.matrixRainContainer}>

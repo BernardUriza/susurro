@@ -301,29 +301,16 @@ export const WhisperMatrixTerminal: React.FC = () => {
                   }}
                 >
                   <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                    <h1
-                      className="matrix-title"
-                      data-text="SUSURRO MATRIX"
-                      style={{
-                        fontSize: '4rem',
-                        fontWeight: 'bold',
-                        letterSpacing: '0.3em',
-                        textTransform: 'uppercase',
-                        background:
-                          'linear-gradient(45deg, #00ff41 0%, #00ff41 25%, #ffffff 50%, #00ff41 75%, #00ff41 100%)',
-                        backgroundSize: '200% auto',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                        animation: 'textShine 3s linear infinite',
-                        position: 'relative',
-                        margin: '0 0 1rem 0',
-                        filter: 'drop-shadow(0 0 30px rgba(0, 255, 65, 0.6))',
-                        userSelect: 'none',
-                      }}
-                    >
-                      SUSURRO<span style={{ opacity: 0.8 }}>⚡</span>MATRIX
-                    </h1>
+                    <img 
+                      src="/banner.png" 
+                      alt="SUSURRO MATRIX" 
+                      style={{ 
+                        maxWidth: '100%', 
+                        height: 'auto',
+                        marginBottom: '20px',
+                        filter: 'drop-shadow(0 0 30px rgba(0, 255, 65, 0.6))'
+                      }} 
+                    />
                     <p
                       className="matrix-subtitle fade-in"
                       style={{

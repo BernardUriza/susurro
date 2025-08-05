@@ -14,4 +14,7 @@ export * from './lib/chunk-middleware';
 export { latencyMonitor } from './lib/latency-monitor';
 export * from './lib/latency-monitor';
 
+// Export the global engine manager for external control
+export { audioEngineManager } from './lib/engine-manager';
+
 export type { UseSusurroOptions, UseSusurroReturn } from './hooks/useSusurro';

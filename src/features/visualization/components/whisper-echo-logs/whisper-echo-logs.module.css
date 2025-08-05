@@ -1,0 +1,109 @@
+@import '../../../../styles/tokens.css';
+
+.container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 400px;
+  background: rgba(0, 0, 0, 0.95);
+  border: 1px solid var(--matrix-green);
+  padding: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--matrix-green);
+  z-index: 1000;
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.header {
+  border-bottom: 1px solid var(--matrix-green);
+  padding-bottom: var(--space-1);
+  margin-bottom: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.indicator {
+  font-size: 10px;
+  opacity: 0.7;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.scrollArea {
+  width: 100%;
+}
+
+.logsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.logEntry {
+  opacity: 0.9;
+  font-size: 11px;
+  display: flex;
+  gap: var(--space-1);
+  align-items: flex-start;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.timestamp {
+  opacity: 0.6;
+  flex-shrink: 0;
+  min-width: 70px;
+}
+
+.message {
+  flex: 1;
+  word-break: break-word;
+}
+
+/* Log type styles */
+.logInfo {
+  color: var(--matrix-green);
+}
+
+.logError {
+  color: #ff4141;
+}
+
+.logWarning {
+  color: #ffff41;
+}
+
+.logSuccess {
+  color: #41ff41;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 0.9;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .container {
+    bottom: 10px;
+    right: 10px;
+    width: calc(100vw - 20px);
+    max-width: 350px;
+  }
+}

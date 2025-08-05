@@ -1,4 +1,7 @@
-// React and external libraries\nimport React from 'react'
+// React and external libraries
+import React, { useEffect, useRef } from 'react';
+import { MatrixScrollArea, MatrixScrollAreaRef } from '../../../../components/MatrixScrollArea';
+import styles from './whisper-echo-logs.module.css';
 
 interface LogEntry {
   id: string;
@@ -10,81 +13,60 @@ interface LogEntry {
 export interface WhisperEchoLogsProps {
   logs: LogEntry[];
   maxLogs?: number;
+  autoScroll?: boolean;
 }
 
-export const WhisperEchoLogs: React.FC<WhisperEchoLogsProps> = ({ logs, maxLogs = 10 }) => {
-  const displayLogs = logs.slice(-maxLogs); // Show only last N logs
+export const WhisperEchoLogs: React.FC<WhisperEchoLogsProps> = ({ 
+  logs, 
+  maxLogs = 100,
+  autoScroll = true 
+}) => {
+  const scrollRef = useRef<MatrixScrollAreaRef>(null);
+  const displayLogs = logs.slice(-maxLogs);
+
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (autoScroll && scrollRef.current) {
+      scrollRef.current.scrollToBottom();
+    }
+  }, [logs.length, autoScroll]);
+
+  const getLogTypeClass = (type: LogEntry['type']) => {
+    switch (type) {
+      case 'error': return styles.logError;
+      case 'warning': return styles.logWarning;
+      case 'success': return styles.logSuccess;
+      default: return styles.logInfo;
+    }
+  };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 20,
-        right: 20,
-        width: '400px',
-        maxHeight: '300px',
-        background: 'rgba(0, 0, 0, 0.95)',
-        border: '1px solid #00ff41',
-        borderRadius: '0',
-        padding: '10px',
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#00ff41',
-        overflow: 'auto',
-        zIndex: 1000,
-        boxShadow: '0 0 20px rgba(0, 255, 65, 0.3)',
-        backdropFilter: 'blur(10px)',
-      }}
-    >
-      <div
-        style={{
-          borderBottom: '1px solid #00ff41',
-          paddingBottom: '5px',
-          marginBottom: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
+    <div className={styles.container}>
+      <div className={styles.header}>
         <span>&gt; WHISPER_ECHO_LOG</span>
-        <span
-          style={{
-            fontSize: '10px',
-            opacity: 0.7,
-            animation: 'pulse 2s infinite',
-          }}
-        >
-          ●
-        </span>
+        <span className={styles.indicator}>●</span>
       </div>
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '4px',
-        }}
+      
+      <MatrixScrollArea 
+        ref={scrollRef}
+        height="240px"
+        fadeEdges={true}
+        className={styles.scrollArea}
       >
-        {displayLogs.map((log) => (
-          <div
-            key={log.id}
-            style={{
-              opacity: 0.9,
-              fontSize: '11px',
-              color:
-                log.type === 'error'
-                  ? '#ff4141'
-                  : log.type === 'warning'
-                    ? '#ffff41'
-                    : log.type === 'success'
-                      ? '#41ff41'
-                      : '#00ff41',
-            }}
-          >
-            <span style={{ opacity: 0.6 }}>[{log.timestamp.toLocaleTimeString()}]</span>{' '}
-            {log.message}
-          </div>
-        ))}
-      </div>
+        <div className={styles.logsContainer}>
+          {displayLogs.map((log) => (
+            <div
+              key={log.id}
+              className={`${styles.logEntry} ${getLogTypeClass(log.type)}`}
+            >
+              <span className={styles.timestamp}>
+                [{log.timestamp.toLocaleTimeString()}]
+              </span>
+              <span className={styles.message}>{log.message}</span>
+            </div>
+          ))}
+        </div>
+      </MatrixScrollArea>
     </div>
   );
 };

@@ -306,9 +306,11 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     [processAndTranscribeFile]
   );
 
-  // Draw visualizations
+  // Draw visualizations using requestAnimationFrame for smooth 60fps
   useEffect(() => {
-    const interval = setInterval(() => {
+    let animationFrameId: number;
+
+    const animate = () => {
       if (waveformCanvasRef.current) {
         drawWaveform(waveformCanvasRef.current, visualData.waveform);
       }
@@ -318,9 +320,15 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
       if (vadCanvasRef.current) {
         drawVADHistory(vadCanvasRef.current, visualData.vadHistory);
       }
-    }, 50); // 20 FPS
 
-    return () => clearInterval(interval);
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
   }, [visualData, drawWaveform, drawFrequency, drawVADHistory]);
 
   return (

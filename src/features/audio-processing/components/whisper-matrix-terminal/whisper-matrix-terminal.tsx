@@ -44,6 +44,11 @@ export const WhisperMatrixTerminal: React.FC = () => {
   const [whisperTranscriptions, setWhisperTranscriptions] = React.useState<string[]>([]);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
 
+  // Initialize status on mount
+  React.useEffect(() => {
+    setStatus('[SYSTEM] Audio neural processor ready');
+  }, []);
+
   // Direct values from useSusurro - no abstraction needed
   const [backgroundLogs, setBackgroundLogs] = React.useState<
     Array<{
@@ -268,7 +273,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
           />
         </div>
         <p style={{ marginBottom: 30, opacity: 0.8 }}>
-          &gt; INITIALIZING AUDIO NEURAL PROCESSOR...
+          &gt; {status || 'SYSTEM READY'}
         </p>
 
         {/* Upload Section */}

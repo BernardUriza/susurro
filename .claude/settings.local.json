@@ -63,7 +63,9 @@
       "Bash(mv:*)",
       "Bash(chmod:*)",
       "Bash(npm run type-check:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(copy:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": []
   }

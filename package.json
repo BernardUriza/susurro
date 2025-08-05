@@ -10,12 +10,13 @@
     "README.md"
   ],
   "scripts": {
-    "dev": "npm run dev:all",
+    "dev": "npm run copy:wasm && vite",
     "dev:all": "npm run dev:package & npm run dev:vite",
     "dev:vite": "vite",
     "dev:package": "npm -w susurro-audio run dev",
-    "build": "vite build",
+    "build": "npm run copy:wasm && vite build",
     "build:package": "echo 'Package build skipped - no workspace found'",
+    "copy:wasm": "node -e \"const fs=require('fs');const path=require('path');const dir='public/wasm';if(!fs.existsSync(dir))fs.mkdirSync(dir,{recursive:true});fs.copyFileSync('node_modules/murmuraba/dist/rnnoise.wasm',path.join(dir,'rnnoise.wasm'))\"",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "type-check:strict": "tsc --noEmit --strict",

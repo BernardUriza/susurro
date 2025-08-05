@@ -47,8 +47,17 @@ class AudioEngineManager {
     
     this.initPromise = (async () => {
       try {
-        // Always try to destroy first to ensure clean state
-        await this.forceDestroy();
+        // ALWAYS destroy first, no matter what!
+        console.log('[AudioEngineManager] Destroying any existing engine before init...');
+        try {
+          await murmubaraDestroy();
+          console.log('[AudioEngineManager] Destroyed existing engine');
+        } catch (destroyError) {
+          console.log('[AudioEngineManager] No engine to destroy (this is normal):', destroyError);
+        }
+        
+        // Small delay to ensure cleanup
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         console.log('[AudioEngineManager] Initializing Murmuraba engine...');
         
@@ -67,12 +76,6 @@ class AudioEngineManager {
         this.isInitialized = true;
         console.log('[AudioEngineManager] Engine initialized successfully');
       } catch (error: any) {
-        // Check if error is about already initialized engine
-        if (error?.message?.includes('already initialized')) {
-          console.log('[AudioEngineManager] Engine was already initialized, marking as ready');
-          this.isInitialized = true;
-          return; // Don't throw, just mark as initialized
-        }
         console.error('[AudioEngineManager] Initialization failed:', error);
         this.isInitialized = false;
         throw error;

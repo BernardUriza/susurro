@@ -44,7 +44,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     setStatus('[RECORDING_ACTIVE]');
     setChunksProcessed(0);
 
-    const onChunkProcessed = (_chunk: StreamingSusurroChunk) => {
+    const onChunkProcessed = () => {
       setChunksProcessed(prev => prev + 1);
     };
 
@@ -55,9 +55,9 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
         enableRealTimeTranscription: true,
         enableNoiseReduction: true,
       });
-    } catch (error: any) {
+    } catch (error) {
       setIsRecording(false);
-      setStatus(`[ERROR] ${error?.message || error}`);
+      setStatus(`[ERROR] ${error instanceof Error ? error.message : String(error)}`);
     }
   }, [whisperReady, startStreamingRecording]);
 

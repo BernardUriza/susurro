@@ -14,8 +14,7 @@
     "test:watch": "vitest --watch",
     "build": "tsup src/index.ts --format cjs,esm --dts --clean",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
-    "prepublishOnly": "npm run build",
-    "prepare": "husky"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "audio",

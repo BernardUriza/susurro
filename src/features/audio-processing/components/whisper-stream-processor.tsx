@@ -2,7 +2,7 @@
 
 // React 19 streaming transcription processor
 import React, { Suspense, useMemo, use } from 'react';
-import { WhisperRevelation, WhisperFragment } from '../../../shared/types';
+import { WhisperRevelation, WhisperFragment, AudioTimestamp } from '../../../shared/types';
 
 interface WhisperStreamProcessorProps {
   audioFragments: WhisperFragment[];
@@ -48,7 +48,7 @@ function createStreamingTranscription(
     const processFragmentStream = async (fragment: WhisperFragment, index: number) => {
       try {
         // Simulate streaming transcription processing
-        const revelation = await transcribeFragmentStreaming(fragment, index);
+        const revelation = await transcribeFragmentStreaming(index);
 
         // Stream individual revelations as they complete
         if (onRevelationStream) {
@@ -74,7 +74,6 @@ function createStreamingTranscription(
 
 // Streaming transcription function with real-time updates
 async function transcribeFragmentStreaming(
-  fragment: WhisperFragment,
   index: number
 ): Promise<WhisperRevelation> {
   // Simulate streaming transcription with periodic updates
@@ -102,7 +101,7 @@ async function transcribeFragmentStreaming(
           decodedMessage: `[STREAMED_FRAGMENT_${index + 1}] Whisper revelation decoded in real-time`,
           audioFragments: [],
           fragmentIndex: index,
-          revelationTime: Date.now(),
+          revelationTime: Date.now() as AudioTimestamp,
           confidenceScore: 0.85 + Math.random() * 0.1,
           languageDetected: 'en',
           processingDuration: Math.random() * 2000 + 1000,
@@ -145,7 +144,7 @@ function StreamingRevelationDisplay({ revelations }: { revelations: WhisperRevel
             <div className="revelation-header">
               <span className="fragment-id">FRAGMENT_{revelation.fragmentIndex + 1}</span>
               <span className="confidence-score">
-                CONFIDENCE: {(revelation.confidenceScore * 100).toFixed(1)}%
+                CONFIDENCE: {((revelation.confidenceScore ?? 0) * 100).toFixed(1)}%
               </span>
               <span className="processing-time">{revelation.processingDuration}ms</span>
             </div>

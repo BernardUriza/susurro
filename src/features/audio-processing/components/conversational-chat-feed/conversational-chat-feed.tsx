@@ -39,7 +39,7 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
 
   // Disable auto-scroll when user scrolls up manually
   const handleScroll = useCallback(() => {
-    virtuosoRef.current?.getState((state) => {
+    virtuosoRef.current?.getState((state: any) => {
       const isAtBottom =
         state.isScrolling === false &&
         state.scrollTop + state.viewportHeight >= state.scrollHeight - 50;
@@ -226,7 +226,7 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
                   {...props}
                   ref={ref}
                   style={{
-                    ...props.style,
+                    ...(props as any).style,
                     scrollbarWidth: 'thin',
                     scrollbarColor: '#00ff41 transparent',
                   }}

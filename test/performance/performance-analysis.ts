@@ -4,7 +4,6 @@
  */
 
 import { latencyMonitor, type LatencyReport } from '../../packages/susurro/src/lib/latency-monitor';
-import { generatePerformanceReport, exportBenchmarkResults } from './benchmark-suite.test';
 
 export interface PerformanceAnalysis {
   timestamp: string;

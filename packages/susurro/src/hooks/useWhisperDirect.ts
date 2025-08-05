@@ -61,7 +61,7 @@ class WhisperPipelineSingleton {
         throw new Error(`Failed to import transformers: ${err.message}`);
       });
 
-      this.pipeline = transformers.pipeline;
+      this.pipeline = transformers.pipeline as any;
       this.env = { ...transformers.env, remoteURL: '' } as TransformersEnvironment;
 
       if (this.env) {
@@ -81,7 +81,7 @@ class WhisperPipelineSingleton {
     }
 
     // Check cache first
-    const cacheStatus = await cacheManager.getCacheStatus();
+    const _cacheStatus = await cacheManager.getCacheStatus();
     // Cache checking logic can be expanded here if needed
 
     // Request persistent storage for better caching
@@ -249,7 +249,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
           const audioDataUrl = await audioToBase64(audioBlob);
 
           // Perform transcription
-          const startTime = Date.now();
+          const _startTime = Date.now();
 
           const output: WhisperOutput = await pipelineRef.current(audioDataUrl, {
             chunk_length_s: 30,
@@ -298,9 +298,9 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       });
 
       // Update queue reference
-      transcriptionQueueRef.current = transcriptionPromise.catch(() => {});
+      transcriptionQueueRef.current = transcriptionPromise.catch(() => null);
 
-      return transcriptionPromise as Promise<TranscriptionResult | null>;
+      return transcriptionPromise;
     },
     [whisperConfig, modelReady, isTranscribing]
   );

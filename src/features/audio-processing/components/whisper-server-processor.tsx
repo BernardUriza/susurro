@@ -28,17 +28,17 @@ export default async function WhisperServerProcessor({
 }
 
 // Type definitions for future implementation
-interface AudioMetadata {
-  duration: number;
-  sampleRate: number;
-  channels: number;
-  format: string;
-  size: number;
-  fragments: WhisperFragment[];
-  qualityScore: number;
-  processingHints: {
-    recommendedChunkSize: number;
-    optimalModel: string;
-    languageHint: string;
-  };
-}
+// interface AudioMetadata {
+//   duration: number;
+//   sampleRate: number;
+//   channels: number;
+//   format: string;
+//   size: number;
+//   fragments: WhisperFragment[];
+//   qualityScore: number;
+//   processingHints: {
+//     recommendedChunkSize: number;
+//     optimalModel: string;
+//     languageHint: string;
+//   };
+// }

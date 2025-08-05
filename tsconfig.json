@@ -31,7 +31,7 @@
     "examples/**/*.tsx",
     "test/**/*.ts"
   ],
-  "references": [{ "path": "./tsconfig.node.json" }],
+  "references": [{ "path": "./config/tsconfig.node.json" }],
   "exclude": [
     "node_modules",
     "dist",

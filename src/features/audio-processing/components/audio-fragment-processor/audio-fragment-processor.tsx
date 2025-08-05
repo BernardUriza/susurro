@@ -469,7 +469,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes blink {
           0%,
           50% {

@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useSusurro, SusurroChunk, type LatencyReport } from '../packages/susurro/src';
+import { useSusurro, SusurroChunk } from '../packages/susurro/src';
 
 interface VoiceMessage {
   id: string;

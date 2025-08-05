@@ -68,12 +68,9 @@
   ],
   "dependencies": {
     "@susurro/core": "file:./packages/susurro",
-    "@types/three": "^0.179.0",
     "eslint-config-prettier": "^10.1.8",
-    "framer-motion": "^12.23.12",
     "murmuraba": "^3.0.2",
-    "react-virtuoso": "^4.13.0",
-    "three": "^0.179.1"
+    "react-virtuoso": "^4.13.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

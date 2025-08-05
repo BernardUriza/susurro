@@ -1,0 +1,133 @@
+@import '../../styles/tokens.css';
+
+.container {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  position: relative;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.label {
+  color: var(--matrix-green);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.inputWrapper {
+  position: relative;
+}
+
+.input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--matrix-green-dim);
+  color: var(--matrix-green);
+  font-family: var(--font-mono);
+  transition: all var(--duration-fast) var(--ease-out);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--matrix-green-dim);
+  opacity: 0.5;
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--matrix-green);
+}
+
+.input:focus {
+  border-color: var(--matrix-green);
+  box-shadow: 0 0 10px var(--matrix-green-dim);
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Focus line animation */
+.focusLine {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--matrix-green);
+  transition: width var(--duration-normal) var(--ease-out);
+  pointer-events: none;
+}
+
+.input:focus ~ .focusLine {
+  width: 100%;
+}
+
+/* Sizes */
+.sm {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  min-height: 32px;
+}
+
+.md {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  min-height: 40px;
+}
+
+.lg {
+  padding: var(--space-4) var(--space-4);
+  font-size: var(--font-size-base);
+  min-height: 48px;
+}
+
+/* Error state */
+.hasError .input {
+  border-color: #ff0041;
+  color: #ff0041;
+}
+
+.hasError .input:focus {
+  box-shadow: 0 0 10px rgba(255, 0, 65, 0.5);
+}
+
+.hasError .focusLine {
+  background: #ff0041;
+}
+
+.error {
+  color: #ff0041;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  margin-top: var(--space-1);
+}
+
+.helperText {
+  color: var(--matrix-green-dim);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  margin-top: var(--space-1);
+}
+
+/* Autofill styles */
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover,
+.input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--matrix-green);
+  -webkit-box-shadow: 0 0 0px 1000px transparent inset;
+  transition: background-color 5000s ease-in-out 0s;
+  border: 1px solid var(--matrix-green);
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .input {
+    min-height: 44px;
+  }
+}

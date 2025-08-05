@@ -2,6 +2,7 @@
 
 // React and external libraries
 import React from 'react';
+import { processFile, processFileWithMetrics } from 'murmuraba';
 
 // Absolute imports
 import { useSusurro } from '@susurro/core';
@@ -113,19 +114,38 @@ export const WhisperMatrixTerminal: React.FC = () => {
       setOriginalUrl(URL.createObjectURL(file));
       clearTranscriptions();
 
-      // For now, show a message that file processing requires manual implementation
-      // since murmuraba's startRecording doesn't accept custom streams
-      setStatus('[INFO] File streaming not yet implemented - use microphone recording instead');
+      // Convert file to ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
+      setStatus('[PROCESSING_AUDIO_FILE...]');
       
-      // Alternative: Process the file in chunks manually
-      // This would require implementing a custom chunk processor
-      // that mimics the real-time recording behavior
+      // Process the file with murmuraba's RNNoise
+      const processedBuffer = await processFileWithMetrics(arrayBuffer);
       
-      addBackgroundLog('File upload attempted - streaming implementation pending', 'info');
+      // Create a blob from the processed audio
+      const processedBlob = new Blob([processedBuffer.audioBuffer], { type: 'audio/wav' });
       
-      return false;
+      // Log processing metrics
+      addBackgroundLog(`File processed successfully - VAD: ${(processedBuffer.metrics.averageVad * 100).toFixed(1)}%`, 'success');
+      addBackgroundLog(`Processing time: ${processedBuffer.metrics.processingTimeMs}ms`, 'info');
+      
+      // Set the processed audio URL for playback
+      const processedUrl = URL.createObjectURL(processedBlob);
+      setChunkUrls([processedUrl]);
+      
+      // Transcribe the processed audio
+      setStatus('[TRANSCRIBING_PROCESSED_AUDIO...]');
+      const result = await transcribeWithWhisper(processedBlob);
+      
+      if (result) {
+        setWhisperTranscriptions([result.text]);
+        addBackgroundLog('Transcription completed', 'success');
+      }
+      
+      setStatus('[FILE_PROCESSING_COMPLETE]');
+      return true;
     } catch (err) {
       setStatus(`[ERROR] ${err instanceof Error ? err.message : 'Unknown error'}`);
+      addBackgroundLog(`File processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
       return false;
     }
   };
@@ -161,7 +181,11 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
   return (
     <div className="matrix-theme">
-      <DigitalRainfall />
+      {/* Matrix rain background - outside cube for global effect */}
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}>
+        <DigitalRainfall />
+      </div>
+      
       {/* Version indicator in top-left corner */}
       <div
         style={{
@@ -1136,7 +1160,6 @@ await processAudioFile(audioFile)
 
           {/* Right face - Audio Fragment Processor */}
           <div className="cube-face cube-face-right">
-            <DigitalRainfall />
             <div className="fragment-processor-page" style={{ position: 'relative', zIndex: 1 }}>
               <button 
                 className="matrix-back-button"

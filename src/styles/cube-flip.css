@@ -22,7 +22,7 @@
   height: 100%;
   backface-visibility: hidden;
   overflow: auto;
-  background: #000;
+  background: transparent;
 }
 
 .cube-face-front {
@@ -57,7 +57,7 @@
 
 /* Fragment Processor styles */
 .fragment-processor-page {
-  background: #000;
+  background: rgba(0, 0, 0, 0.85);
   color: #00ff41;
   height: 100%;
   display: flex;

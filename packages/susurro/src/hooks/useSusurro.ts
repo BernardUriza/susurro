@@ -15,7 +15,6 @@ import type {
   AudioEngineConfig,
   VADAnalysisResult,
   AudioMetadata,
-  ProcessingMetrics as InternalProcessingMetrics,
   VoiceSegment,
 } from '../lib/types';
 
@@ -25,7 +24,9 @@ import { useMurmubaraEngine } from 'murmuraba';
 // Import Murmuraba processing functions - ONLY useSusurro should access these
 import {
   processFileWithMetrics as murmubaraProcess,
-  initializeAudioEngine as murmubaraInit
+  initializeAudioEngine as murmubaraInit,
+  murmubaraVAD,
+  extractAudioMetadata
 } from 'murmuraba';
 import type { ProcessingMetrics as MurmurabaProcessingMetrics } from 'murmuraba';
 
@@ -211,36 +212,43 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // VAD analysis helper  
   const analyzeVAD = useCallback(async (buffer: ArrayBuffer): Promise<VADAnalysisResult> => {
     try {
-      // Note: Using placeholder implementation until murmubaraVAD is available
-      // const result = await murmubaraVAD(buffer);
-      const result = {
-        average: 0.5,
-        scores: new Array(Math.floor(buffer.byteLength / 1024)).fill(0).map(() => Math.random()),
-        metrics: []
-      };
+      // Using real murmubaraVAD from v3.0.3
+      const result = await murmubaraVAD(buffer);
       
       // Process results to find voice segments
       const voiceSegments: VoiceSegment[] = [];
       const vadScores = result.scores || [];
       const metrics = result.metrics || [];
       
-      // Find continuous voice segments
-      let segmentStart = -1;
-      const threshold = 0.5;
-      
-      for (let i = 0; i < vadScores.length; i++) {
-        const isVoice = vadScores[i] > threshold;
-        
-        if (isVoice && segmentStart === -1) {
-          segmentStart = i;
-        } else if (!isVoice && segmentStart !== -1) {
+      // Use voiceSegments from murmubaraVAD if available
+      if (result.voiceSegments && result.voiceSegments.length > 0) {
+        result.voiceSegments.forEach(segment => {
           voiceSegments.push({
-            startTime: segmentStart * 0.02, // 20ms per frame
-            endTime: i * 0.02,
-            vadScore: vadScores.slice(segmentStart, i).reduce((a: number, b: number) => a + b, 0) / (i - segmentStart),
-            confidence: 0.8 // Placeholder
+            startTime: segment.startTime,
+            endTime: segment.endTime,
+            vadScore: segment.confidence,
+            confidence: segment.confidence
           });
-          segmentStart = -1;
+        });
+      } else {
+        // Fallback: Find continuous voice segments
+        let segmentStart = -1;
+        const threshold = 0.5;
+        
+        for (let i = 0; i < vadScores.length; i++) {
+          const isVoice = vadScores[i] > threshold;
+          
+          if (isVoice && segmentStart === -1) {
+            segmentStart = i;
+          } else if (!isVoice && segmentStart !== -1) {
+            voiceSegments.push({
+              startTime: segmentStart * 0.02, // 20ms per frame
+              endTime: i * 0.02,
+              vadScore: vadScores.slice(segmentStart, i).reduce((a: number, b: number) => a + b, 0) / (i - segmentStart),
+              confidence: vadScores.slice(segmentStart, i).reduce((a: number, b: number) => a + b, 0) / (i - segmentStart)
+            });
+            segmentStart = -1;
+          }
         }
       }
       
@@ -263,13 +271,18 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   
   // processAndTranscribeFile method will be defined after transcribeWithWhisper
   
-  // Helper function to calculate audio duration
+  // Helper function to calculate audio duration using real metadata extraction
   const calculateDuration = (buffer: ArrayBuffer): number => {
-    // Simple estimation - should be replaced with proper audio parsing
-    // For now, estimate based on file size and typical audio bitrates
-    const bytes = buffer.byteLength;
-    const estimatedDuration = bytes / (44100 * 2 * 2); // 44.1kHz, 2 channels, 16-bit
-    return Math.max(0.1, estimatedDuration); // Minimum 0.1 seconds
+    try {
+      const metadata = extractAudioMetadata(buffer);
+      return metadata.duration;
+    } catch (error) {
+      // Fallback to estimation if metadata extraction fails
+      console.warn('Failed to extract audio metadata, using estimation:', error);
+      const bytes = buffer.byteLength;
+      const estimatedDuration = bytes / (44100 * 2 * 2); // 44.1kHz, 2 channels, 16-bit
+      return Math.max(0.1, estimatedDuration);
+    }
   };
   
   // STREAMING RECORDING with callback pattern - Modern React 19 approach

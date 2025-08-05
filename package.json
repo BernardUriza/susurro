@@ -72,7 +72,7 @@
     "@susurro/core": "file:./packages/susurro",
     "eslint-config-prettier": "^10.1.8",
     "framer-motion": "^12.23.12",
-    "murmuraba": "^3.0.2",
+    "murmuraba": "^3.0.3",
     "react-virtuoso": "^4.13.0"
   },
   "devDependencies": {

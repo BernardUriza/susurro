@@ -136,7 +136,7 @@ class WhisperPipelineSingleton {
       log.info('Local model not available, using HuggingFace with authentication');
 
       // Configure HuggingFace authentication if available
-      const hfToken = '';
+      const hfToken = 'process.env.HUGGINGFACE_TOKEN || ''';
       if (hfToken && typeof window !== 'undefined') {
         // Set up authenticated requests for HuggingFace
         const originalFetch = window.fetch;

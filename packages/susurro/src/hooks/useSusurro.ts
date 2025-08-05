@@ -321,8 +321,21 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       throw new Error('Already recording. Stop current recording first.');
     }
     
+    // Ensure engine is initialized with better error handling
     if (!isEngineInitialized) {
-      await initializeAudioEngine();
+      try {
+        console.log('[useSusurro] Engine not initialized, attempting initialization...');
+        await initializeAudioEngine();
+      } catch (error: any) {
+        // If error is about already initialized, try to recover
+        if (error?.message?.includes('already initialized')) {
+          console.log('[useSusurro] Engine already initialized error, attempting recovery...');
+          // Mark as initialized and continue
+          setIsEngineInitialized(true);
+        } else {
+          throw error;
+        }
+      }
     }
     
     setIsStreamingRecording(true);

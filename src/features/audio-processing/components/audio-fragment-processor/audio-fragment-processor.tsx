@@ -139,24 +139,11 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     console.log('[AudioFragmentProcessor] isEngineInitialized:', isEngineInitialized);
     console.log('[AudioFragmentProcessor] whisperReady:', whisperReady);
     
-    if (!isEngineInitialized || !whisperReady) {
-      if (!isEngineInitialized) {
-        try {
-          console.log('[AudioFragmentProcessor] Attempting to initialize audio engine...');
-          setStatus('[INITIALIZING_MURMURABA_ENGINE]');
-          await initializeAudioEngine();
-          console.log('[AudioFragmentProcessor] Audio engine initialized successfully');
-        } catch (error) {
-          console.error('[AudioFragmentProcessor] Engine initialization failed:', error);
-          setStatus(`[ERROR] Engine initialization failed: ${error instanceof Error ? error.message : error}`);
-          return;
-        }
-      }
-      if (!whisperReady) {
-        console.log('[AudioFragmentProcessor] Whisper not ready, waiting...');
-        setStatus('[WAITING_FOR_WHISPER_MODEL]');
-        return;
-      }
+    // Check if Whisper is ready first
+    if (!whisperReady) {
+      console.log('[AudioFragmentProcessor] Whisper not ready, waiting...');
+      setStatus('[WAITING_FOR_WHISPER_MODEL]');
+      return;
     }
 
     setIsRecording(true);
@@ -204,12 +191,21 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
         enableNoiseReduction: true,
       });
       console.log('[AudioFragmentProcessor] Streaming recording started successfully');
-    } catch (error) {
+      setStatus('[RECORDING_ACTIVE]');
+    } catch (error: any) {
       console.error('[AudioFragmentProcessor] Failed to start streaming recording:', error);
       setIsRecording(false);
-      setStatus(`[ERROR] ${error instanceof Error ? error.message : error}`);
+      
+      // Provide more helpful error messages
+      if (error?.message?.includes('already initialized')) {
+        setStatus(`[ERROR] Audio engine conflict. Please refresh the page.`);
+      } else if (error?.message?.includes('getUserMedia')) {
+        setStatus(`[ERROR] Microphone access denied or unavailable.`);
+      } else {
+        setStatus(`[ERROR] ${error?.message || error}`);
+      }
     }
-  }, [isEngineInitialized, whisperReady, initializeAudioEngine, startStreamingRecording]);
+  }, [whisperReady, startStreamingRecording]);
 
   const handleStopRecording = useCallback(async () => {
     const allChunks = await stopStreamingRecording();
@@ -365,12 +361,62 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
             />
           </div>
 
+          {/* 🔍 DEBUG PANEL - Waveform Simplification Metrics */}
+          <div style={{
+            background: 'rgba(255, 0, 0, 0.1)',
+            border: '2px dashed #ff0041',
+            padding: '20px',
+            marginBottom: '20px',
+            borderRadius: '4px',
+            fontFamily: 'monospace',
+            fontSize: '12px'
+          }}>
+            <h3 style={{ color: '#ff0041', marginTop: 0 }}>🔍 DEBUG: Waveform Simplification Status</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div>
+                <strong>Current Implementation:</strong>
+                <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
+                  <li>Lines of code: ~500 (target: 80)</li>
+                  <li>Canvas elements: 1 (custom drawn)</li>
+                  <li>State variables: {Object.keys({ isRecording, status, fileResult, visualData }).length}</li>
+                  <li>Mock data: YES (line 189)</li>
+                  <li>Animation: requestAnimationFrame</li>
+                </ul>
+              </div>
+              <div>
+                <strong>Target Implementation:</strong>
+                <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
+                  <li>SimpleWaveformAnalyzer: NOT IMPORTED</li>
+                  <li>MediaStream: {currentStream ? '✅ AVAILABLE' : '❌ NOT AVAILABLE'}</li>
+                  <li>Chunk duration: 8000ms ✅</li>
+                  <li>useSusurro exposed: ✅</li>
+                  <li>Required: import from 'murmuraba'</li>
+                </ul>
+              </div>
+            </div>
+            <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0, 0, 0, 0.5)' }}>
+              <strong>Action Items:</strong>
+              <ol style={{ margin: '5px 0', paddingLeft: '20px' }}>
+                <li>DELETE: drawUnifiedVisualization (lines 83-135)</li>
+                <li>DELETE: requestAnimationFrame loop (lines 263-284)</li>
+                <li>DELETE: visualData state and updates</li>
+                <li>IMPORT: SimpleWaveformAnalyzer from 'murmuraba'</li>
+                <li>REPLACE: Canvas with SimpleWaveformAnalyzer component</li>
+              </ol>
+            </div>
+            {currentStream && (
+              <div style={{ marginTop: '10px', color: '#00ff41' }}>
+                ✅ MediaStream Active: {currentStream.getTracks().length} track(s)
+              </div>
+            )}
+          </div>
+
           {/* Controls */}
           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <div style={{ marginTop: '20px' }}>
               <button
                 onClick={isRecording ? handleStopRecording : handleStartRecording}
-                disabled={!isEngineInitialized || !whisperReady}
+                disabled={!whisperReady}
                 className="matrix-button"
                 style={{
                   padding: '20px 60px',
@@ -378,7 +424,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
                   background: isRecording ? '#ff0041' : '#00ff41',
                   border: 'none',
                   color: '#000',
-                  opacity: !isEngineInitialized || !whisperReady ? 0.5 : 1,
+                  opacity: !whisperReady ? 0.5 : 1,
                   cursor: 'pointer',
                   borderRadius: '4px',
                   fontWeight: 'bold',

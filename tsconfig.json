@@ -27,6 +27,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
+    "src/types/**/*.d.ts",
     "packages/**/*",
     "examples/**/*.tsx",
     "test/**/*.ts"
@@ -34,7 +35,6 @@
   "references": [{ "path": "./config/tsconfig.node.json" }],
   "exclude": [
     "node_modules",
-    "dist",
-    "**/*.d.ts"
+    "dist"
   ]
 }

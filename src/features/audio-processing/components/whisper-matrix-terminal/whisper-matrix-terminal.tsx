@@ -38,6 +38,7 @@ import { SilentThreadProcessor } from '../../../../shared/services';
 
 // Styles (last)
 import '../../../../styles/matrix-theme.css';
+import '../../../../styles/improved-layout.css';
 
 type CubeFace = 'front' | 'right' | 'back' | 'left';
 
@@ -325,10 +326,8 @@ export const WhisperMatrixTerminal: React.FC = () => {
           {/* Front face - Main App */}
           <div className="cube-face cube-face-front">
             <div
+              className="main-container improved-terminal-layout"
               style={{
-                maxWidth: 600,
-                margin: '40px auto',
-                padding: 20,
                 background: 'rgba(0, 0, 0, 0.8)',
                 position: 'relative',
               }}
@@ -450,31 +449,29 @@ export const WhisperMatrixTerminal: React.FC = () => {
             }}
           />
         </div>
+        <div className="section-divider"></div>
+        
         {/* Status Display with Engine State */}
-        <div style={{ marginBottom: 30 }}>
+        <div className="status-section">
           <p style={{ marginBottom: 10, opacity: 0.8 }}>
             &gt; {status || 'SYSTEM READY'}
           </p>
           
           {/* Engine Status Indicator */}
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 10,
-            fontSize: '12px',
-            opacity: 0.7
-          }}>
-            <div style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: engineInitialized ? '#00ff41' : (isInitializing ? '#ffff00' : '#ff0041'),
-              boxShadow: engineInitialized ? '0 0 10px #00ff41' : '0 0 10px #ff0041',
-              animation: isInitializing ? 'pulse 1s infinite' : 'none'
-            }} />
-            <span style={{ color: engineInitialized ? '#00ff41' : '#ff0041' }}>
-              AUDIO_ENGINE: {isInitializing ? 'INITIALIZING...' : (engineInitialized ? 'ONLINE' : 'OFFLINE')}
-            </span>
+          <div className="engine-status">
+            <div className="engine-indicator">
+              <div style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: engineInitialized ? '#00ff41' : (isInitializing ? '#ffff00' : '#ff0041'),
+                boxShadow: engineInitialized ? '0 0 10px #00ff41' : '0 0 10px #ff0041',
+                animation: isInitializing ? 'pulse 1s infinite' : 'none'
+              }} />
+              <span style={{ color: engineInitialized ? '#00ff41' : '#ff0041' }}>
+                AUDIO_ENGINE: {isInitializing ? 'INITIALIZING...' : (engineInitialized ? 'ONLINE' : 'OFFLINE')}
+              </span>
+            </div>
           </div>
           
           {/* Error Message and Retry */}
@@ -525,15 +522,16 @@ export const WhisperMatrixTerminal: React.FC = () => {
           )}
         </div>
 
+        <div className="section-divider"></div>
+        
         {/* Upload Section */}
-        <div style={{ marginBottom: 30 }}>
+        <div className="upload-section">
           <div
-            className="matrix-upload-area"
+            className="matrix-upload-area upload-area"
             style={{
               padding: 40,
               textAlign: 'center',
               borderRadius: 0,
-              marginBottom: 20,
               opacity: engineInitialized ? 1 : 0.5,
               cursor: engineInitialized ? 'pointer' : 'not-allowed'
             }}
@@ -584,9 +582,11 @@ export const WhisperMatrixTerminal: React.FC = () => {
           </button>
         </div>
 
+        <div className="section-divider"></div>
+        
         {/* Status */}
         {status && (
-          <div className={`matrix-status ${status.includes('ERROR') ? 'error' : ''}`}>
+          <div className={`matrix-status ${status.includes('ERROR') ? 'error' : ''}`} style={{ margin: '1rem 0' }}>
             &gt; {status}
           </div>
         )}
@@ -600,7 +600,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
         {/* Original Audio */}
         {originalUrl && (
-          <div className="matrix-audio-section">
+          <div className="matrix-audio-section audio-section">
             <h3>&gt; ORIGINAL_AUDIO_STREAM</h3>
             <audio src={originalUrl} controls style={{ width: '100%' }} />
           </div>
@@ -609,7 +609,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
         {/* Processed Audio Chunks */}
         {chunkUrls.length > 0 && (
           <>
-            <div className="matrix-audio-section" style={{ position: 'relative' }}>
+            <div className="matrix-audio-section audio-section" style={{ position: 'relative' }}>
               <div
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
               >
@@ -633,8 +633,8 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
               {/* Show processed file audio player */}
               {processedFileVad > 0 && chunkUrls.length > 0 ? (
-                <div style={{ marginBottom: 15 }}>
-                  <p style={{ margin: '5px 0', fontSize: '0.9em', opacity: 0.8 }}>
+                <div className="chunk-item">
+                  <p className="chunk-info">
                     &gt; PROCESSED_FILE | DURATION: {(processedFileDuration / 1000).toFixed(2)}s | VAD: {(processedFileVad * 100).toFixed(1)}%
                   </p>
                   <audio
@@ -646,8 +646,8 @@ export const WhisperMatrixTerminal: React.FC = () => {
               ) : (
                 /* Individual chunk players for real-time recording */
                 audioChunks.map((chunk, index) => (
-                <div key={`audio-chunk-${index}`} style={{ marginBottom: 15 }}>
-                  <p style={{ margin: '5px 0', fontSize: '0.9em', opacity: 0.8 }}>
+                <div key={`audio-chunk-${index}`} className="chunk-item">
+                  <p className="chunk-info">
                     &gt; CHUNK_{index + 1} | DURATION: {(chunk.duration / 1000).toFixed(2)}s | VAD:{' '}
                     {chunk.vadScore ? (chunk.vadScore * 100).toFixed(1) : 'N/A'}%
                   </p>
@@ -917,8 +917,10 @@ export const WhisperMatrixTerminal: React.FC = () => {
               </div>
             )}
 
+            <div className="section-divider"></div>
+            
             {/* Whisper Transcription Button */}
-            <div style={{ marginTop: 20 }}>
+            <div className="whisper-section">
               {!whisperReady ? (
                 <div className="matrix-status" style={{ textAlign: 'center' }}>
                   &gt; [WHISPER_MODEL_LOADING] {(whisperProgress * 100).toFixed(0)}%
@@ -946,6 +948,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
                 </div>
               ) : (
                 <button
+                  className="matrix-button whisper-button"
                   onClick={() => {
                     if (
                       !isTranscribing &&
@@ -1072,12 +1075,9 @@ export const WhisperMatrixTerminal: React.FC = () => {
                     }
                   }}
                   disabled={isTranscribing || (audioChunks.length === 0 && chunkUrls.length === 0)}
-                  className="matrix-button"
                   style={{
                     width: '100%',
                     opacity: isTranscribing || (audioChunks.length === 0 && chunkUrls.length === 0) ? 0.5 : 1,
-                    fontSize: '1.2em',
-                    padding: '15px',
                     position: 'relative',
                     overflow: 'hidden',
                   }}
@@ -1110,8 +1110,10 @@ export const WhisperMatrixTerminal: React.FC = () => {
               )}
             </div>
 
+            <div className="section-divider"></div>
+            
             {/* Transcription */}
-            <div style={{ marginTop: 30 }}>
+            <div className="transcription-section">
               {/* Murmuraba Status */}
 
               {transcriptions.length > 0 && (
@@ -1341,14 +1343,16 @@ export const WhisperMatrixTerminal: React.FC = () => {
           </>
         )}
 
+        <div className="section-divider"></div>
+        
         {/* Code Example */}
+        <div className="code-section">
         <pre
           className="matrix-code"
           style={{
             padding: 20,
             borderRadius: 0,
             overflow: 'auto',
-            marginTop: 40,
           }}
         >
           {`> SYSTEM.IMPORT('@susurro/core')
@@ -1382,13 +1386,14 @@ await processFileWithMetrics(audioBuffer)
         <p
           style={{
             textAlign: 'center',
-            marginTop: 40,
+            marginTop: '2rem',
             opacity: 0.6,
             fontSize: '0.9em',
           }}
         >
           [SYSTEM.READY] - MATRIX_AUDIO_PROCESSOR_ONLINE
         </p>
+        </div>
             </div>
           </div>
           

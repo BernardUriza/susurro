@@ -27,7 +27,7 @@ export const MatrixScrollArea = forwardRef<MatrixScrollAreaRef, MatrixScrollArea
     const scrollRef = useRef<HTMLDivElement>(null);
     const [isScrolling, setIsScrolling] = useState(false);
     const [scrollPosition, setScrollPosition] = useState({ top: true, bottom: false });
-    const scrollTimeoutRef = useRef<NodeJS.Timeout>();
+    const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Expose scroll methods
     useImperativeHandle(ref, () => ({

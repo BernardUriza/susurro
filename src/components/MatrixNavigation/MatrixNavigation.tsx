@@ -135,14 +135,14 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
           className={styles.scrollArea}
         >
           <div className={styles.contentInner}>
-            {views[currentView].component}
+            {views[currentView as keyof typeof views].component}
           </div>
         </MatrixScrollArea>
       </main>
 
       {/* Status Bar */}
       <footer className={styles.statusBar}>
-        <span>[ACTIVE: {views[currentView].title}]</span>
+        <span>[ACTIVE: {views[currentView as keyof typeof views].title}]</span>
         <span>[USE F1-F6 TO NAVIGATE]</span>
         <span>[SYSTEM: ONLINE]</span>
       </footer>

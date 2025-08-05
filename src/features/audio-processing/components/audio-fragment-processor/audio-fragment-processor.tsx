@@ -1,11 +1,9 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useSusurro } from '@susurro/core';
 import type { CompleteAudioResult, StreamingSusurroChunk } from '@susurro/core';
-// import { TemporalSegmentSelector } from '../temporal-segment-selector';
-import { ConversationalChatFeed } from '../conversational-chat-feed';
 
 export interface AudioFragmentProcessorProps {
   onBack: () => void;
@@ -47,13 +45,9 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     },
   });
 
-  // UI State
-  const [viewMode, setViewMode] = useState<'visualizer' | 'processor' | 'conversational'>(
-    'visualizer'
-  );
+  // Simplified UI State - No modes, everything unified
   const [isRecording, setIsRecording] = useState(false);
   const [status, setStatus] = useState('');
-  const [chunkDuration] = useState(2);
   const [fileResult, setFileResult] = useState<CompleteAudioResult | null>(null);
 
   // Visualization state
@@ -183,7 +177,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
     try {
       await startStreamingRecording(onChunkProcessed, {
-        chunkDuration: chunkDuration,
+        chunkDuration: 2, // Fixed 2-second chunks
         vadThreshold: 0.2, // Sensitive for visualization
         enableRealTimeTranscription: true,
         enableNoiseReduction: true,
@@ -192,13 +186,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
       setIsRecording(false);
       setStatus(`[ERROR] ${error}`);
     }
-  }, [
-    isEngineInitialized,
-    whisperReady,
-    initializeAudioEngine,
-    startStreamingRecording,
-    chunkDuration,
-  ]);
+  }, [isEngineInitialized, whisperReady, initializeAudioEngine, startStreamingRecording]);
 
   const handleStopRecording = useCallback(async () => {
     const allChunks = await stopStreamingRecording();
@@ -324,420 +312,261 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
           </motion.div>
         )}
 
-        {/* View Mode Toggle */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            marginBottom: '30px',
-            gap: '10px',
-            flexWrap: 'wrap',
-          }}
-        >
-          {['visualizer', 'processor', 'conversational'].map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setViewMode(mode as 'visualizer' | 'processor' | 'conversational')}
-              className="matrix-button"
+        {/* UNIFIED VIEW - Everything in one */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          {/* Unified Visualization Canvas */}
+          <div style={{ marginBottom: '30px' }}>
+            <canvas
+              ref={unifiedCanvasRef}
+              width={800}
+              height={200}
               style={{
-                padding: '10px 20px',
-                background: viewMode === mode ? '#00ff41' : 'rgba(0, 255, 65, 0.1)',
-                color: viewMode === mode ? '#000' : '#00ff41',
-                border: '2px solid #00ff41',
-                cursor: 'pointer',
-                textTransform: 'uppercase',
-                fontWeight: 'bold',
+                width: '100%',
+                height: '200px',
+                background: 'rgba(0, 0, 0, 0.95)',
+                border: '1px solid #00ff41',
+                borderRadius: '4px',
+              }}
+            />
+          </div>
+
+          {/* Controls */}
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <div style={{ marginTop: '20px' }}>
+              <button
+                onClick={isRecording ? handleStopRecording : handleStartRecording}
+                disabled={!isEngineInitialized || !whisperReady}
+                className="matrix-button"
+                style={{
+                  padding: '15px 40px',
+                  fontSize: '1.2rem',
+                  background: isRecording ? 'rgba(255, 0, 0, 0.2)' : 'rgba(0, 255, 65, 0.1)',
+                  borderColor: isRecording ? '#ff0041' : '#00ff41',
+                  color: isRecording ? '#ff0041' : '#00ff41',
+                  opacity: !isEngineInitialized || !whisperReady ? 0.5 : 1,
+                  marginRight: '15px',
+                }}
+              >
+                {isRecording ? '⏹️ [STOP_VISUALIZATION]' : '🎨 [START_REAL_TIME_VIZ]'}
+              </button>
+
+              {!whisperReady && (
+                <div style={{ marginTop: '10px', fontSize: '0.9rem' }}>
+                  [LOADING_WHISPER: {(whisperProgress * 100).toFixed(0)}%]
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Chunks History */}
+          {visualData.chunkHistory.length > 0 && (
+            <div
+              style={{
+                background: 'rgba(0, 255, 65, 0.05)',
+                border: '1px solid #00ff41',
+                padding: '20px',
+                maxHeight: '300px',
+                overflow: 'auto',
               }}
             >
-              [{mode.replace('_', '_')}]
-            </button>
-          ))}
-        </div>
+              <h3 style={{ marginBottom: '15px' }}>
+                &gt; RECENT_CHUNKS_HISTORY ({visualData.chunkHistory.length})
+              </h3>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                {visualData.chunkHistory.slice(-5).map((chunk, index) => (
+                  <div
+                    key={chunk.id}
+                    style={{
+                      background: 'rgba(0, 255, 65, 0.05)',
+                      border: '1px solid rgba(0, 255, 65, 0.3)',
+                      padding: '10px',
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span style={{ opacity: 0.7 }}>
+                        [CHUNK_{visualData.chunkHistory.length - 4 + index}]
+                      </span>
+                      <span style={{ color: '#ffff00' }}>
+                        VAD: {(chunk.vadScore * 100).toFixed(1)}%
+                      </span>
+                      <span style={{ opacity: 0.7 }}>{chunk.duration}ms</span>
+                    </div>
+                    <div style={{ marginTop: '5px' }}>
+                      {chunk.transcriptionText || '[PROCESSING...]'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Simple File Upload */}
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFileUpload(file);
+            }}
+            style={{
+              display: 'block',
+              margin: '0 auto 20px',
+              padding: '10px',
+              background: 'rgba(0, 0, 0, 0.8)',
+              border: '1px solid #00ff41',
+              color: '#00ff41',
+            }}
+          />
 
-        {/* VISUALIZER VIEW - Real-time Audio Visualization */}
-        {viewMode === 'visualizer' && (
-          <AnimatePresence>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+          {/* File Analysis Results */}
+          {fileResult && (
+            <div
+              style={{
+                background: 'rgba(0, 255, 65, 0.05)',
+                border: '2px solid #00ff41',
+                padding: '25px',
+                marginBottom: '20px',
+              }}
             >
-              {/* Real-time Metrics Dashboard */}
+              <h3 style={{ marginBottom: '20px', color: '#00ff41' }}>
+                &gt; COMPLETE_ANALYSIS_RESULTS
+              </h3>
+
+              {/* Audio Players */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '20px',
+                  marginBottom: '20px',
+                }}
+              >
+                <div>
+                  <h4 style={{ color: '#ffff00', marginBottom: '10px' }}>ORIGINAL AUDIO:</h4>
+                  <audio src={fileResult.originalAudioUrl} controls style={{ width: '100%' }} />
+                </div>
+                <div>
+                  <h4 style={{ color: '#00ff41', marginBottom: '10px' }}>MURMURABA PROCESSED:</h4>
+                  <audio src={fileResult.processedAudioUrl} controls style={{ width: '100%' }} />
+                </div>
+              </div>
+
+              {/* Metrics Grid */}
               <div
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                   gap: '15px',
-                  marginBottom: '30px',
+                  marginBottom: '20px',
                 }}
               >
                 <div
                   style={{
-                    background: 'rgba(0, 255, 65, 0.05)',
-                    border: '1px solid #00ff41',
+                    background: 'rgba(0, 0, 0, 0.5)',
                     padding: '15px',
-                    textAlign: 'center',
+                    border: '1px solid #00ff41',
                   }}
                 >
-                  <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>CURRENT VAD</div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 'bold' }}>
-                    {(visualData.realTimeMetrics.currentVAD * 100).toFixed(1)}%
+                  <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>PROCESSING TIME</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
+                    {fileResult.processingTime.toFixed(0)}ms
                   </div>
                 </div>
                 <div
                   style={{
-                    background: 'rgba(255, 255, 0, 0.05)',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    padding: '15px',
                     border: '1px solid #ffff00',
-                    padding: '15px',
-                    textAlign: 'center',
-                    color: '#ffff00',
                   }}
                 >
-                  <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>CHUNKS PROCESSED</div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 'bold' }}>
-                    {visualData.realTimeMetrics.chunksProcessed}
+                  <div style={{ fontSize: '0.8rem', opacity: 0.7, color: '#ffff00' }}>
+                    AVERAGE VAD
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ffff00' }}>
+                    {(fileResult.vadAnalysis.averageVad * 100).toFixed(1)}%
                   </div>
                 </div>
                 <div
                   style={{
-                    background: 'rgba(0, 100, 255, 0.05)',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    padding: '15px',
                     border: '1px solid #0064ff',
-                    padding: '15px',
-                    textAlign: 'center',
-                    color: '#0064ff',
                   }}
                 >
-                  <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>AVG LATENCY</div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 'bold' }}>
-                    {visualData.realTimeMetrics.averageLatency.toFixed(0)}ms
+                  <div style={{ fontSize: '0.8rem', opacity: 0.7, color: '#0064ff' }}>DURATION</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0064ff' }}>
+                    {fileResult.metadata.duration.toFixed(2)}s
                   </div>
                 </div>
                 <div
                   style={{
-                    background: 'rgba(255, 0, 255, 0.05)',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    padding: '15px',
                     border: '1px solid #ff00ff',
-                    padding: '15px',
-                    textAlign: 'center',
-                    color: '#ff00ff',
                   }}
                 >
-                  <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>FREQUENCY ACTIVITY</div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 'bold' }}>
-                    {(visualData.realTimeMetrics.activeFrequency * 100).toFixed(0)}%
+                  <div style={{ fontSize: '0.8rem', opacity: 0.7, color: '#ff00ff' }}>
+                    FILE SIZE
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ff00ff' }}>
+                    {(fileResult.metadata.fileSize / 1024).toFixed(1)}KB
                   </div>
                 </div>
               </div>
 
-              {/* Unified Visualization Canvas */}
-              <div style={{ marginBottom: '30px' }}>
-                <canvas
-                  ref={unifiedCanvasRef}
-                  width={800}
-                  height={200}
-                  style={{
-                    width: '100%',
-                    height: '200px',
-                    background: 'rgba(0, 0, 0, 0.95)',
-                    border: '1px solid #00ff41',
-                    borderRadius: '4px',
-                  }}
-                />
-              </div>
-
-              {/* Controls */}
-              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <div style={{ marginTop: '20px' }}>
-                  <button
-                    onClick={isRecording ? handleStopRecording : handleStartRecording}
-                    disabled={!isEngineInitialized || !whisperReady}
-                    className="matrix-button"
-                    style={{
-                      padding: '15px 40px',
-                      fontSize: '1.2rem',
-                      background: isRecording ? 'rgba(255, 0, 0, 0.2)' : 'rgba(0, 255, 65, 0.1)',
-                      borderColor: isRecording ? '#ff0041' : '#00ff41',
-                      color: isRecording ? '#ff0041' : '#00ff41',
-                      opacity: !isEngineInitialized || !whisperReady ? 0.5 : 1,
-                      marginRight: '15px',
-                    }}
-                  >
-                    {isRecording ? '⏹️ [STOP_VISUALIZATION]' : '🎨 [START_REAL_TIME_VIZ]'}
-                  </button>
-
-                  {!whisperReady && (
-                    <div style={{ marginTop: '10px', fontSize: '0.9rem' }}>
-                      [LOADING_WHISPER: {(whisperProgress * 100).toFixed(0)}%]
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Recent Chunks History */}
-              {visualData.chunkHistory.length > 0 && (
+              {/* Transcription */}
+              {fileResult.transcriptionText && (
                 <div
                   style={{
-                    background: 'rgba(0, 255, 65, 0.05)',
-                    border: '1px solid #00ff41',
+                    background: 'rgba(0, 0, 0, 0.8)',
                     padding: '20px',
-                    maxHeight: '300px',
-                    overflow: 'auto',
+                    border: '1px solid #00ff41',
                   }}
                 >
-                  <h3 style={{ marginBottom: '15px' }}>
-                    &gt; RECENT_CHUNKS_HISTORY ({visualData.chunkHistory.length})
-                  </h3>
-                  <div style={{ display: 'grid', gap: '10px' }}>
-                    {visualData.chunkHistory.slice(-5).map((chunk, index) => (
-                      <div
-                        key={chunk.id}
-                        style={{
-                          background: 'rgba(0, 255, 65, 0.05)',
-                          border: '1px solid rgba(0, 255, 65, 0.3)',
-                          padding: '10px',
-                          fontSize: '0.9rem',
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <span style={{ opacity: 0.7 }}>
-                            [CHUNK_{visualData.chunkHistory.length - 4 + index}]
-                          </span>
-                          <span style={{ color: '#ffff00' }}>
-                            VAD: {(chunk.vadScore * 100).toFixed(1)}%
-                          </span>
-                          <span style={{ opacity: 0.7 }}>{chunk.duration}ms</span>
-                        </div>
-                        <div style={{ marginTop: '5px' }}>
-                          {chunk.transcriptionText || '[PROCESSING...]'}
-                        </div>
+                  <h4 style={{ color: '#00ff41', marginBottom: '10px' }}>WHISPER TRANSCRIPTION:</h4>
+                  <div style={{ fontSize: '1rem', lineHeight: '1.6' }}>
+                    {fileResult.transcriptionText}
+                  </div>
+                </div>
+              )}
+
+              {/* Voice Segments */}
+              {fileResult.vadAnalysis.voiceSegments.length > 0 && (
+                <div
+                  style={{
+                    marginTop: '20px',
+                    background: 'rgba(0, 0, 0, 0.8)',
+                    padding: '20px',
+                    border: '1px solid #ffff00',
+                  }}
+                >
+                  <h4 style={{ color: '#ffff00', marginBottom: '10px' }}>
+                    VOICE SEGMENTS DETECTED ({fileResult.vadAnalysis.voiceSegments.length}):
+                  </h4>
+                  <div style={{ display: 'grid', gap: '5px', fontSize: '0.9rem' }}>
+                    {fileResult.vadAnalysis.voiceSegments.slice(0, 5).map((segment, i) => (
+                      <div key={i} style={{ opacity: 0.8 }}>
+                        [{segment.startTime.toFixed(1)}s - {segment.endTime.toFixed(1)}s] VAD:{' '}
+                        {(segment.vadScore * 100).toFixed(1)}%
                       </div>
                     ))}
+                    {fileResult.vadAnalysis.voiceSegments.length > 5 && (
+                      <div style={{ opacity: 0.6 }}>
+                        ... and {fileResult.vadAnalysis.voiceSegments.length - 5} more segments
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
-            </motion.div>
-          </AnimatePresence>
-        )}
-
-        {/* PROCESSOR VIEW - File Analysis */}
-        {viewMode === 'processor' && (
-          <AnimatePresence>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              {/* File Upload */}
-              <div
-                style={{
-                  marginBottom: '30px',
-                  padding: '30px',
-                  border: '2px dashed #00ff41',
-                  textAlign: 'center',
-                  background: 'rgba(0, 255, 65, 0.05)',
-                }}
-              >
-                <h3 style={{ marginBottom: '15px' }}>&gt; COMPLETE_FILE_ANALYSIS_PIPELINE</h3>
-                <input
-                  type="file"
-                  accept="audio/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileUpload(file);
-                  }}
-                  style={{
-                    padding: '10px',
-                    background: 'rgba(0, 0, 0, 0.8)',
-                    border: '1px solid #00ff41',
-                    color: '#00ff41',
-                    marginBottom: '15px',
-                  }}
-                />
-                <div style={{ fontSize: '0.9rem', opacity: 0.7 }}>
-                  Upload any audio file for complete Susurro analysis
-                  <br />
-                  (Original + Processed URLs + Transcription + VAD + Metadata)
-                </div>
-              </div>
-
-              {/* File Analysis Results */}
-              {fileResult && (
-                <div
-                  style={{
-                    background: 'rgba(0, 255, 65, 0.05)',
-                    border: '2px solid #00ff41',
-                    padding: '25px',
-                    marginBottom: '20px',
-                  }}
-                >
-                  <h3 style={{ marginBottom: '20px', color: '#00ff41' }}>
-                    &gt; COMPLETE_ANALYSIS_RESULTS
-                  </h3>
-
-                  {/* Audio Players */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: '20px',
-                      marginBottom: '20px',
-                    }}
-                  >
-                    <div>
-                      <h4 style={{ color: '#ffff00', marginBottom: '10px' }}>ORIGINAL AUDIO:</h4>
-                      <audio src={fileResult.originalAudioUrl} controls style={{ width: '100%' }} />
-                    </div>
-                    <div>
-                      <h4 style={{ color: '#00ff41', marginBottom: '10px' }}>
-                        MURMURABA PROCESSED:
-                      </h4>
-                      <audio
-                        src={fileResult.processedAudioUrl}
-                        controls
-                        style={{ width: '100%' }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Metrics Grid */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                      gap: '15px',
-                      marginBottom: '20px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        padding: '15px',
-                        border: '1px solid #00ff41',
-                      }}
-                    >
-                      <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>PROCESSING TIME</div>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
-                        {fileResult.processingTime.toFixed(0)}ms
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        padding: '15px',
-                        border: '1px solid #ffff00',
-                      }}
-                    >
-                      <div style={{ fontSize: '0.8rem', opacity: 0.7, color: '#ffff00' }}>
-                        AVERAGE VAD
-                      </div>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ffff00' }}>
-                        {(fileResult.vadAnalysis.averageVad * 100).toFixed(1)}%
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        padding: '15px',
-                        border: '1px solid #0064ff',
-                      }}
-                    >
-                      <div style={{ fontSize: '0.8rem', opacity: 0.7, color: '#0064ff' }}>
-                        DURATION
-                      </div>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0064ff' }}>
-                        {fileResult.metadata.duration.toFixed(2)}s
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        padding: '15px',
-                        border: '1px solid #ff00ff',
-                      }}
-                    >
-                      <div style={{ fontSize: '0.8rem', opacity: 0.7, color: '#ff00ff' }}>
-                        FILE SIZE
-                      </div>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ff00ff' }}>
-                        {(fileResult.metadata.fileSize / 1024).toFixed(1)}KB
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Transcription */}
-                  {fileResult.transcriptionText && (
-                    <div
-                      style={{
-                        background: 'rgba(0, 0, 0, 0.8)',
-                        padding: '20px',
-                        border: '1px solid #00ff41',
-                      }}
-                    >
-                      <h4 style={{ color: '#00ff41', marginBottom: '10px' }}>
-                        WHISPER TRANSCRIPTION:
-                      </h4>
-                      <div style={{ fontSize: '1rem', lineHeight: '1.6' }}>
-                        {fileResult.transcriptionText}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Voice Segments */}
-                  {fileResult.vadAnalysis.voiceSegments.length > 0 && (
-                    <div
-                      style={{
-                        marginTop: '20px',
-                        background: 'rgba(0, 0, 0, 0.8)',
-                        padding: '20px',
-                        border: '1px solid #ffff00',
-                      }}
-                    >
-                      <h4 style={{ color: '#ffff00', marginBottom: '10px' }}>
-                        VOICE SEGMENTS DETECTED ({fileResult.vadAnalysis.voiceSegments.length}):
-                      </h4>
-                      <div style={{ display: 'grid', gap: '5px', fontSize: '0.9rem' }}>
-                        {fileResult.vadAnalysis.voiceSegments.slice(0, 5).map((segment, i) => (
-                          <div key={i} style={{ opacity: 0.8 }}>
-                            [{segment.startTime.toFixed(1)}s - {segment.endTime.toFixed(1)}s] VAD:{' '}
-                            {(segment.vadScore * 100).toFixed(1)}%
-                          </div>
-                        ))}
-                        {fileResult.vadAnalysis.voiceSegments.length > 5 && (
-                          <div style={{ opacity: 0.6 }}>
-                            ... and {fileResult.vadAnalysis.voiceSegments.length - 5} more segments
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        )}
-
-        {/* CONVERSATIONAL VIEW */}
-        {viewMode === 'conversational' && (
-          <AnimatePresence>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <ConversationalChatFeed
-                style={{
-                  height: 'calc(100vh - 200px)',
-                  minHeight: '600px',
-                }}
-              />
-            </motion.div>
-          </AnimatePresence>
-        )}
+            </div>
+          )}
+        </motion.div>
 
         {/* Instructions */}
         <div

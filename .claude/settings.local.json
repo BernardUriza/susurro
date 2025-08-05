@@ -54,7 +54,8 @@
       "Bash(gh issue create:*)",
       "Bash(git push:*)",
       "Bash(gh pr create:*)",
-      "Bash(gh issue edit:*)"
+      "Bash(gh issue edit:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

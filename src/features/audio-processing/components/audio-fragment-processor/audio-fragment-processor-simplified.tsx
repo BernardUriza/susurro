@@ -3,64 +3,49 @@
 import React, { useState, useCallback } from 'react';
 import { useSusurro } from '@susurro/core';
 import { SimpleWaveformAnalyzer } from 'murmuraba';
-import type { StreamingSusurroChunk } from '@susurro/core';
 
 export interface AudioFragmentProcessorSimplifiedProps {
   onBack: () => void;
 }
 
 export const AudioFragmentProcessorSimplified: React.FC<AudioFragmentProcessorSimplifiedProps> = ({ onBack }) => {
-  // Minimal state - only 4 essentials
+  // Minimal state - only 2 essentials (transcriptions come from hook)
   const [status, setStatus] = useState('');
-  const [transcriptions, setTranscriptions] = useState<string[]>([]);
-  const [metrics, setMetrics] = useState({ vad: 0, chunks: 0, latency: 0 });
+  const [localTranscriptions, setLocalTranscriptions] = useState<string[]>([]);
 
   // Use simplified susurro with 8-second chunks
   const {
-    startStreamingRecording,
-    stopStreamingRecording,
+    startRecording,
+    stopRecording,
     currentStream,
     isRecording,
     whisperReady,
     whisperProgress,
-    initializeAudioEngine,
-    isEngineInitialized
+    audioChunks,
+    averageVad,
+    transcriptions
   } = useSusurro({
-    chunkDurationMs: 8000 // 8-second chunks for better context
+    chunkDurationMs: 8000, // 8-second chunks for better context
+    conversational: {
+      onChunk: (chunk) => {
+        // Update transcriptions in real-time
+        if (chunk.transcript) {
+          setLocalTranscriptions(prev => [...prev.slice(-2), chunk.transcript]);
+        }
+      }
+    }
   });
 
   // Single handler for start/stop
   const handleToggleRecording = useCallback(async () => {
     if (isRecording) {
-      await stopStreamingRecording();
+      stopRecording();
       setStatus('[STOPPED]');
     } else {
-      if (!isEngineInitialized) {
-        setStatus('[INITIALIZING...]');
-        await initializeAudioEngine();
-      }
-      
       setStatus('[RECORDING]');
-      await startStreamingRecording((chunk: StreamingSusurroChunk) => {
-        // Update metrics with real data
-        setMetrics({
-          vad: chunk.vadScore || 0,
-          chunks: prev => prev.chunks + 1,
-          latency: chunk.processingTime || 0
-        });
-        
-        // Update transcriptions (keep last 3)
-        if (chunk.transcriptionText) {
-          setTranscriptions(prev => [...prev.slice(-2), chunk.transcriptionText]);
-        }
-      }, {
-        chunkDuration: 8,
-        vadThreshold: 0.3,
-        enableRealTimeTranscription: true,
-        enableNoiseReduction: true
-      });
+      await startRecording();
     }
-  }, [isRecording, isEngineInitialized, initializeAudioEngine, startStreamingRecording, stopStreamingRecording]);
+  }, [isRecording, startRecording, stopRecording]);
 
   return (
     <div style={{
@@ -136,8 +121,8 @@ export const AudioFragmentProcessorSimplified: React.FC<AudioFragmentProcessorSi
         marginBottom: '20px'
       }}>
         <h3 style={{ marginBottom: '10px' }}>TRANSCRIPTIONS:</h3>
-        {transcriptions.length > 0 ? (
-          transcriptions.map((text, i) => (
+        {(localTranscriptions.length > 0 || transcriptions.length > 0) ? (
+          (localTranscriptions.length > 0 ? localTranscriptions : transcriptions.map(t => t.text)).map((text, i) => (
             <div key={i} style={{ opacity: 1 - (i * 0.3), marginBottom: '5px' }}>
               &gt; {text}
             </div>
@@ -158,9 +143,9 @@ export const AudioFragmentProcessorSimplified: React.FC<AudioFragmentProcessorSi
         border: '1px solid #00ff41',
         fontSize: '0.9rem'
       }}>
-        <span>VAD: {(metrics.vad * 100).toFixed(0)}%</span>
-        <span>Chunks: {metrics.chunks}</span>
-        <span>Latency: {metrics.latency}ms</span>
+        <span>VAD: {(averageVad * 100).toFixed(0)}%</span>
+        <span>Chunks: {audioChunks.length}</span>
+        <span>Duration: {audioChunks.length * 8}s</span>
       </div>
 
       {/* Info */}
@@ -175,10 +160,10 @@ export const AudioFragmentProcessorSimplified: React.FC<AudioFragmentProcessorSi
         <strong>✨ SIMPLIFICATION ACHIEVED:</strong><br/>
         • 1 SimpleWaveformAnalyzer component (not 3 canvases)<br/>
         • Real MediaStream from currentStream<br/>
-        • 4 state variables (not 15+)<br/>
+        • 2 state variables (not 15+)<br/>
         • 8-second chunks for better context<br/>
         • Zero mock data - all real metrics<br/>
-        • ~150 lines total (not 900)
+        • ~160 lines total (not 900)
       </div>
     </div>
   );

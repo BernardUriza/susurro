@@ -16,12 +16,17 @@ import { SilentThreadProcessor } from '../../../../shared/services';
 
 // Styles (last)
 import '../../../../styles/matrix-theme.css';
+import '../../../../styles/cube-flip.css';
+
+type CubeFace = 'front' | 'right' | 'back' | 'left';
 
 export const WhisperMatrixTerminal: React.FC = () => {
   const [temporalSegmentDuration] = React.useState(15); // Default 15 seconds
+  const [currentFace, setCurrentFace] = React.useState<CubeFace>('front');
 
   const {
     isProcessing,
+    isRecording,
     audioChunks,
     averageVad,
     clearTranscriptions,
@@ -30,6 +35,8 @@ export const WhisperMatrixTerminal: React.FC = () => {
     whisperError,
     transcribeWithWhisper,
     transcriptions,
+    startRecording,
+    stopRecording,
   } = useSusurro({
     chunkDurationMs: temporalSegmentDuration * 1000, // Convert to milliseconds
     whisperConfig: { language: 'en' },
@@ -61,6 +68,16 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
   // Silent thread processor for non-blocking transcription
   const silentThreadProcessorRef = React.useRef<SilentThreadProcessor | null>(null);
+  
+  // Helper function to add background logs
+  const addBackgroundLog = (message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
+    setBackgroundLogs(prev => [...prev, {
+      id: `${Date.now()}-${Math.random()}`,
+      timestamp: new Date(),
+      message,
+      type
+    }]);
+  };
 
   React.useEffect(() => {
     silentThreadProcessorRef.current = new SilentThreadProcessor((message, type) => {
@@ -96,16 +113,18 @@ export const WhisperMatrixTerminal: React.FC = () => {
       setOriginalUrl(URL.createObjectURL(file));
       clearTranscriptions();
 
-      // Note: File processing deprecated in favor of real-time recording
-      // For file processing, we'll need to simulate with recording
-      setStatus('[FILE_PROCESSING_NOT_SUPPORTED] Use real-time recording instead');
+      // For now, show a message that file processing requires manual implementation
+      // since murmuraba's startRecording doesn't accept custom streams
+      setStatus('[INFO] File streaming not yet implemented - use microphone recording instead');
+      
+      // Alternative: Process the file in chunks manually
+      // This would require implementing a custom chunk processor
+      // that mimics the real-time recording behavior
+      
+      addBackgroundLog('File upload attempted - streaming implementation pending', 'info');
+      
       return false;
-
-      setStatus('[PROCESSING_COMPLETE]');
-
-      return true;
     } catch (err) {
-      // console.error('File processing error:', err);
       setStatus(`[ERROR] ${err instanceof Error ? err.message : 'Unknown error'}`);
       return false;
     }
@@ -124,6 +143,19 @@ export const WhisperMatrixTerminal: React.FC = () => {
     } catch (error) {
       // console.error('Error loading sample:', error);
       setStatus(`[ERROR] ${error instanceof Error ? error.message : 'Failed to load sample'}`);
+    }
+  };
+
+  const getCubeClass = () => {
+    switch (currentFace) {
+      case 'right':
+        return 'cube rotate-to-right';
+      case 'back':
+        return 'cube rotate-to-back';
+      case 'left':
+        return 'cube rotate-to-left';
+      default:
+        return 'cube';
     }
   };
 
@@ -147,14 +179,19 @@ export const WhisperMatrixTerminal: React.FC = () => {
       >
         SUSURRO_MATRIX_v1.0
       </div>
-      <div
-        className="matrix-container"
-        style={{
-          maxWidth: 600,
-          margin: '40px auto',
-          padding: 20,
-        }}
-      >
+      
+      <div className="cube-container">
+        <div className={getCubeClass()}>
+          {/* Front face - Main App */}
+          <div className="cube-face cube-face-front">
+            <div
+              className="matrix-container"
+              style={{
+                maxWidth: 600,
+                margin: '40px auto',
+                padding: 20,
+              }}
+            >
         {/* Banner with advanced transparency effects */}
         <div
           style={{
@@ -1063,10 +1100,130 @@ await processAudioFile(audioFile)
         >
           [SYSTEM.READY] - MATRIX_AUDIO_PROCESSOR_ONLINE
         </p>
+            </div>
+
+            {/* Navigation button */}
+            <button
+              style={{
+                position: 'fixed',
+                bottom: 20,
+                right: 20,
+                background: 'transparent',
+                border: '1px solid #00ff41',
+                color: '#00ff41',
+                padding: '12px 24px',
+                fontFamily: 'Courier New, monospace',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                textTransform: 'uppercase',
+                zIndex: 1000
+              }}
+              onClick={() => setCurrentFace('right')}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = '#00ff41';
+                e.currentTarget.style.color = '#000';
+                e.currentTarget.style.boxShadow = '0 0 20px #00ff41';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#00ff41';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              [AUDIO_FRAGMENT_PROCESSOR →]
+            </button>
+          </div>
+
+          {/* Right face - Audio Fragment Processor */}
+          <div className="cube-face cube-face-right">
+            <DigitalRainfall />
+            <div className="fragment-processor-page" style={{ position: 'relative', zIndex: 1 }}>
+              <button 
+                className="matrix-back-button"
+                onClick={() => setCurrentFace('front')}
+              >
+                [← BACK]
+              </button>
+              
+              <div className="matrix-grid" />
+              
+              <div className="fragment-processor-title">
+                &gt; AUDIO FRAGMENT PROCESSOR &lt;
+              </div>
+              
+              <div className="processor-grid">
+                <div className="processor-card">
+                  <h3>CHUNK ANALYZER</h3>
+                  <p>Real-time audio chunk analysis</p>
+                </div>
+                <div className="processor-card">
+                  <h3>VAD METRICS</h3>
+                  <p>Voice activity detection stats</p>
+                </div>
+                <div className="processor-card">
+                  <h3>WAVEFORM VIEWER</h3>
+                  <p>Visual audio representation</p>
+                </div>
+                <div className="processor-card">
+                  <h3>FREQUENCY ANALYZER</h3>
+                  <p>FFT spectrum analysis</p>
+                </div>
+                <div className="processor-card">
+                  <h3>SEGMENT EDITOR</h3>
+                  <p>Manual chunk adjustment</p>
+                </div>
+                <div className="processor-card">
+                  <h3>EXPORT MANAGER</h3>
+                  <p>Download processed chunks</p>
+                </div>
+              </div>
+              
+              <div style={{ 
+                marginTop: 40, 
+                fontSize: '1rem', 
+                opacity: 0.8,
+                textAlign: 'center'
+              }}>
+                <p>STATUS: EXPERIMENTAL</p>
+                <p>Select a module to begin processing</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Back face - Reserved */}
+          <div className="cube-face cube-face-back">
+            <div style={{ 
+              background: '#000', 
+              height: '100%', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              color: '#00ff41',
+              fontFamily: 'Courier New, monospace'
+            }}>
+              [RESERVED]
+            </div>
+          </div>
+
+          {/* Left face - Reserved */}
+          <div className="cube-face cube-face-left">
+            <div style={{ 
+              background: '#000', 
+              height: '100%', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              color: '#00ff41',
+              fontFamily: 'Courier New, monospace'
+            }}>
+              [RESERVED]
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Floating logs for background processing */}
-      {backgroundLogs.length > 0 && <WhisperEchoLogs logs={backgroundLogs} maxLogs={15} />}
+      {/* Floating logs for background processing - only show on front face */}
+      {currentFace === 'front' && backgroundLogs.length > 0 && <WhisperEchoLogs logs={backgroundLogs} maxLogs={15} />}
     </div>
   );
 };

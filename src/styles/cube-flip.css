@@ -1,0 +1,160 @@
+/* Cube Flip Animation */
+.cube-container {
+  width: 100%;
+  height: 100vh;
+  perspective: 1500px;
+  overflow: hidden;
+  position: relative;
+  background: #000;
+}
+
+.cube {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.cube-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  overflow: auto;
+  background: #000;
+}
+
+.cube-face-front {
+  transform: rotateY(0deg) translateZ(0);
+}
+
+.cube-face-right {
+  transform: rotateY(90deg) translateZ(50vw) translateX(-50vw);
+  background: #000;
+}
+
+.cube-face-back {
+  transform: rotateY(180deg) translateZ(0);
+}
+
+.cube-face-left {
+  transform: rotateY(-90deg) translateZ(50vw) translateX(50vw);
+}
+
+/* Rotation states */
+.cube.rotate-to-right {
+  transform: rotateY(-90deg);
+}
+
+.cube.rotate-to-back {
+  transform: rotateY(-180deg);
+}
+
+.cube.rotate-to-left {
+  transform: rotateY(90deg);
+}
+
+/* Fragment Processor styles */
+.fragment-processor-page {
+  background: #000;
+  color: #00ff41;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Courier New', monospace;
+  position: relative;
+  overflow: hidden;
+}
+
+.fragment-processor-title {
+  font-size: 2.5rem;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  margin-bottom: 40px;
+  text-shadow: 0 0 20px #00ff41;
+}
+
+.processor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 800px;
+  width: 100%;
+  padding: 20px;
+}
+
+.processor-card {
+  background: rgba(0, 255, 65, 0.1);
+  border: 2px solid #00ff41;
+  padding: 20px;
+  text-align: center;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.processor-card:hover {
+  background: rgba(0, 255, 65, 0.2);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(0, 255, 65, 0.3);
+}
+
+/* Matrix grid background */
+.matrix-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 255, 65, 0.1) 2px,
+      rgba(0, 255, 65, 0.1) 4px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 255, 65, 0.1) 2px,
+      rgba(0, 255, 65, 0.1) 4px
+    );
+  opacity: 0.5;
+  animation: grid-move 10s linear infinite;
+}
+
+@keyframes grid-move {
+  0% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(4px, 4px);
+  }
+}
+
+/* Back button */
+.matrix-back-button {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: transparent;
+  border: 1px solid #00ff41;
+  color: #00ff41;
+  padding: 10px 20px;
+  font-family: 'Courier New', monospace;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-transform: uppercase;
+  z-index: 100;
+}
+
+.matrix-back-button:hover {
+  background: #00ff41;
+  color: #000;
+  box-shadow: 0 0 20px #00ff41;
+}

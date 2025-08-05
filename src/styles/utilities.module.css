@@ -1,0 +1,167 @@
+@import './tokens.css';
+
+/* Utility classes for common patterns */
+
+/* Text utilities */
+.textCenter {
+  text-align: center;
+}
+
+.textLeft {
+  text-align: left;
+}
+
+.textRight {
+  text-align: right;
+}
+
+.uppercase {
+  text-transform: uppercase;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* Spacing utilities */
+.mt1 { margin-top: var(--space-1); }
+.mt2 { margin-top: var(--space-2); }
+.mt4 { margin-top: var(--space-4); }
+.mt8 { margin-top: var(--space-8); }
+
+.mb1 { margin-bottom: var(--space-1); }
+.mb2 { margin-bottom: var(--space-2); }
+.mb4 { margin-bottom: var(--space-4); }
+.mb8 { margin-bottom: var(--space-8); }
+
+.p1 { padding: var(--space-1); }
+.p2 { padding: var(--space-2); }
+.p4 { padding: var(--space-4); }
+.p8 { padding: var(--space-8); }
+
+/* Display utilities */
+.hidden {
+  display: none;
+}
+
+.block {
+  display: block;
+}
+
+.inlineBlock {
+  display: inline-block;
+}
+
+.flex {
+  display: flex;
+}
+
+.inlineFlex {
+  display: inline-flex;
+}
+
+.grid {
+  display: grid;
+}
+
+/* Flexbox utilities */
+.flexRow {
+  flex-direction: row;
+}
+
+.flexColumn {
+  flex-direction: column;
+}
+
+.itemsCenter {
+  align-items: center;
+}
+
+.itemsStart {
+  align-items: flex-start;
+}
+
+.itemsEnd {
+  align-items: flex-end;
+}
+
+.justifyCenter {
+  justify-content: center;
+}
+
+.justifyBetween {
+  justify-content: space-between;
+}
+
+.justifyEnd {
+  justify-content: flex-end;
+}
+
+.gap1 { gap: var(--space-1); }
+.gap2 { gap: var(--space-2); }
+.gap4 { gap: var(--space-4); }
+.gap8 { gap: var(--space-8); }
+
+/* Width utilities */
+.w100 {
+  width: 100%;
+}
+
+.wAuto {
+  width: auto;
+}
+
+/* Matrix-specific utilities */
+.matrixGlow {
+  text-shadow: 0 0 10px var(--matrix-green-dim);
+}
+
+.matrixBorder {
+  border: 1px solid var(--matrix-green);
+}
+
+.matrixBg {
+  background: rgba(0, 255, 65, 0.05);
+}
+
+/* Animation utilities */
+.fadeIn {
+  animation: fadeIn var(--duration-normal) var(--ease-out);
+}
+
+.slideUp {
+  animation: slideUp var(--duration-normal) var(--ease-out);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+  .hiddenMobile {
+    display: none;
+  }
+}
+
+@media (min-width: 769px) {
+  .hiddenDesktop {
+    display: none;
+  }
+}

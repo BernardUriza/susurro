@@ -8,7 +8,7 @@ export * from './lib/ui-interfaces';
 export * from './lib/whisper-types';
 export * from './lib/murmuraba-types';
 // Advanced conversational evolution
-export { default as ChunkMiddlewarePipeline } from './lib/chunk-middleware';
+export { ChunkMiddlewarePipeline } from './lib/chunk-middleware';
 export * from './lib/chunk-middleware';
 // Phase 3: Latency monitoring and optimization
 export { latencyMonitor } from './lib/latency-monitor';

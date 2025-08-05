@@ -1,0 +1,268 @@
+/* Import design tokens */
+@import '../../styles/tokens.css';
+
+.container {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background: transparent;
+  color: var(--matrix-green);
+  font-family: var(--font-mono);
+  display: grid;
+  grid-template-areas:
+    'nav content'
+    'status status';
+  grid-template-columns: 200px 1fr;
+  grid-template-rows: calc(100vh - 40px) 40px;
+  gap: 0;
+  z-index: 2;
+}
+
+/* Navigation Grid */
+.navigation {
+  grid-area: nav;
+  display: grid;
+  grid-template-rows: repeat(6, 1fr);
+  padding: var(--space-4);
+  background: rgba(0, 17, 0, 0.8);
+  border-right: 1px solid var(--matrix-green);
+  position: sticky;
+  top: 0;
+  height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.navButton {
+  background: linear-gradient(135deg, transparent, rgba(0, 255, 65, 0.02));
+  border: 1px solid var(--matrix-green-dim);
+  color: var(--matrix-green-dim);
+  padding: var(--space-2);
+  margin-bottom: var(--space-1);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  min-height: 60px;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(2px);
+}
+
+.navButton::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.1), transparent);
+  transition: left 0.5s;
+}
+
+.navButton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 30%, rgba(0, 255, 65, 0.05) 100%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.navButton:hover:not(.disabled) {
+  border-color: var(--matrix-green);
+  color: var(--matrix-green);
+  background: linear-gradient(135deg, rgba(0, 255, 65, 0.05), rgba(0, 255, 65, 0.1));
+  transform: translateX(4px);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 255, 65, 0.2),
+    0 0 20px rgba(0, 255, 65, 0.1),
+    -4px 0 8px rgba(0, 255, 65, 0.2);
+}
+
+.navButton:hover:not(.disabled)::before {
+  left: 100%;
+}
+
+.navButton:hover:not(.disabled)::after {
+  opacity: 1;
+}
+
+.navButton.active {
+  border-color: var(--matrix-green);
+  color: var(--matrix-black);
+  background: linear-gradient(135deg, var(--matrix-green), rgba(0, 255, 65, 0.8));
+  box-shadow:
+    0 0 20px var(--matrix-green),
+    inset 0 0 10px rgba(0, 0, 0, 0.3),
+    0 0 40px rgba(0, 255, 65, 0.3);
+  transform: translateX(8px);
+  animation: glowPulse 2s infinite;
+}
+
+@keyframes glowPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 20px var(--matrix-green),
+      inset 0 0 10px rgba(0, 0, 0, 0.3),
+      0 0 40px rgba(0, 255, 65, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 30px var(--matrix-green),
+      inset 0 0 15px rgba(0, 0, 0, 0.3),
+      0 0 60px rgba(0, 255, 65, 0.5);
+  }
+}
+
+.navButton.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.keyHint {
+  font-size: var(--font-size-xs);
+  opacity: 0.7;
+  margin-bottom: var(--space-1);
+}
+
+.title {
+  font-weight: bold;
+  font-size: var(--font-size-xs);
+  line-height: 1.2;
+}
+
+/* Content Area */
+.content {
+  grid-area: content;
+  position: relative;
+  overflow: auto;
+  padding: var(--space-4);
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+.content.transitioning {
+  opacity: 0.3;
+}
+
+.scrollArea {
+  width: 100%;
+  height: 100%;
+}
+
+.contentInner {
+  width: 100%;
+  min-height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--matrix-green);
+  border-radius: 4px;
+  padding: var(--space-4);
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.1);
+}
+
+/* Placeholder content styling */
+.placeholder {
+  text-align: center;
+  padding: var(--space-8);
+}
+
+.placeholder h2 {
+  color: var(--matrix-green);
+  margin-bottom: var(--space-4);
+}
+
+.placeholder p {
+  opacity: 0.7;
+  margin-bottom: var(--space-4);
+}
+
+.icon {
+  font-size: 2rem;
+  opacity: 0.8;
+}
+
+/* Status Bar */
+.statusBar {
+  grid-area: status;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 var(--space-4);
+  background: rgba(0, 17, 0, 0.9);
+  border-top: 1px solid var(--matrix-green);
+  font-size: var(--font-size-xs);
+  opacity: 0.8;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .container {
+    grid-template-areas:
+      'nav'
+      'content'
+      'status';
+    grid-template-columns: 1fr;
+    grid-template-rows: 60px 1fr 40px;
+  }
+
+  .navigation {
+    grid-template-rows: none;
+    grid-template-columns: repeat(6, 1fr);
+    padding: var(--space-2);
+    overflow-x: auto;
+  }
+
+  .navButton {
+    min-height: 40px;
+    margin-bottom: 0;
+    margin-right: var(--space-1);
+    padding: var(--space-1);
+  }
+
+  .title {
+    display: none;
+  }
+
+  .keyHint {
+    font-size: var(--font-size-sm);
+    margin-bottom: 0;
+  }
+
+  .statusBar {
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-1);
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .navButton {
+    border-width: 2px;
+  }
+
+  .container {
+    background: #000000;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .navButton,
+  .content {
+    transition: none;
+  }
+}
+
+/* Focus management */
+.navButton:focus-visible {
+  outline: 2px solid var(--matrix-green);
+  outline-offset: 2px;
+}

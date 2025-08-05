@@ -8,16 +8,36 @@ import type {
   TranscriptionResult,
   SusurroChunk,
   UseSusurroOptions as BaseUseSusurroOptions,
+  // NEW REFACTORED TYPES
+  CompleteAudioResult,
+  StreamingSusurroChunk,
+  RecordingConfig,
+  AudioEngineConfig,
+  VADAnalysisResult,
+  AudioMetadata,
+  VoiceSegment,
 } from '../lib/types';
 
 // Direct import from Murmuraba v3 - Real package integration
 import { useMurmubaraEngine } from 'murmuraba';
 
+// Import Murmuraba processing functions - ONLY useSusurro should access these
+import {
+  processFileWithMetrics as murmubaraProcess,
+  initializeAudioEngine as murmubaraInit,
+  murmubaraVAD,
+  extractAudioMetadata
+} from 'murmuraba';
+import type { ProcessingMetrics as MurmurabaProcessingMetrics } from 'murmuraba';
+
 // Conversational Evolution - Advanced chunk middleware
-import ChunkMiddlewarePipeline from '../lib/chunk-middleware';
+import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
 
 // Phase 3: Latency optimization and measurement
 import { latencyMonitor, type LatencyMetrics, type LatencyReport } from '../lib/latency-monitor';
+
+// Debug mode for development
+const DEBUG_MODE = false;
 
 // Helper function to convert URL to Blob - Used in chunk processing
 const urlToBlob = async (url: string): Promise<Blob> => {
@@ -64,6 +84,24 @@ export interface UseSusurroReturn {
     currentLatency: number;
     trend: 'improving' | 'degrading' | 'stable';
   };
+  
+  // NEW REFACTORED METHODS - useSusurro consolidation
+  // Audio engine management
+  initializeAudioEngine: (config?: AudioEngineConfig) => Promise<void>;
+  isEngineInitialized: boolean;
+  engineError: string | null;
+  isInitializingEngine: boolean;
+  
+  // MAIN METHOD FOR FILES - Everything in one
+  processAndTranscribeFile: (file: File) => Promise<CompleteAudioResult>;
+  
+  // STREAMING RECORDING with callback pattern
+  startStreamingRecording: (onChunk: (chunk: StreamingSusurroChunk) => void, config?: RecordingConfig) => Promise<void>;
+  stopStreamingRecording: () => Promise<StreamingSusurroChunk[]>;
+  
+  // Auxiliary methods
+  analyzeVAD: (buffer: ArrayBuffer) => Promise<VADAnalysisResult>;
+  convertBlobToBuffer: (blob: Blob) => Promise<ArrayBuffer>;
 }
 
 export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
@@ -99,6 +137,13 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const [chunkTranscriptions, setChunkTranscriptions] = useState<Map<string, string>>(new Map());
   const [chunkProcessingTimes, setChunkProcessingTimes] = useState<Map<string, number>>(new Map());
 
+  // NEW REFACTORED STATE - Audio engine and file processing
+  const [isEngineInitialized, setIsEngineInitialized] = useState(false);
+  const [engineError, setEngineError] = useState<string | null>(null);
+  const [isInitializingEngine, setIsInitializingEngine] = useState(false);
+  const [currentStreamingChunks, setCurrentStreamingChunks] = useState<StreamingSusurroChunk[]>([]);
+  const [isStreamingRecording, setIsStreamingRecording] = useState(false);
+
   // Phase 3: Latency monitoring state
   const [latencyReport, setLatencyReport] = useState<LatencyReport>(
     latencyMonitor.generateReport()
@@ -117,6 +162,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // Refs - Minimal refs for conversational features only
   const startTimeRef = useRef<number>(0);
   const chunkEmissionTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  
+  // NEW REFS for streaming recording
+  const streamingCallbackRef = useRef<((chunk: StreamingSusurroChunk) => void) | null>(null);
+  const streamingSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
 
   // Direct Whisper integration - no abstraction layer
   const {
@@ -127,7 +176,183 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     transcribe: transcribeWhisper,
   } = useWhisperDirect({
     language: whisperConfig?.language || 'en',
+    model: whisperConfig?.model,
   });
+
+  // NEW REFACTORED METHODS - Core functionality
+  
+  // Audio engine initialization
+  const initializeAudioEngine = useCallback(async (config?: AudioEngineConfig) => {
+    if (isInitializingEngine) return;
+    
+    setIsInitializingEngine(true);
+    setEngineError(null);
+    
+    try {
+      await murmubaraInit({
+        enableVAD: true,
+        enableNoiseSuppression: true,
+        enableEchoCancellation: true,
+        vadThreshold: 0.5,
+        wasmPath: '/wasm/',
+        ...config
+      } as Record<string, unknown>);
+      
+      setIsEngineInitialized(true);
+      setEngineError(null);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Audio engine initialization failed';
+      setEngineError(errorMsg);
+      throw new Error(`Audio engine initialization failed: ${errorMsg}`);
+    } finally {
+      setIsInitializingEngine(false);
+    }
+  }, [isInitializingEngine]);
+  
+  // VAD analysis helper  
+  const analyzeVAD = useCallback(async (buffer: ArrayBuffer): Promise<VADAnalysisResult> => {
+    try {
+      // Using real murmubaraVAD from v3.0.3
+      const result = await murmubaraVAD(buffer);
+      
+      // Process results to find voice segments
+      const voiceSegments: VoiceSegment[] = [];
+      const vadScores = result.scores || [];
+      const metrics = result.metrics || [];
+      
+      // Use voiceSegments from murmubaraVAD if available
+      if (result.voiceSegments && result.voiceSegments.length > 0) {
+        result.voiceSegments.forEach(segment => {
+          voiceSegments.push({
+            startTime: segment.startTime,
+            endTime: segment.endTime,
+            vadScore: segment.confidence,
+            confidence: segment.confidence
+          });
+        });
+      } else {
+        // Fallback: Find continuous voice segments
+        let segmentStart = -1;
+        const threshold = 0.5;
+        
+        for (let i = 0; i < vadScores.length; i++) {
+          const isVoice = vadScores[i] > threshold;
+          
+          if (isVoice && segmentStart === -1) {
+            segmentStart = i;
+          } else if (!isVoice && segmentStart !== -1) {
+            voiceSegments.push({
+              startTime: segmentStart * 0.02, // 20ms per frame
+              endTime: i * 0.02,
+              vadScore: vadScores.slice(segmentStart, i).reduce((a: number, b: number) => a + b, 0) / (i - segmentStart),
+              confidence: vadScores.slice(segmentStart, i).reduce((a: number, b: number) => a + b, 0) / (i - segmentStart)
+            });
+            segmentStart = -1;
+          }
+        }
+      }
+      
+      return {
+        averageVad: result.average || 0,
+        vadScores,
+        metrics,
+        voiceSegments
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'VAD analysis failed';
+      throw new Error(`VAD analysis failed: ${errorMsg}`);
+    }
+  }, []);
+  
+  // Convert blob to ArrayBuffer
+  const convertBlobToBuffer = useCallback(async (blob: Blob): Promise<ArrayBuffer> => {
+    return await blob.arrayBuffer();
+  }, []);
+  
+  // processAndTranscribeFile method will be defined after transcribeWithWhisper
+  
+  // Helper function to calculate audio duration using real metadata extraction
+  const calculateDuration = (buffer: ArrayBuffer): number => {
+    try {
+      const metadata = extractAudioMetadata(buffer);
+      return metadata.duration;
+    } catch (error) {
+      // Fallback to estimation if metadata extraction fails
+      console.warn('Failed to extract audio metadata, using estimation:', error);
+      const bytes = buffer.byteLength;
+      const estimatedDuration = bytes / (44100 * 2 * 2); // 44.1kHz, 2 channels, 16-bit
+      return Math.max(0.1, estimatedDuration);
+    }
+  };
+  
+  // STREAMING RECORDING with callback pattern - Modern React 19 approach
+  const startStreamingRecording = useCallback(async (
+    onChunk: (chunk: StreamingSusurroChunk) => void,
+    config?: RecordingConfig
+  ): Promise<void> => {
+    if (isStreamingRecording) {
+      throw new Error('Already recording. Stop current recording first.');
+    }
+    
+    if (!isEngineInitialized) {
+      await initializeAudioEngine();
+    }
+    
+    setIsStreamingRecording(true);
+    setCurrentStreamingChunks([]);
+    streamingCallbackRef.current = onChunk;
+    
+    // Configuration with defaults
+    const recordingConfig = {
+      chunkDuration: 3, // 3 seconds per chunk
+      vadThreshold: 0.5,
+      enableRealTimeTranscription: true,
+      enableNoiseReduction: true,
+      ...config
+    };
+    
+    try {
+      // Use Murmuraba streaming - NOT MediaRecorder
+      // Note: This is a placeholder for actual Murmuraba streaming API
+      // In real implementation, this would use Murmuraba's chunked processing
+      
+      const streamingSession = {
+        stop: async () => {
+          setIsStreamingRecording(false);
+          streamingCallbackRef.current = null;
+        }
+      };
+      
+      // Store session reference
+      streamingSessionRef.current = streamingSession;
+      
+      // TODO: Implement actual Murmuraba streaming integration
+      // This would involve:
+      // 1. Initialize microphone capture through Murmuraba
+      // 2. Process chunks with VAD and noise reduction
+      // 3. Transcribe each chunk with Whisper
+      // 4. Call onChunk callback with complete StreamingSusurroChunk
+      
+    } catch (error) {
+      setIsStreamingRecording(false);
+      streamingCallbackRef.current = null;
+      const errorMsg = error instanceof Error ? error.message : 'Failed to start streaming recording';
+      throw new Error(`Streaming recording failed: ${errorMsg}`);
+    }
+  }, [isStreamingRecording, isEngineInitialized, initializeAudioEngine]);
+  
+  const stopStreamingRecording = useCallback(async (): Promise<StreamingSusurroChunk[]> => {
+    if (streamingSessionRef.current) {
+      await streamingSessionRef.current.stop();
+      streamingSessionRef.current = null;
+    }
+    
+    setIsStreamingRecording(false);
+    streamingCallbackRef.current = null;
+    
+    // Return all chunks processed during this session
+    return currentStreamingChunks;
+  }, [currentStreamingChunks]);
 
   // Helper functions - moved before usage
 
@@ -161,10 +386,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         try {
           susurroChunk = await middlewarePipeline.process(susurroChunk);
         } catch (error) {
-          // Log middleware processing failure in development only
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('Middleware processing failed:', error);
-          }
+          // Log middleware processing failure
+          console.warn('Middleware processing failed:', error);
         }
         const middlewareLatency = performance.now() - middlewareStartTime;
 
@@ -229,13 +452,15 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   const clearConversationalChunks = useCallback(() => {
     // Clear URL objects to prevent memory leaks
-    conversationalChunks.forEach((chunk) => {
-      if (chunk.audioUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(chunk.audioUrl);
-      }
+    setConversationalChunks((prevChunks) => {
+      prevChunks.forEach((chunk) => {
+        if (chunk.audioUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(chunk.audioUrl);
+        }
+      });
+      return [];
     });
 
-    setConversationalChunks([]);
     setProcessedAudioUrls(new Map());
     setChunkTranscriptions(new Map());
     setChunkProcessingTimes(new Map());
@@ -243,7 +468,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     // Clear any pending timeouts
     chunkEmissionTimeoutRef.current.forEach((timeout) => clearTimeout(timeout));
     chunkEmissionTimeoutRef.current.clear();
-  }, [conversationalChunks]);
+  }, []);
 
   // Enhanced transcription handler with conversational support
   const transcribeWithWhisper = useCallback(
@@ -270,14 +495,80 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         }
         return null;
       } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('Transcription failed:', error);
-        }
+        console.warn('Transcription failed:', error);
         return null;
       }
     },
     [transcribeWhisper, conversational, audioChunks, tryEmitChunk]
   );
+
+  // MAIN METHOD FOR FILES - Everything in one (defined after transcribeWithWhisper)
+  const processAndTranscribeFile = useCallback(async (file: File): Promise<CompleteAudioResult> => {
+    const startTime = performance.now();
+    
+    try {
+      // Ensure engines are ready
+      if (!whisperReady) {
+        throw new Error('Whisper model not ready. Please wait for model to load.');
+      }
+      if (!isEngineInitialized) {
+        await initializeAudioEngine();
+      }
+      
+      // 1. Convert file to ArrayBuffer
+      const originalBuffer = await file.arrayBuffer();
+      
+      // 2. Create URL for original audio
+      const originalAudioUrl = URL.createObjectURL(file);
+      
+      // 3. Process with Murmuraba (noise reduction + VAD)
+      const processedResult = await murmubaraProcess(originalBuffer, (metrics: MurmurabaProcessingMetrics) => {
+        // Callback for real-time metrics if needed
+        if (DEBUG_MODE) {
+          console.log(`Processing: VAD=${metrics.vad?.toFixed(3)}, Frame=${metrics.frame}`);
+        }
+      });
+      
+      // 4. Create URL for processed audio
+      const processedBlob = new Blob([processedResult.processedBuffer], { type: 'audio/wav' });
+      const processedAudioUrl = URL.createObjectURL(processedBlob);
+      
+      // 5. Analyze VAD first
+      const vadAnalysis = await analyzeVAD(originalBuffer);
+      
+      // 6. Transcribe with Whisper
+      const transcriptionResult = await transcribeWithWhisper(processedBlob);
+      if (!transcriptionResult) {
+        throw new Error('Transcription failed - no result returned');
+      }
+      
+      // 7. Extract metadata
+      const metadata: AudioMetadata = {
+        duration: calculateDuration(originalBuffer),
+        sampleRate: 44100, // TODO: Extract from actual buffer
+        channels: 2, // TODO: Extract from actual buffer
+        fileSize: file.size,
+        processedSize: processedResult.processedBuffer.byteLength
+      };
+      
+      // 8. Compile complete result
+      const result: CompleteAudioResult = {
+        originalAudioUrl,
+        processedAudioUrl,
+        transcriptionText: transcriptionResult.text,
+        transcriptionSegments: transcriptionResult.segments,
+        vadAnalysis,
+        metadata,
+        processingTime: performance.now() - startTime
+      };
+      
+      return result;
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Audio processing failed';
+      throw new Error(`File processing failed: ${errorMessage}`);
+    }
+  }, [whisperReady, isEngineInitialized, initializeAudioEngine, transcribeWithWhisper, analyzeVAD]);
 
   // Real-time chunk processing with hook pattern (Murmuraba v3 integration)
   useEffect(() => {
@@ -363,9 +654,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
             setTranscriptions((prev) => [...prev, enhancedResult]);
           }
         } catch (error) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('Transcription failed for chunk:', chunk.id, error);
-          }
+          console.warn('Transcription failed for chunk:', chunk.id, error);
         }
       }
 
@@ -461,6 +750,21 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
     return () => clearInterval(interval);
   }, []);
+  
+  // NEW: Auto-initialize audio engine when Whisper is ready
+  useEffect(() => {
+    if (whisperReady && !isEngineInitialized && !isInitializingEngine && !engineError) {
+      initializeAudioEngine({
+        enableVAD: true,
+        enableNoiseSuppression: true,
+        enableEchoCancellation: true,
+        vadThreshold: 0.5
+      }).catch(error => {
+        console.warn('Auto-initialization of audio engine failed:', error.message);
+        // Don't throw - allow manual initialization
+      });
+    }
+  }, [whisperReady, isEngineInitialized, isInitializingEngine, engineError, initializeAudioEngine]);
 
   // Auto-process chunks when ready
   useEffect(() => {
@@ -499,9 +803,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
             tryEmitChunk(chunk);
           }
         } catch (error) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('Transcription failed for chunk:', chunk.id, error);
-          }
+          console.warn('Transcription failed for chunk:', chunk.id, error);
 
           // Still try to emit with empty transcript if audio is ready
           if (processedAudioUrls.has(chunk.id)) {
@@ -524,6 +826,11 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     return () => {
       // Clean up conversational resources
       clearConversationalChunks();
+      
+      // Clean up streaming recording if active
+      if (streamingSessionRef.current) {
+        streamingSessionRef.current.stop().catch(console.error);
+      }
 
       // Murmuraba v3 hook handles all cleanup automatically
     };
@@ -559,6 +866,24 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     // Phase 3: Latency monitoring and optimization
     latencyReport,
     latencyStatus,
+    
+    // NEW REFACTORED METHODS - useSusurro consolidation
+    // Audio engine management
+    initializeAudioEngine,
+    isEngineInitialized,
+    engineError,
+    isInitializingEngine,
+    
+    // MAIN METHOD FOR FILES - Everything in one
+    processAndTranscribeFile,
+    
+    // STREAMING RECORDING with callback pattern
+    startStreamingRecording,
+    stopStreamingRecording,
+    
+    // Auxiliary methods
+    analyzeVAD,
+    convertBlobToBuffer,
   };
 }
 

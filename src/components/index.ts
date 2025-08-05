@@ -1,3 +1,16 @@
-// Barrel exports for all components
-// Note: Components have been moved to their respective feature directories
-// This file serves as a placeholder for any shared components
+// Navigation
+export * from './MatrixNavigation';
+
+// Effects
+export * from './MatrixRain';
+
+// Form components
+export * from './MatrixButton';
+export * from './MatrixInput';
+
+// Scroll components
+export * from './MatrixScrollArea';
+export * from './MatrixInfiniteScroll';
+
+// Hooks
+export * from '../hooks';

@@ -1,0 +1,146 @@
+@import '../../styles/tokens.css';
+
+.wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.container {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  scroll-behavior: smooth;
+  position: relative;
+}
+
+/* Orientation variants */
+.vertical {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.horizontal {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.both {
+  overflow: auto;
+}
+
+/* Custom scrollbar styling */
+.container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.container::-webkit-scrollbar-track {
+  background: rgba(0, 255, 65, 0.1);
+  border: 1px solid var(--matrix-green-dim);
+}
+
+.container::-webkit-scrollbar-thumb {
+  background: var(--matrix-green);
+  border-radius: 0;
+  transition: all var(--duration-fast);
+}
+
+.container::-webkit-scrollbar-thumb:hover {
+  background: var(--matrix-green);
+  box-shadow: 0 0 10px var(--matrix-green-dim);
+}
+
+.container::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox scrollbar */
+.container {
+  scrollbar-width: thin;
+  scrollbar-color: var(--matrix-green) rgba(0, 255, 65, 0.1);
+}
+
+/* Hide scrollbar option */
+.hideScrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hideScrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Fade edges */
+.fadeEdges ~ .fadeTop,
+.fadeEdges ~ .fadeBottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 40px;
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity var(--duration-normal);
+}
+
+.fadeTop {
+  top: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+.fadeBottom {
+  bottom: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+/* Hide fade edges when at boundaries */
+.atTop ~ .fadeTop {
+  opacity: 0;
+}
+
+.atBottom ~ .fadeBottom {
+  opacity: 0;
+}
+
+/* Scrolling state */
+.scrolling::-webkit-scrollbar-thumb {
+  background: var(--matrix-green);
+  box-shadow: 0 0 20px var(--matrix-green);
+}
+
+/* Smooth scroll snap points (optional) */
+.container[data-snap="true"] {
+  scroll-snap-type: y mandatory;
+  scroll-padding: var(--space-2);
+}
+
+.container[data-snap="true"] > * {
+  scroll-snap-align: start;
+}
+
+/* Performance optimizations */
+.container {
+  will-change: scroll-position;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .container::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  
+  .fadeTop,
+  .fadeBottom {
+    height: 20px;
+  }
+}

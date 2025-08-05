@@ -3,6 +3,8 @@ export interface MurmurabaConfig {
   enableNoiseSuppression?: boolean;
   enableEchoCancellation?: boolean;
   enableVAD?: boolean;
+  wasmPath?: string;
+  vadThreshold?: number;
 }
 
 export interface MurmurabaMetrics {
@@ -34,7 +36,7 @@ export interface MurmurabaInstance {
   isInitialized: boolean;
   initializeAudioEngine(config?: MurmurabaConfig): Promise<void>;
   destroyEngine?(): Promise<void>;
-  processFile(buffer: ArrayBuffer, options?: any): Promise<MurmurabaResult | ArrayBuffer>;
+  processFile(buffer: ArrayBuffer, options?: Record<string, unknown>): Promise<MurmurabaResult | ArrayBuffer>;
   processFileWithMetrics?(
     buffer: ArrayBuffer,
     onFrameProcessed?: (metrics: MurmurabaMetrics) => void

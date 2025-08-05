@@ -3,7 +3,7 @@
 import React, { useCallback, useState } from 'react';
 import { useSusurro } from '@susurro/core';
 import { SimpleWaveformAnalyzer } from 'murmuraba';
-import type { CompleteAudioResult, StreamingSusurroChunk } from '@susurro/core';
+import type { CompleteAudioResult } from '@susurro/core';
 
 export interface AudioFragmentProcessorProps {
   onBack: () => void;
@@ -90,7 +90,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
       
       {/* SimpleWaveformAnalyzer - The entire visualization solution */}
       <SimpleWaveformAnalyzer 
-        stream={currentStream}
+        stream={currentStream || undefined}
         isActive={isRecording}
         width={800}
         height={200}

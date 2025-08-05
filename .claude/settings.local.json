@@ -67,7 +67,8 @@
       "Bash(copy:*)",
       "mcp__ide__getDiagnostics",
       "Bash(git tag:*)",
-      "Bash(npx depcheck:*)"
+      "Bash(npx depcheck:*)",
+      "Bash(gh issue comment:*)"
     ],
     "deny": []
   }

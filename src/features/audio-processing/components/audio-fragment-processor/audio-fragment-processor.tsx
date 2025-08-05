@@ -70,29 +70,34 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     },
   });
 
-  // Canvas refs for visualizations
-  const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
-  const frequencyCanvasRef = useRef<HTMLCanvasElement>(null);
-  const vadCanvasRef = useRef<HTMLCanvasElement>(null);
+  // Single unified canvas for all visualizations
+  const unifiedCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  // 🎨 REAL-TIME WAVEFORM VISUALIZATION
-  const drawWaveform = useCallback((canvas: HTMLCanvasElement, data: number[]) => {
+  // 🎨 UNIFIED VISUALIZATION - Single canvas for all data
+  const drawUnifiedVisualization = useCallback(() => {
+    const canvas = unifiedCanvasRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
+    const { width, height } = canvas;
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+    // Clear canvas with subtle fade effect
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
     ctx.fillRect(0, 0, width, height);
+
+    // Draw waveform in the center
+    const waveformHeight = height * 0.6;
+    const waveformY = height * 0.2;
 
     ctx.strokeStyle = '#00ff41';
     ctx.lineWidth = 2;
     ctx.beginPath();
 
-    data.forEach((value, index) => {
-      const x = (index / data.length) * width;
-      const y = height / 2 + value * (height / 2);
+    visualData.waveform.forEach((value, index) => {
+      const x = (index / visualData.waveform.length) * width;
+      const y = waveformY + waveformHeight / 2 + value * (waveformHeight / 2);
 
       if (index === 0) {
         ctx.moveTo(x, y);
@@ -103,93 +108,25 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
     ctx.stroke();
 
-    // Add glow effect
-    ctx.shadowColor = '#00ff41';
-    ctx.shadowBlur = 10;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }, []);
+    // Draw VAD as a simple progress bar at the bottom
+    const vadHeight = 4;
+    const vadY = height - vadHeight - 10;
+    const currentVad = visualData.vadHistory[visualData.vadHistory.length - 1] || 0;
 
-  // 📊 FREQUENCY SPECTRUM VISUALIZATION
-  const drawFrequency = useCallback((canvas: HTMLCanvasElement, data: number[]) => {
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    // VAD background
+    ctx.fillStyle = 'rgba(0, 255, 65, 0.2)';
+    ctx.fillRect(10, vadY, width - 20, vadHeight);
 
-    const width = canvas.width;
-    const height = canvas.height;
+    // VAD progress
+    ctx.fillStyle = currentVad > 0.5 ? '#ffff00' : '#00ff41';
+    ctx.fillRect(10, vadY, (width - 20) * currentVad, vadHeight);
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-    ctx.fillRect(0, 0, width, height);
-
-    const barWidth = width / data.length;
-
-    data.forEach((value, index) => {
-      const barHeight = value * height;
-      const hue = value * 120 + 120; // Green to yellow based on intensity
-
-      ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
-      ctx.fillRect(index * barWidth, height - barHeight, barWidth - 1, barHeight);
-
-      // Add glow effect for high values
-      if (value > 0.7) {
-        ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
-        ctx.shadowBlur = 15;
-        ctx.fillRect(index * barWidth, height - barHeight, barWidth - 1, barHeight);
-        ctx.shadowBlur = 0;
-      }
-    });
-  }, []);
-
-  // 📈 VAD HISTORY VISUALIZATION
-  const drawVADHistory = useCallback((canvas: HTMLCanvasElement, data: number[]) => {
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const width = canvas.width;
-    const height = canvas.height;
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-    ctx.fillRect(0, 0, width, height);
-
-    // Draw grid
-    ctx.strokeStyle = 'rgba(0, 255, 65, 0.2)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 10; i++) {
-      const y = (i / 10) * height;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.stroke();
-    }
-
-    // Draw VAD line
-    ctx.strokeStyle = '#ffff00';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-
-    data.forEach((value, index) => {
-      const x = (index / data.length) * width;
-      const y = height - value * height;
-
-      if (index === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    });
-
-    ctx.stroke();
-
-    // Highlight voice activity areas
-    ctx.fillStyle = 'rgba(255, 255, 0, 0.1)';
-    data.forEach((value, index) => {
-      if (value > 0.5) {
-        const x = (index / data.length) * width;
-        const barWidth = width / data.length;
-        ctx.fillRect(x, 0, barWidth, height);
-      }
-    });
-  }, []);
+    // Simple text metrics
+    ctx.fillStyle = '#00ff41';
+    ctx.font = '12px monospace';
+    ctx.fillText(`VAD: ${(currentVad * 100).toFixed(0)}%`, 10, 15);
+    ctx.fillText(`Chunks: ${visualData.realTimeMetrics.chunksProcessed}`, width - 80, 15);
+  }, [visualData]);
 
   // 🎤 STREAMING RECORDING WITH REAL-TIME VISUALIZATION
   const handleStartRecording = useCallback(async () => {
@@ -306,21 +243,12 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     [processAndTranscribeFile]
   );
 
-  // Draw visualizations using requestAnimationFrame for smooth 60fps
+  // Draw unified visualization using requestAnimationFrame for smooth 60fps
   useEffect(() => {
     let animationFrameId: number;
 
     const animate = () => {
-      if (waveformCanvasRef.current) {
-        drawWaveform(waveformCanvasRef.current, visualData.waveform);
-      }
-      if (frequencyCanvasRef.current) {
-        drawFrequency(frequencyCanvasRef.current, visualData.frequency);
-      }
-      if (vadCanvasRef.current) {
-        drawVADHistory(vadCanvasRef.current, visualData.vadHistory);
-      }
-
+      drawUnifiedVisualization();
       animationFrameId = requestAnimationFrame(animate);
     };
 
@@ -329,7 +257,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [visualData, drawWaveform, drawFrequency, drawVADHistory]);
+  }, [drawUnifiedVisualization]);
 
   return (
     <div
@@ -500,68 +428,20 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
                 </div>
               </div>
 
-              {/* Visualization Canvases */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr',
-                  gap: '20px',
-                  marginBottom: '30px',
-                }}
-              >
-                {/* Waveform */}
-                <div>
-                  <h3 style={{ marginBottom: '10px', color: '#00ff41' }}>
-                    &gt; REAL_TIME_WAVEFORM
-                  </h3>
-                  <canvas
-                    ref={waveformCanvasRef}
-                    width={800}
-                    height={150}
-                    style={{
-                      width: '100%',
-                      height: '150px',
-                      background: 'rgba(0, 0, 0, 0.8)',
-                      border: '1px solid #00ff41',
-                    }}
-                  />
-                </div>
-
-                {/* Frequency Spectrum */}
-                <div>
-                  <h3 style={{ marginBottom: '10px', color: '#ffff00' }}>
-                    &gt; FREQUENCY_SPECTRUM
-                  </h3>
-                  <canvas
-                    ref={frequencyCanvasRef}
-                    width={800}
-                    height={120}
-                    style={{
-                      width: '100%',
-                      height: '120px',
-                      background: 'rgba(0, 0, 0, 0.8)',
-                      border: '1px solid #ffff00',
-                    }}
-                  />
-                </div>
-
-                {/* VAD History */}
-                <div>
-                  <h3 style={{ marginBottom: '10px', color: '#ffff00' }}>
-                    &gt; VAD_ACTIVITY_HISTORY
-                  </h3>
-                  <canvas
-                    ref={vadCanvasRef}
-                    width={800}
-                    height={100}
-                    style={{
-                      width: '100%',
-                      height: '100px',
-                      background: 'rgba(0, 0, 0, 0.8)',
-                      border: '1px solid #ffff00',
-                    }}
-                  />
-                </div>
+              {/* Unified Visualization Canvas */}
+              <div style={{ marginBottom: '30px' }}>
+                <canvas
+                  ref={unifiedCanvasRef}
+                  width={800}
+                  height={200}
+                  style={{
+                    width: '100%',
+                    height: '200px',
+                    background: 'rgba(0, 0, 0, 0.95)',
+                    border: '1px solid #00ff41',
+                    borderRadius: '4px',
+                  }}
+                />
               </div>
 
               {/* Controls */}

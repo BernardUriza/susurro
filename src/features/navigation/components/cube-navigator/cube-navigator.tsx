@@ -9,6 +9,7 @@ import {
   WhisperMatrixTerminal,
   AudioFragmentProcessor,
 } from '../../../audio-processing/components';
+import { AudioFragmentProcessorSimplified } from '../../../audio-processing/components/audio-fragment-processor/audio-fragment-processor-simplified';
 
 type CubeFace = 'front' | 'right' | 'back' | 'left' | 'top' | 'bottom';
 
@@ -25,6 +26,7 @@ export const CubeNavigator: React.FC = () => {
   const mouseRef = useRef<THREE.Vector2>(null!);
   const [currentFace, setCurrentFace] = useState<CubeFace>('front');
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [useSimplifiedProcessor, setUseSimplifiedProcessor] = useState(true); // Default to simplified
 
   // Face configurations
   const faceContents: Record<CubeFace, FaceContent> = {
@@ -34,8 +36,10 @@ export const CubeNavigator: React.FC = () => {
       color: '#00ff41',
     },
     right: {
-      component: <AudioFragmentProcessor onBack={() => rotateTo('front')} />,
-      title: '[AUDIO_FRAGMENT_PROCESSOR]',
+      component: useSimplifiedProcessor ? 
+        <AudioFragmentProcessorSimplified onBack={() => rotateTo('front')} /> :
+        <AudioFragmentProcessor onBack={() => rotateTo('front')} />,
+      title: useSimplifiedProcessor ? '[SIMPLIFIED_PROCESSOR]' : '[AUDIO_FRAGMENT_PROCESSOR]',
       color: '#ff9900',
     },
     back: {
@@ -371,6 +375,40 @@ export const CubeNavigator: React.FC = () => {
           background: 'radial-gradient(circle at center, #001100 0%, #000000 100%)',
         }}
       />
+
+      {/* Toggle for Simplified/Original Processor */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 20,
+          right: 20,
+          zIndex: 20,
+          background: 'rgba(0, 0, 0, 0.9)',
+          padding: '10px 15px',
+          border: '1px solid #00ff41',
+          borderRadius: 5,
+          fontFamily: 'monospace',
+          fontSize: '0.9rem',
+        }}
+      >
+        <button
+          onClick={() => setUseSimplifiedProcessor(!useSimplifiedProcessor)}
+          style={{
+            background: useSimplifiedProcessor ? '#00ff41' : '#ff9900',
+            color: '#000',
+            border: 'none',
+            padding: '5px 10px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            fontFamily: 'monospace',
+          }}
+        >
+          {useSimplifiedProcessor ? '[SIMPLIFIED]' : '[ORIGINAL]'}
+        </button>
+        <span style={{ marginLeft: '10px', color: '#00ff41' }}>
+          {useSimplifiedProcessor ? '80 lines' : '900 lines'}
+        </span>
+      </div>
 
       {/* Navigation UI */}
       <div

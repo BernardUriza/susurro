@@ -32,6 +32,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     whisperReady,
     whisperProgress,
     initializeAudioEngine,
+    resetAudioEngine,
   } = useSusurro({
     chunkDurationMs: 1000, // 1-second chunks for real-time visualization
     whisperConfig: {
@@ -112,16 +113,28 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
   // 🎤 STREAMING RECORDING WITH REAL-TIME VISUALIZATION
   const handleStartRecording = useCallback(async () => {
+    console.log('[AudioFragmentProcessor] handleStartRecording called');
+    console.log('[AudioFragmentProcessor] isEngineInitialized:', isEngineInitialized);
+    console.log('[AudioFragmentProcessor] whisperReady:', whisperReady);
+    
     if (!isEngineInitialized || !whisperReady) {
       if (!isEngineInitialized) {
         try {
+          console.log('[AudioFragmentProcessor] Attempting to initialize audio engine...');
+          setStatus('[INITIALIZING_MURMURABA_ENGINE]');
           await initializeAudioEngine();
+          console.log('[AudioFragmentProcessor] Audio engine initialized successfully');
         } catch (error) {
-          setStatus(`[ERROR] Engine initialization failed: ${error}`);
+          console.error('[AudioFragmentProcessor] Engine initialization failed:', error);
+          setStatus(`[ERROR] Engine initialization failed: ${error instanceof Error ? error.message : error}`);
           return;
         }
       }
-      return;
+      if (!whisperReady) {
+        console.log('[AudioFragmentProcessor] Whisper not ready, waiting...');
+        setStatus('[WAITING_FOR_WHISPER_MODEL]');
+        return;
+      }
     }
 
     setIsRecording(true);
@@ -149,15 +162,18 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     };
 
     try {
+      console.log('[AudioFragmentProcessor] Starting streaming recording...');
       await startStreamingRecording(onChunkProcessed, {
         chunkDuration: 2, // Fixed 2-second chunks
         vadThreshold: 0.2, // Sensitive for visualization
         enableRealTimeTranscription: true,
         enableNoiseReduction: true,
       });
+      console.log('[AudioFragmentProcessor] Streaming recording started successfully');
     } catch (error) {
+      console.error('[AudioFragmentProcessor] Failed to start streaming recording:', error);
       setIsRecording(false);
-      setStatus(`[ERROR] ${error}`);
+      setStatus(`[ERROR] ${error instanceof Error ? error.message : error}`);
     }
   }, [isEngineInitialized, whisperReady, initializeAudioEngine, startStreamingRecording]);
 
@@ -195,6 +211,20 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     [processAndTranscribeFile]
   );
 
+  // Reset engine when component mounts to ensure clean state
+  useEffect(() => {
+    console.log('[AudioFragmentProcessor] Component mounted, resetting audio engine');
+    resetAudioEngine();
+    
+    return () => {
+      console.log('[AudioFragmentProcessor] Component unmounting, stopping recording if active');
+      if (isRecording) {
+        stopStreamingRecording();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount/unmount - we intentionally don't include dependencies
+  
   // Draw unified visualization using requestAnimationFrame for smooth 60fps
   useEffect(() => {
     let animationFrameId: number;

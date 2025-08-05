@@ -38,6 +38,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
     // NEW CONSOLIDATED METHODS - Everything through useSusurro
     processAndTranscribeFile,
     initializeAudioEngine,
+    resetAudioEngine,
     isEngineInitialized,
     engineError,
     isInitializingEngine,
@@ -56,20 +57,6 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
   // Complete audio result from processAndTranscribeFile
   const [completeResult, setCompleteResult] = React.useState<CompleteAudioResult | null>(null);
-
-  // REMOVED: Manual engine initialization - useSusurro handles this automatically
-  // Auto-initialization happens when Whisper model is ready
-  React.useEffect(() => {
-    if (isEngineInitialized) {
-      setStatus('[SYSTEM] Audio neural processor ready');
-      addBackgroundLog('Audio engine initialized automatically', 'success');
-    } else if (engineError) {
-      setStatus(`[ERROR] Audio engine initialization failed: ${engineError}`);
-      addBackgroundLog(`Engine initialization failed: ${engineError}`, 'error');
-    } else if (isInitializingEngine) {
-      setStatus('[SYSTEM] Initializing audio engine...');
-    }
-  }, [isEngineInitialized, engineError, isInitializingEngine]);
 
   // Direct values from useSusurro - no abstraction needed
   const [backgroundLogs, setBackgroundLogs] = React.useState<
@@ -99,6 +86,33 @@ export const WhisperMatrixTerminal: React.FC = () => {
       },
     ]);
   };
+
+  // Reset engine when component mounts to ensure clean state
+  React.useEffect(() => {
+    console.log('[WhisperMatrixTerminal] Component mounted, resetting audio engine');
+    resetAudioEngine();
+    
+    return () => {
+      console.log('[WhisperMatrixTerminal] Component unmounting');
+      // Any cleanup if needed
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount/unmount
+  
+  // REMOVED: Manual engine initialization - useSusurro handles this automatically
+  // Auto-initialization happens when Whisper model is ready
+  React.useEffect(() => {
+    if (isEngineInitialized) {
+      setStatus('[SYSTEM] Audio neural processor ready');
+      addBackgroundLog('Audio engine initialized automatically', 'success');
+    } else if (engineError) {
+      setStatus(`[ERROR] Audio engine initialization failed: ${engineError}`);
+      addBackgroundLog(`Engine initialization failed: ${engineError}`, 'error');
+    } else if (isInitializingEngine) {
+      setStatus('[SYSTEM] Initializing audio engine...');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEngineInitialized, engineError, isInitializingEngine]);
 
   React.useEffect(() => {
     silentThreadProcessorRef.current = new SilentThreadProcessor((message, type) => {

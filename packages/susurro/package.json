@@ -59,9 +59,9 @@
     "murmuraba": ">=3.0.0",
     "react": ">=19.0.0"
   },
-  "dependencies": {},
   "devDependencies": {
     "@testing-library/react": "^16.3.0",
+    "@types/babel__core": "^7.20.5",
     "@types/react": "^19.0.0",
     "react": "^19.0.0",
     "tsup": "^8.0.0",

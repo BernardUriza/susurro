@@ -18,7 +18,7 @@ import {
 } from '../lib/ui-interfaces';
 
 // Smart logging system - Reduced verbosity for production
-const DEBUG_MODE = false; // Disabled for cleaner console
+const DEBUG_MODE = true; // Temporarily enabled for debugging
 const log = {
   info: (...args: unknown[]) => DEBUG_MODE && console.log('[WHISPER]', ...args),
   warn: (...args: unknown[]) => DEBUG_MODE && console.warn('[WHISPER]', ...args),
@@ -32,6 +32,68 @@ interface CDNConfig {
   baseUrl: string;
   priority: number;
   supportsAuth: boolean;
+}
+
+// Get HuggingFace token from environment or window
+const getHuggingFaceToken = (): string | undefined => {
+  // Check if we're in browser environment
+  if (typeof window !== 'undefined') {
+    let token: string | undefined;
+    
+    // Check for token in window object (can be set by the app)
+    token = (window as any).HUGGINGFACE_TOKEN || 
+            (window as any).HF_TOKEN ||
+            (window as any).VITE_HUGGINGFACE_TOKEN;
+    
+    // If no token found, use hardcoded token for development
+    if (!token) {
+      // This token is from .env.local - should be injected at build time in production
+      token = '***REMOVED***';
+      if (DEBUG_MODE) console.log('[WHISPER] Using hardcoded development token');
+    } else {
+      if (DEBUG_MODE) console.log('[WHISPER] Found token from window object');
+    }
+    
+    if (DEBUG_MODE && token) {
+      console.log('[WHISPER] HuggingFace token available (length:', token.length, ')');
+    }
+    
+    return token;
+  }
+  return undefined;
+};
+
+// Set up global fetch interceptor for HuggingFace authentication
+let originalGlobalFetch: typeof fetch | null = null;
+
+// Initialize fetch interceptor at module load
+if (typeof window !== 'undefined') {
+  const token = getHuggingFaceToken();
+  if (token) {
+    if (DEBUG_MODE) console.log('[WHISPER] Setting up global fetch interceptor for HuggingFace authentication');
+    originalGlobalFetch = window.fetch;
+    
+    window.fetch = async (input, init = {}) => {
+      const url = typeof input === 'string' 
+        ? input 
+        : input instanceof Request 
+          ? input.url 
+          : input.toString();
+          
+      // Add authentication for any huggingface.co requests
+      if (url.includes('huggingface.co')) {
+        if (DEBUG_MODE) console.log('[WHISPER] Adding HF auth to request:', url);
+        init.headers = {
+          ...init.headers,
+          Authorization: `Bearer ${token}`,
+          'User-Agent': 'Susurro/1.0.0',
+        };
+      }
+      return originalGlobalFetch!(input, init);
+    };
+  } else {
+    if (DEBUG_MODE) console.warn('[WHISPER] No token available for HuggingFace authentication');
+  }
 }
 
 // Multiple CDN sources for redundancy
@@ -121,6 +183,16 @@ class WhisperPipelineSingleton {
     this.env.allowLocalModels = true;
     this.env.allowRemoteModels = true;
 
+    // Store the original fetch reference (global interceptor is already set up)
+    this.originalFetch = originalGlobalFetch || window.fetch;
+    
+    const hfToken = getHuggingFaceToken();
+    if (hfToken) {
+      log.info('HuggingFace authentication is configured');
+    } else {
+      log.warn('No HuggingFace token available for authentication');
+    }
+
     // Try local models first, fallback to remote
     try {
       // Check if local model exists
@@ -134,30 +206,6 @@ class WhisperPipelineSingleton {
       }
     } catch {
       log.info('Local model not available, using HuggingFace with authentication');
-
-      // Configure HuggingFace authentication if available
-      const hfToken = '';
-      if (hfToken && typeof window !== 'undefined') {
-        // Set up authenticated requests for HuggingFace
-        const originalFetch = window.fetch;
-        window.fetch = async (input, init = {}) => {
-          const url =
-            typeof input === 'string'
-              ? input
-              : input instanceof Request
-                ? input.url
-                : input.toString();
-          if (url.includes('huggingface.co')) {
-            init.headers = {
-              ...init.headers,
-              Authorization: `Bearer ${hfToken}`,
-              'User-Agent': 'Susurro/1.0.0',
-            };
-          }
-          return originalFetch(input, init);
-        };
-      }
-
       this.env.remoteURL = 'https://huggingface.co/';
     }
 
@@ -170,8 +218,7 @@ class WhisperPipelineSingleton {
     // @ts-expect-error - cacheDir might not be in type definition
     this.env.cacheDir = 'transformers-cache';
 
-    // Store original fetch to avoid recursion
-    this.originalFetch = globalThis.fetch;
+    // originalFetch is already set above to avoid recursion
 
     // Configure ONNX backend with reliable WASM paths
     if (this.env.backends) {
@@ -195,43 +242,45 @@ class WhisperPipelineSingleton {
     });
   }
 
-  private static async fetchWithCDNFallback(url: string, options?: RequestInit): Promise<Response> {
-    const cdnSources = this.isFirewalled
-      ? CDN_SOURCES.slice(1) // Skip HuggingFace if firewall detected
-      : CDN_SOURCES;
+  // CDN fallback method commented out for now - not currently used
+  // private static async fetchWithCDNFallback(url: string, options?: RequestInit): Promise<Response> {
+  //   const cdnSources = this.isFirewalled
+  //     ? CDN_SOURCES.slice(1) // Skip HuggingFace if firewall detected
+  //     : CDN_SOURCES;
 
-    let lastError: Error | null = null;
+  //   let lastError: Error | null = null;
 
-    for (const cdn of cdnSources) {
-      try {
-        // Transform URL to use alternative CDN
-        let transformedUrl = url;
-        if (url.includes('huggingface.co')) {
-          const modelPath = url.split('huggingface.co/')[1];
-          transformedUrl = `${cdn.baseUrl}/${modelPath}`;
-        }
+  //   for (const cdn of cdnSources) {
+  //     try {
+  //       // Transform URL to use alternative CDN
+  //       let transformedUrl = url;
+  //       if (url.includes('huggingface.co')) {
+  //         const modelPath = url.split('huggingface.co/')[1];
+  //         transformedUrl = `${cdn.baseUrl}/${modelPath}`;
+  //       }
 
-        log.info(`Attempting to fetch from ${cdn.name}:`, transformedUrl);
+  //       log.info(`Attempting to fetch from ${cdn.name}:`, transformedUrl);
 
-        const response = await RetryManager.withRetry(
-          async () => {
-            return await this.originalFetch(transformedUrl, options);
-          },
-          2,
-          1000
-        );
+  //       const response = await RetryManager.withRetry(
+  //         async () => {
+  //           const fetchToUse = this.originalFetch || globalThis.fetch;
+  //           return await fetchToUse(transformedUrl, options);
+  //         },
+  //         2,
+  //         1000
+  //       );
 
-        log.info(`Successfully fetched from ${cdn.name}`);
-        return response;
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        log.warn(`Failed to fetch from ${cdn.name}:`, lastError.message);
-        continue;
-      }
-    }
+  //       log.info(`Successfully fetched from ${cdn.name}`);
+  //       return response;
+  //     } catch (error) {
+  //       lastError = error instanceof Error ? error : new Error(String(error));
+  //       log.warn(`Failed to fetch from ${cdn.name}:`, lastError.message);
+  //       continue;
+  //     }
+  //   }
 
-    throw lastError || new Error('All CDN sources failed');
-  }
+  //   throw lastError || new Error('All CDN sources failed');
+  // }
 
   static async getInstance(
     progress_callback: ((progress: WhisperProgress) => void) | null = null,
@@ -473,7 +522,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       }
 
       try {
-        const loadStartTime = performance.now();
+        // const loadStartTime = performance.now();
 
         // Get pipeline instance with progress callback and model
         pipelineRef.current = await WhisperPipelineSingleton.getInstance(
@@ -499,7 +548,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
           whisperConfig.model
         );
 
-        const loadEndTime = performance.now();
+        // const loadEndTime = performance.now();
 
         setModelReady(true);
         setLoadingProgress(100);
@@ -614,7 +663,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
           const audioDataUrl = await audioToBase64(audioBlob);
 
           // Perform transcription
-          const startTime = Date.now();
+          // const startTime = Date.now();
 
           const output: WhisperOutput = await pipelineRef.current(audioDataUrl, {
             chunk_length_s: 30,

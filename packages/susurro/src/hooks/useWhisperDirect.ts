@@ -20,10 +20,10 @@ import {
 // Smart logging system - Reduced verbosity for production
 const DEBUG_MODE = false; // Disabled for cleaner console
 const log = {
-  info: (...args: any[]) => DEBUG_MODE && console.log('[WHISPER]', ...args),
-  warn: (...args: any[]) => DEBUG_MODE && console.warn('[WHISPER]', ...args),
-  error: (...args: any[]) => console.error('[WHISPER]', ...args),
-  progress: (...args: any[]) => DEBUG_MODE && console.log('[WHISPER-PROGRESS]', ...args),
+  info: (...args: unknown[]) => DEBUG_MODE && console.log('[WHISPER]', ...args),
+  warn: (...args: unknown[]) => DEBUG_MODE && console.warn('[WHISPER]', ...args),
+  error: (...args: unknown[]) => console.error('[WHISPER]', ...args),
+  progress: (...args: unknown[]) => DEBUG_MODE && console.log('[WHISPER-PROGRESS]', ...args),
 };
 
 // CDN configuration for reliable model downloads
@@ -59,54 +59,9 @@ const CDN_SOURCES: CDNConfig[] = [
     baseUrl: 'https://cdnjs.cloudflare.com/ajax/libs/transformers/2.17.2/models',
     priority: 4,
     supportsAuth: false,
-  }
+  },
 ];
 
-// Network connectivity and firewall detection
-class NetworkDetector {
-  static async testConnectivity(url: string, timeout: number = 5000): Promise<boolean> {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      
-      const response = await fetch(url, {
-        method: 'HEAD',
-        mode: 'no-cors',
-        signal: controller.signal,
-        cache: 'no-cache'
-      });
-      
-      clearTimeout(timeoutId);
-      return true;
-    } catch (error) {
-      log.warn('Connectivity test failed for', url, error);
-      return false;
-    }
-  }
-
-  static async detectFirewall(): Promise<boolean> {
-    const testUrls = [
-      'https://huggingface.co/health',
-      'https://cdn.jsdelivr.net/npm/@xenova/transformers/package.json',
-      'https://unpkg.com/@xenova/transformers/package.json'
-    ];
-
-    const results = await Promise.allSettled(
-      testUrls.map(url => this.testConnectivity(url, 3000))
-    );
-
-    const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
-    const isFirewalled = successCount === 0;
-    
-    log.info('Firewall detection results:', {
-      successCount,
-      totalTests: testUrls.length,
-      isFirewalled
-    });
-
-    return isFirewalled;
-  }
-}
 
 // Retry mechanism with exponential backoff
 class RetryManager {
@@ -116,65 +71,27 @@ class RetryManager {
     baseDelay: number = 1000
   ): Promise<T> {
     let lastError: Error | null = null;
-    
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         return await operation();
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        
+
         if (attempt === maxRetries) {
           throw lastError;
         }
-        
+
         const delay = baseDelay * Math.pow(2, attempt);
         log.warn(`Attempt ${attempt + 1} failed, retrying in ${delay}ms:`, lastError.message);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
-    
+
     throw lastError;
   }
 }
 
-// Enhanced fetch with fallback support
-class EnhancedFetch {
-  static async fetchWithFallback(url: string, options?: RequestInit): Promise<Response> {
-    const originalFetch = fetch;
-    
-    // Enhanced error detection
-    const enhancedOptions: RequestInit = {
-      ...options,
-      mode: 'cors',
-      credentials: 'omit',
-      headers: {
-        'Accept': 'application/json, application/octet-stream, */*',
-        'Cache-Control': 'no-cache',
-        ...options?.headers
-      }
-    };
-
-    try {
-      log.info('Fetching URL:', url);
-      const response = await originalFetch(url, enhancedOptions);
-      
-      // Check if we got HTML instead of expected content
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('text/html') && !url.includes('.html')) {
-        throw new Error(`Received HTML instead of expected content type for ${url}. This usually indicates a 404 or firewall block.`);
-      }
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText} for ${url}`);
-      }
-      
-      return response;
-    } catch (error) {
-      log.error('Enhanced fetch failed for URL:', url, error);
-      throw error;
-    }
-  }
-}
 
 // Singleton pattern for Whisper pipeline
 class WhisperPipelineSingleton {
@@ -197,13 +114,13 @@ class WhisperPipelineSingleton {
     log.info('Initial env state:', {
       allowLocalModels: this.env.allowLocalModels,
       remoteURL: this.env.remoteURL,
-      backends: this.env.backends ? Object.keys(this.env.backends) : []
+      backends: this.env.backends ? Object.keys(this.env.backends) : [],
     });
-    
+
     // Configure environment for local model loading
     this.env.allowLocalModels = true;
     this.env.allowRemoteModels = true;
-    
+
     // Try local models first, fallback to remote
     try {
       // Check if local model exists
@@ -217,69 +134,74 @@ class WhisperPipelineSingleton {
       }
     } catch {
       log.info('Local model not available, using HuggingFace with authentication');
-      
+
       // Configure HuggingFace authentication if available
       const hfToken = '';
       if (hfToken && typeof window !== 'undefined') {
         // Set up authenticated requests for HuggingFace
         const originalFetch = window.fetch;
         window.fetch = async (input, init = {}) => {
-          const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : input.toString());
+          const url =
+            typeof input === 'string'
+              ? input
+              : input instanceof Request
+                ? input.url
+                : input.toString();
           if (url.includes('huggingface.co')) {
             init.headers = {
               ...init.headers,
-              'Authorization': `Bearer ${hfToken}`,
-              'User-Agent': 'Susurro/1.0.0'
+              Authorization: `Bearer ${hfToken}`,
+              'User-Agent': 'Susurro/1.0.0',
             };
           }
           return originalFetch(input, init);
         };
       }
-      
+
       this.env.remoteURL = 'https://huggingface.co/';
     }
-    
+
     this.isFirewalled = false;
-    
-    // @ts-ignore - These properties might not exist in all versions
+
+    // @ts-expect-error - These properties might not exist in all versions
     this.env.useCache = true;
-    // @ts-ignore - useBrowserCache might not be in type definition
+    // @ts-expect-error - useBrowserCache might not be in type definition
     this.env.useBrowserCache = true;
-    // @ts-ignore - cacheDir might not be in type definition
+    // @ts-expect-error - cacheDir might not be in type definition
     this.env.cacheDir = 'transformers-cache';
-    
+
     // Store original fetch to avoid recursion
     this.originalFetch = globalThis.fetch;
-    
+
     // Configure ONNX backend with reliable WASM paths
     if (this.env.backends) {
       log.info('Configuring ONNX backend...');
       this.env.backends.onnx = {
         wasm: {
-          wasmPaths: this.isFirewalled 
+          wasmPaths: this.isFirewalled
             ? 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/'
             : 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/',
         },
       };
       log.info('ONNX backend configured:', {
-        wasmPaths: this.env.backends.onnx.wasm.wasmPaths
+        wasmPaths: this.env.backends.onnx.wasm.wasmPaths,
       });
     }
-    
+
     log.info('Environment configuration complete:', {
       allowLocalModels: this.env.allowLocalModels,
       remoteURL: this.env.remoteURL,
-      isFirewalled: this.isFirewalled
+      isFirewalled: this.isFirewalled,
     });
   }
 
   private static async fetchWithCDNFallback(url: string, options?: RequestInit): Promise<Response> {
-    const cdnSources = this.isFirewalled 
+    const cdnSources = this.isFirewalled
       ? CDN_SOURCES.slice(1) // Skip HuggingFace if firewall detected
       : CDN_SOURCES;
-    
+
     let lastError: Error | null = null;
-    
+
     for (const cdn of cdnSources) {
       try {
         // Transform URL to use alternative CDN
@@ -288,23 +210,26 @@ class WhisperPipelineSingleton {
           const modelPath = url.split('huggingface.co/')[1];
           transformedUrl = `${cdn.baseUrl}/${modelPath}`;
         }
-        
+
         log.info(`Attempting to fetch from ${cdn.name}:`, transformedUrl);
-        
-        const response = await RetryManager.withRetry(async () => {
-          return await this.originalFetch(transformedUrl, options);
-        }, 2, 1000);
-        
+
+        const response = await RetryManager.withRetry(
+          async () => {
+            return await this.originalFetch(transformedUrl, options);
+          },
+          2,
+          1000
+        );
+
         log.info(`Successfully fetched from ${cdn.name}`);
         return response;
-        
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         log.warn(`Failed to fetch from ${cdn.name}:`, lastError.message);
         continue;
       }
     }
-    
+
     throw lastError || new Error('All CDN sources failed');
   }
 
@@ -317,7 +242,7 @@ class WhisperPipelineSingleton {
       hasInstance: !!this.instance,
       isLoading: this.isLoading,
       currentModel: this.currentModel,
-      requestedModel: model || this.model
+      requestedModel: model || this.model,
     });
 
     // If already loaded, return immediately
@@ -335,7 +260,7 @@ class WhisperPipelineSingleton {
     // Use provided model or default
     const modelToLoad = model || this.model;
     log.info('Preparing to load model:', modelToLoad);
-    
+
     // If model has changed, reset instance
     if (this.currentModel && this.currentModel !== modelToLoad) {
       log.info('Model change detected, resetting instance');
@@ -365,15 +290,19 @@ class WhisperPipelineSingleton {
     model: string
   ): Promise<Pipeline> {
     log.info('loadInstance called with model:', model);
-    
+
     if (!this.pipeline) {
       log.info('Pipeline not initialized, importing @xenova/transformers...');
       const importStart = performance.now();
-      
+
       // Dynamic import with enhanced error handling
-      const transformers = await RetryManager.withRetry(async () => {
-        return await import('@xenova/transformers');
-      }, 2, 1000).catch((err: Error) => {
+      const transformers = await RetryManager.withRetry(
+        async () => {
+          return await import('@xenova/transformers');
+        },
+        2,
+        1000
+      ).catch((err: Error) => {
         log.error('Failed to import transformers after retries:', err);
         throw new Error(`Failed to import transformers: ${err.message}`);
       });
@@ -383,7 +312,7 @@ class WhisperPipelineSingleton {
       log.info('Transformers version info:', {
         hasEnv: !!transformers.env,
         hasPipeline: !!transformers.pipeline,
-        envKeys: transformers.env ? Object.keys(transformers.env) : []
+        envKeys: transformers.env ? Object.keys(transformers.env) : [],
       });
 
       this.pipeline = transformers.pipeline as any;
@@ -426,77 +355,76 @@ class WhisperPipelineSingleton {
       task: this.task,
       model: model,
       quantized: true,
-      isFirewalled: this.isFirewalled
+      isFirewalled: this.isFirewalled,
     });
 
     // Load model with enhanced error handling and CDN fallbacks
     try {
       log.info('Loading model with enhanced configuration...');
-      
-      const loadPromise = RetryManager.withRetry(async () => {
-        return await this.pipeline!(this.task, model, {
-          progress_callback: (progress: WhisperProgress) => {
-            log.progress('Progress update:', {
-              status: progress.status,
-              file: progress.file,
-              progress: progress.progress ? `${progress.progress.toFixed(2)}%` : 'N/A',
-            });
-            if (progress_callback) progress_callback(progress);
-          },
-          quantized: true,
-          // @ts-ignore - revision might not be in type definition
-          revision: 'main',
-          // @ts-ignore - cache_dir might not be in type definition
-          cache_dir: '.transformers-cache',
-          // @ts-ignore - local_files_only might not be in type definition
-          local_files_only: false,
-          // @ts-ignore - Additional options for better reliability
-          timeout: 60000, // 60 second timeout per attempt
-          retries: 0 // Let our retry manager handle retries
-        });
-      }, this.isFirewalled ? 5 : 3, 2000); // More retries if firewall detected
+
+      const loadPromise = RetryManager.withRetry(
+        async () => {
+          return await this.pipeline!(this.task, model, {
+            progress_callback: (progress: WhisperProgress) => {
+              log.progress('Progress update:', {
+                status: progress.status,
+                file: progress.file,
+                progress: progress.progress ? `${progress.progress.toFixed(2)}%` : 'N/A',
+              });
+              if (progress_callback) progress_callback(progress);
+            },
+            quantized: true,
+            revision: 'main',
+            cache_dir: '.transformers-cache',
+            local_files_only: false,
+            timeout: 60000,
+            retries: 0,
+          } as any);
+        },
+        this.isFirewalled ? 5 : 3,
+        2000
+      ); // More retries if firewall detected
 
       log.info('Starting model download/initialization...');
       const raceStart = performance.now();
-      
+
       const result = await Promise.race([loadPromise, timeoutPromise]);
-      
+
       const raceTime = performance.now() - raceStart;
       log.info('Model loading completed in', raceTime.toFixed(2), 'ms');
-      
+
       if (result instanceof Error) {
         throw result;
       }
-      
+
       log.info('Model loaded successfully, validating instance...');
       log.info('Instance type:', typeof result);
       log.info('Instance properties:', result ? Object.keys(result) : 'null');
-      
+
       this.instance = result as Pipeline;
       log.info('SUCCESS: Model loaded successfully');
-      
+
       return this.instance;
-      
     } catch (error) {
       log.error('Model loading failed after all attempts:', error);
-      
+
       // Provide specific error messages based on error type
       if (error instanceof Error) {
         if (error.message.includes('JSON') || error.message.includes('HTML')) {
           throw new Error(
             'Network configuration issue detected. ' +
-            'This usually indicates a firewall or proxy is blocking model downloads. ' +
-            'Please check your network settings or try a different network connection.'
+              'This usually indicates a firewall or proxy is blocking model downloads. ' +
+              'Please check your network settings or try a different network connection.'
           );
         } else if (error.message.includes('timeout')) {
           throw new Error(
             'Model loading timed out. ' +
-            'This may be due to slow network connection or server issues. ' +
-            'Please try again or check your internet connection.'
+              'This may be due to slow network connection or server issues. ' +
+              'Please try again or check your internet connection.'
           );
         }
       }
-      
+
       throw error;
     }
   }
@@ -521,7 +449,10 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
   const [isLoadingFromCache] = useState(false);
 
   const pipelineRef = useRef<Pipeline | null>(null);
-  const progressAlertRef = useRef<{ close: () => void; update: (options: { message: string; progress: number }) => void } | null>(null);
+  const progressAlertRef = useRef<{
+    close: () => void;
+    update: (options: { message: string; progress: number }) => void;
+  } | null>(null);
   const transcriptionQueueRef = useRef<Promise<TranscriptionResult | null>>(Promise.resolve(null));
 
   // Initialize Transformers.js
@@ -543,12 +474,12 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
 
       try {
         const loadStartTime = performance.now();
-        
+
         // Get pipeline instance with progress callback and model
         pipelineRef.current = await WhisperPipelineSingleton.getInstance(
           (progress: WhisperProgress) => {
             const percent = progress.progress || 0;
-            
+
             // Only update if progress has actually changed (avoid fractional updates)
             setLoadingProgress((prev) => {
               const rounded = Math.round(Math.max(1, percent));
@@ -583,10 +514,14 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load model';
         log.error('Model loading failed:', err);
-        
+
         // Check for specific error types and provide detailed feedback
         if (err instanceof Error) {
-          if (err.message.includes('Unexpected token') || err.message.includes('JSON') || err.message.includes('HTML')) {
+          if (
+            err.message.includes('Unexpected token') ||
+            err.message.includes('JSON') ||
+            err.message.includes('HTML')
+          ) {
             log.error('Model loading failed due to network/CORS issues');
             log.error('Common solutions:');
             log.error('1. Check if you are behind a corporate firewall/proxy');
@@ -595,12 +530,14 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
             log.error('4. Try refreshing the page and loading again');
             log.error('5. Alternative CDN sources have been attempted automatically');
           } else if (err.message.includes('Network configuration issue')) {
-            log.error('Network configuration issue detected - firewall detection and CDN fallback system activated');
+            log.error(
+              'Network configuration issue detected - firewall detection and CDN fallback system activated'
+            );
           } else if (err.message.includes('timeout')) {
             log.error('Model loading timed out - network may be slow or unstable');
           }
         }
-        
+
         setError(new Error(errorMessage));
 
         if (progressAlertRef.current) {
@@ -608,15 +545,16 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
           progressAlertRef.current = null;
         }
 
-        const detailedMessage = err instanceof Error 
-          ? err.message.includes('JSON') || err.message.includes('HTML')
-            ? 'Network configuration issue: Unable to download model files. The system has attempted multiple CDN sources. Please check your network settings or try a different connection.'
-            : err.message.includes('Network configuration issue')
-            ? 'Corporate firewall detected. Alternative download sources were tried but failed. Please contact your IT department or try a different network.'
-            : err.message.includes('timeout')
-            ? 'Model loading timed out. This may be due to slow network or server issues. Please try again.'
-            : errorMessage
-          : errorMessage;
+        const detailedMessage =
+          err instanceof Error
+            ? err.message.includes('JSON') || err.message.includes('HTML')
+              ? 'Network configuration issue: Unable to download model files. The system has attempted multiple CDN sources. Please check your network settings or try a different connection.'
+              : err.message.includes('Network configuration issue')
+                ? 'Corporate firewall detected. Alternative download sources were tried but failed. Please contact your IT department or try a different network.'
+                : err.message.includes('timeout')
+                  ? 'Model loading timed out. This may be due to slow network or server issues. Please try again.'
+                  : errorMessage
+            : errorMessage;
 
         alertService.show({
           title: '[MODEL_LOAD_ERROR]',
@@ -689,30 +627,31 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
           // Processing completed
           const result: TranscriptionResult = {
             text: output.text,
-            segments: output.chunks?.map((chunk, index) => ({
-              id: index,
-              seek: 0,
-              start: chunk.timestamp?.[0] || 0,
-              end: chunk.timestamp?.[1] || 0,
-              text: chunk.text,
-              tokens: [],
-              temperature: 0,
-              avg_logprob: 0,
-              compression_ratio: 0,
-              no_speech_prob: 0,
-            })) || [],
+            segments:
+              output.chunks?.map((chunk, index) => ({
+                id: index,
+                seek: 0,
+                start: chunk.timestamp?.[0] || 0,
+                end: chunk.timestamp?.[1] || 0,
+                text: chunk.text,
+                tokens: [],
+                temperature: 0,
+                avg_logprob: 0,
+                compression_ratio: 0,
+                no_speech_prob: 0,
+              })) || [],
             chunkIndex: 0,
             timestamp: Date.now(),
           };
 
           setTranscript(result.text);
           setIsTranscribing(false);
-          
+
           return result;
         } catch (err) {
           const error = err instanceof Error ? err : new Error('Transcription failed');
           log.error('Transcription failed:', err);
-          
+
           setError(error);
           setIsTranscribing(false);
 

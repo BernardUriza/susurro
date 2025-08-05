@@ -414,3 +414,119 @@ select:focus {
 .matrix-card:hover::before {
   left: 100%;
 }
+
+/* Matrix Title Styles */
+.matrix-title {
+  font-size: 3rem;
+  font-weight: bold;
+  text-align: center;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  background: linear-gradient(
+    45deg,
+    #00ff41 0%,
+    #00ff41 25%,
+    #ffffff 50%,
+    #00ff41 75%,
+    #00ff41 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: textShine 3s linear infinite;
+  position: relative;
+  margin: 2rem 0;
+  filter: drop-shadow(0 0 20px rgba(0, 255, 65, 0.5));
+}
+
+@keyframes textShine {
+  to {
+    background-position: 200% center;
+  }
+}
+
+.matrix-title::before,
+.matrix-title::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  -webkit-text-fill-color: #00ff41;
+  z-index: -1;
+}
+
+.matrix-title::before {
+  animation: glitch1 0.5s infinite;
+  filter: drop-shadow(2px 2px 0 rgba(255, 0, 65, 0.5));
+}
+
+.matrix-title::after {
+  animation: glitch2 0.5s infinite;
+  filter: drop-shadow(-2px -2px 0 rgba(0, 65, 255, 0.5));
+}
+
+@keyframes glitch1 {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(-2px, -2px); }
+  60% { transform: translate(2px, 2px); }
+  80% { transform: translate(2px, -2px); }
+}
+
+@keyframes glitch2 {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(2px, -2px); }
+  40% { transform: translate(2px, 2px); }
+  60% { transform: translate(-2px, -2px); }
+  80% { transform: translate(-2px, 2px); }
+}
+
+/* Subtitle Style */
+.matrix-subtitle {
+  text-align: center;
+  font-size: 1rem;
+  letter-spacing: 0.2em;
+  color: rgba(0, 255, 65, 0.7);
+  text-transform: uppercase;
+  margin-top: -1rem;
+  margin-bottom: 2rem;
+  animation: fadeIn 2s ease-out;
+}
+
+/* Enhanced Container Animations */
+.fade-in {
+  animation: fadeIn 0.6s ease-out;
+}
+
+.slide-up {
+  animation: slideUp 0.6s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scale-in {
+  animation: scaleIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

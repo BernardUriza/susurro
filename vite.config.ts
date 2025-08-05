@@ -26,13 +26,19 @@ export default defineConfig({
   server: {
     port: 3000,
     headers: {
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Embedder-Policy': 'credentialless', // More permissive for model loading
       'Cross-Origin-Opener-Policy': 'same-origin',
     },
     fs: {
       allow: ['..'],
     },
-    // Removed proxy - serving local models from public/models/
+    proxy: {
+      '/models': {
+        target: 'https://huggingface.co',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/models/, ''),
+      },
+    },
   },
   worker: {
     format: 'es',

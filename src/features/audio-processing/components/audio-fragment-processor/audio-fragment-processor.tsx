@@ -3,7 +3,7 @@
 import React, { useCallback, useState } from 'react';
 import { useSusurro } from '@susurro/core';
 import { SimpleWaveformAnalyzer } from 'murmuraba';
-import type { CompleteAudioResult } from '@susurro/core';
+import type { CompleteAudioResult, StreamingSusurroChunk } from '@susurro/core';
 
 export interface AudioFragmentProcessorProps {
   onBack: () => void;
@@ -14,18 +14,18 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     // Streaming recording
     startStreamingRecording,
     stopStreamingRecording,
-    
+
     // File processing
     processAndTranscribeFile,
-    
+
     // Engine status
     whisperReady,
     whisperProgress,
-    
+
     // MediaStream for visualization
     currentStream,
-  } = useSusurro({ 
-    chunkDurationMs: 8000 // 8-second chunks as per plan
+  } = useSusurro({
+    chunkDurationMs: 8000, // 8-second chunks as per plan
   });
 
   // Minimal state - only essentials
@@ -35,17 +35,16 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
   const [chunksProcessed, setChunksProcessed] = useState(0);
 
   const handleStartRecording = useCallback(async () => {
+    // Allow recording even without Whisper (just won't have transcription)
     if (!whisperReady) {
-      setStatus('[WAITING_FOR_WHISPER_MODEL]');
-      return;
+      setStatus('[RECORDING_NO_TRANSCRIPTION]');
     }
-
     setIsRecording(true);
-    setStatus('[RECORDING_ACTIVE]');
+    setStatus(whisperReady ? '[RECORDING_ACTIVE]' : '[RECORDING_NO_TRANSCRIPTION]');
     setChunksProcessed(0);
 
-    const onChunkProcessed = () => {
-      setChunksProcessed(prev => prev + 1);
+    const onChunkProcessed = (chunk: StreamingSusurroChunk) => {
+      setChunksProcessed((prev) => prev + 1);
     };
 
     try {
@@ -62,45 +61,65 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
   }, [whisperReady, startStreamingRecording]);
 
   const handleStopRecording = useCallback(async () => {
-    const chunks = await stopStreamingRecording();
-    setIsRecording(false);
-    setStatus(`[COMPLETE] Processed ${chunks.length} chunks`);
+    try {
+      const chunks = await stopStreamingRecording();
+      setIsRecording(false);
+      setStatus(`[COMPLETE] Processed ${chunks.length} chunks`);
+    } catch (error) {
+      setIsRecording(false);
+      setStatus(`[ERROR] ${error instanceof Error ? error.message : String(error)}`);
+    }
   }, [stopStreamingRecording]);
 
-  const handleFileUpload = useCallback(async (file: File) => {
-    setFileResult(null);
-    setStatus('[PROCESSING_FILE]');
-    
-    try {
-      const result = await processAndTranscribeFile(file);
-      setFileResult(result);
-      setStatus('[FILE_COMPLETE]');
-    } catch (error) {
-      setStatus(`[ERROR] ${error}`);
-    }
-  }, [processAndTranscribeFile]);
+  const handleFileUpload = useCallback(
+    async (file: File) => {
+      setFileResult(null);
+      setStatus('[PROCESSING_FILE]');
+
+      try {
+        const result = await processAndTranscribeFile(file);
+        setFileResult(result);
+        setStatus('[FILE_COMPLETE]');
+      } catch (error) {
+        setStatus(`[ERROR] ${error}`);
+      }
+    },
+    [processAndTranscribeFile]
+  );
 
   return (
     <div style={{ padding: '20px', minHeight: '100vh', color: '#00ff41' }}>
-      <button onClick={onBack} style={{ marginBottom: '20px' }}>[← BACK]</button>
-      
+      <button onClick={onBack} style={{ marginBottom: '20px' }}>
+        [← BACK]
+      </button>
+
       <h1>AUDIO FRAGMENT PROCESSOR</h1>
-      
-      {status && <div style={{ marginBottom: '10px' }}>{status}</div>}
-      
+
+      {status && (
+        <div
+          style={{
+            marginBottom: '10px',
+            padding: '10px',
+            background: 'rgba(0, 255, 65, 0.1)',
+            border: '1px solid #00ff41',
+          }}
+        >
+          {status}
+        </div>
+      )}
+
       {/* SimpleWaveformAnalyzer - The entire visualization solution */}
       <div style={{ marginBottom: '20px' }}>
-        <SimpleWaveformAnalyzer 
+        <SimpleWaveformAnalyzer
           stream={currentStream || undefined}
           isActive={isRecording}
           width={800}
           height={200}
         />
       </div>
-      
+
       <button
         onClick={isRecording ? handleStopRecording : handleStartRecording}
-        disabled={!whisperReady}
         style={{
           padding: '15px 40px',
           fontSize: '1.2rem',
@@ -108,27 +127,23 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
           border: 'none',
           color: '#000',
           cursor: 'pointer',
-          marginBottom: '20px'
+          marginBottom: '20px',
         }}
       >
         {isRecording ? 'STOP' : 'START'}
       </button>
-      
-      {!whisperReady && (
-        <div>Loading Whisper: {(whisperProgress * 100).toFixed(0)}%</div>
-      )}
-      
-      {chunksProcessed > 0 && (
-        <div>Chunks: {chunksProcessed}</div>
-      )}
-      
+
+      {!whisperReady && <div>Loading Whisper: {(whisperProgress * 100).toFixed(0)}%</div>}
+
+      {chunksProcessed > 0 && <div>Chunks: {chunksProcessed}</div>}
+
       <input
         type="file"
         accept="audio/*"
         onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
         style={{ marginTop: '20px' }}
       />
-      
+
       {fileResult && (
         <div style={{ marginTop: '20px' }}>
           <audio src={fileResult.processedAudioUrl} controls />

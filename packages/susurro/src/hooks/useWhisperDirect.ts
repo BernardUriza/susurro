@@ -18,7 +18,7 @@ import {
 } from '../lib/ui-interfaces';
 
 // Smart logging system - Reduced verbosity for production
-const DEBUG_MODE = true; // Temporarily enabled for debugging
+const DEBUG_MODE = false; // Disabled for production
 const log = {
   info: (...args: unknown[]) => DEBUG_MODE && console.log('[WHISPER]', ...args),
   warn: (...args: unknown[]) => DEBUG_MODE && console.warn('[WHISPER]', ...args),
@@ -39,12 +39,13 @@ const getHuggingFaceToken = (): string | undefined => {
   // Check if we're in browser environment
   if (typeof window !== 'undefined') {
     let token: string | undefined;
-    
+
     // Check for token in window object (can be set by the app)
-    token = (window as any).HUGGINGFACE_TOKEN || 
-            (window as any).HF_TOKEN ||
-            (window as any).VITE_HUGGINGFACE_TOKEN;
-    
+    token =
+      (window as any).HUGGINGFACE_TOKEN ||
+      (window as any).HF_TOKEN ||
+      (window as any).VITE_HUGGINGFACE_TOKEN;
+
     // If no token found, use hardcoded token for development
     if (!token) {
       // This token is from .env.local - should be injected at build time in production
@@ -53,11 +54,11 @@ const getHuggingFaceToken = (): string | undefined => {
     } else {
       if (DEBUG_MODE) console.log('[WHISPER] Found token from window object');
     }
-    
+
     if (DEBUG_MODE && token) {
       console.log('[WHISPER] HuggingFace token available (length:', token.length, ')');
     }
-    
+
     return token;
   }
   return undefined;
@@ -70,16 +71,14 @@ let originalGlobalFetch: typeof fetch | null = null;
 if (typeof window !== 'undefined') {
   const token = getHuggingFaceToken();
   if (token) {
-    if (DEBUG_MODE) console.log('[WHISPER] Setting up global fetch interceptor for HuggingFace authentication');
+    if (DEBUG_MODE)
+      console.log('[WHISPER] Setting up global fetch interceptor for HuggingFace authentication');
     originalGlobalFetch = window.fetch;
-    
+
     window.fetch = async (input, init = {}) => {
-      const url = typeof input === 'string' 
-        ? input 
-        : input instanceof Request 
-          ? input.url 
-          : input.toString();
-          
+      const url =
+        typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString();
+
       // Add authentication for any huggingface.co requests
       if (url.includes('huggingface.co')) {
         if (DEBUG_MODE) console.log('[WHISPER] Adding HF auth to request:', url);
@@ -124,7 +123,6 @@ const CDN_SOURCES: CDNConfig[] = [
   },
 ];
 
-
 // Retry mechanism with exponential backoff
 class RetryManager {
   static async withRetry<T>(
@@ -154,11 +152,11 @@ class RetryManager {
   }
 }
 
-
 // Singleton pattern for Whisper pipeline
 class WhisperPipelineSingleton {
   static task = 'automatic-speech-recognition' as const;
-  static model = 'whisper-tiny'; // Use local model identifier
+  static model = 'Xenova/whisper-tiny.en'; // Use correct Hugging Face model identifier
+  static fallbackModels = ['Xenova/whisper-base.en', 'openai/whisper-tiny']; // Fallback options
   static currentCDNIndex = 0;
   static instance: Pipeline | null = null;
   static pipeline: TransformersModule['pipeline'] | null = null;
@@ -185,7 +183,7 @@ class WhisperPipelineSingleton {
 
     // Store the original fetch reference (global interceptor is already set up)
     this.originalFetch = originalGlobalFetch || window.fetch;
-    
+
     const hfToken = getHuggingFaceToken();
     if (hfToken) {
       log.info('HuggingFace authentication is configured');
@@ -414,10 +412,10 @@ class WhisperPipelineSingleton {
             },
             quantized: true,
             revision: 'main',
-            cache_dir: '.transformers-cache',
-            local_files_only: true, // Force use of local files
-            timeout: 60000,
-            retries: 0,
+            cache_dir: undefined, // Let transformers.js handle cache
+            local_files_only: false, // Allow downloading from Hugging Face
+            timeout: 120000, // Increase timeout to 2 minutes
+            retries: 3,
           } as any);
         },
         this.isFirewalled ? 5 : 3,

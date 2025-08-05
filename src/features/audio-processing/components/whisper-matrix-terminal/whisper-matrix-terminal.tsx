@@ -9,7 +9,6 @@ import { useSusurro } from '@susurro/core';
 // Relative imports - components
 import { DigitalRainfall } from '../../../visualization/components';
 import { WhisperEchoLogs } from '../../../visualization/components';
-// import { TemporalSegmentSelector } from '../temporal-segment-selector'; // TODO: Implement if needed
 
 // Relative imports - utilities
 import { SilentThreadProcessor } from '../../../../shared/services';
@@ -43,6 +42,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
   const [chunkDuration, setChunkDuration] = React.useState(15);
   const [whisperTranscriptions, setWhisperTranscriptions] = React.useState<string[]>([]);
   const [isTranscribing, setIsTranscribing] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState('processor');
 
   // Direct values from useSusurro - no abstraction needed
   const [backgroundLogs, setBackgroundLogs] = React.useState<
@@ -95,12 +95,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
       // For file processing, we'll need to simulate with recording
       setStatus('[FILE_PROCESSING_NOT_SUPPORTED] Use real-time recording instead');
       return false;
-
-      setStatus('[PROCESSING_COMPLETE]');
-
-      return true;
     } catch (err) {
-      // console.error('File processing error:', err);
       setStatus(`[ERROR] ${err instanceof Error ? err.message : 'Unknown error'}`);
       return false;
     }
@@ -117,14 +112,36 @@ export const WhisperMatrixTerminal: React.FC = () => {
       const file = new File([blob], 'sample.wav', { type: 'audio/wav' });
       await handleFileProcess(file);
     } catch (error) {
-      // console.error('Error loading sample:', error);
       setStatus(`[ERROR] ${error instanceof Error ? error.message : 'Failed to load sample'}`);
     }
   };
 
   return (
     <div className="matrix-theme">
-      <DigitalRainfall />
+      {/* Cube Background */}
+      <div className="matrix-cube-wrapper">
+        <div className="matrix-cube">
+          <div className="matrix-cube-face front">
+            <DigitalRainfall />
+          </div>
+          <div className="matrix-cube-face back">
+            <DigitalRainfall />
+          </div>
+          <div className="matrix-cube-face right">
+            <DigitalRainfall />
+          </div>
+          <div className="matrix-cube-face left">
+            <DigitalRainfall />
+          </div>
+          <div className="matrix-cube-face top">
+            <DigitalRainfall />
+          </div>
+          <div className="matrix-cube-face bottom">
+            <DigitalRainfall />
+          </div>
+        </div>
+      </div>
+
       {/* Version indicator in top-left corner */}
       <div
         style={{
@@ -142,14 +159,40 @@ export const WhisperMatrixTerminal: React.FC = () => {
       >
         SUSURRO_MATRIX_v1.0
       </div>
-      <div
-        className="matrix-container"
-        style={{
-          maxWidth: 600,
-          margin: '40px auto',
-          padding: 20,
-        }}
-      >
+      
+      <div className="matrix-container">
+        {/* Tab System */}
+        <div className="matrix-tabs">
+          <div 
+            className={`matrix-tab ${activeTab === 'processor' ? 'active' : ''}`}
+            onClick={() => setActiveTab('processor')}
+          >
+            [PROCESSOR]
+          </div>
+          <div 
+            className={`matrix-tab ${activeTab === 'transcription' ? 'active' : ''}`}
+            onClick={() => setActiveTab('transcription')}
+          >
+            [TRANSCRIPTION]
+          </div>
+          <div 
+            className={`matrix-tab ${activeTab === 'analysis' ? 'active' : ''}`}
+            onClick={() => setActiveTab('analysis')}
+          >
+            [ANALYSIS]
+          </div>
+          <div 
+            className={`matrix-tab ${activeTab === 'logs' ? 'active' : ''}`}
+            onClick={() => setActiveTab('logs')}
+          >
+            [LOGS]
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="matrix-tab-content">
+          {activeTab === 'processor' && (
+            <>
         {/* Banner with advanced transparency effects */}
         <div
           style={{
@@ -223,9 +266,6 @@ export const WhisperMatrixTerminal: React.FC = () => {
                     transparent 100%
                   )
                 `,
-              }}
-              onLoad={() => {
-                // Banner loaded successfully
               }}
             />
           </div>
@@ -1016,6 +1056,307 @@ export const WhisperMatrixTerminal: React.FC = () => {
           </>
         )}
 
+        {/* Conversational Mode Section */}
+        <div
+          style={{
+            marginTop: 40,
+            padding: 30,
+            background: 'rgba(0, 0, 0, 0.8)',
+            border: '2px solid #00ff41',
+            borderRadius: 0,
+            position: 'relative',
+            overflow: 'hidden',
+            boxShadow: '0 0 40px rgba(0, 255, 65, 0.3), inset 0 0 40px rgba(0, 255, 65, 0.1)',
+          }}
+        >
+          {/* Section Header */}
+          <div style={{ marginBottom: 25 }}>
+            <button
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#00ff41',
+                fontSize: '11px',
+                cursor: 'pointer',
+                opacity: 0.7,
+                transition: 'opacity 0.2s',
+                marginBottom: 10,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+            >
+              [← BACK]
+            </button>
+            
+            <h2 style={{ 
+              color: '#00ff41', 
+              fontSize: '20px',
+              fontWeight: 'bold',
+              letterSpacing: '2px',
+              textShadow: '0 0 10px #00ff41',
+              marginBottom: 15,
+            }}>
+              &gt; CONVERSATIONAL_CHUNKS_MODULE
+            </h2>
+            
+            <div style={{ display: 'flex', gap: 20, marginBottom: 20 }}>
+              <button
+                style={{
+                  padding: '8px 20px',
+                  background: 'rgba(0, 255, 65, 0.1)',
+                  border: '1px solid #00ff41',
+                  color: '#00ff41',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  fontSize: '12px',
+                  letterSpacing: '1px',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#00ff41';
+                  e.currentTarget.style.color = '#000';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(0, 255, 65, 0.1)';
+                  e.currentTarget.style.color = '#00ff41';
+                }}
+              >
+                [PROCESSOR_VIEW]
+              </button>
+              
+              <button
+                style={{
+                  padding: '8px 20px',
+                  background: '#00ff41',
+                  border: '1px solid #00ff41',
+                  color: '#000',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  fontSize: '12px',
+                  letterSpacing: '1px',
+                  fontWeight: 'bold',
+                }}
+              >
+                [CONVERSATIONAL_VIEW] ✓
+              </button>
+            </div>
+          </div>
+
+          {/* Flow Diagram */}
+          <div style={{
+            background: 'rgba(0, 255, 65, 0.05)',
+            border: '1px solid rgba(0, 255, 65, 0.3)',
+            padding: 20,
+            marginBottom: 25,
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              fontSize: '14px',
+              color: '#00ff41',
+              lineHeight: '1.8',
+              textAlign: 'center',
+              letterSpacing: '1px',
+            }}>
+              <div style={{ marginBottom: 10 }}>
+                <span style={{ fontSize: '20px' }}>🎤</span> Audio Input 
+                <span style={{ margin: '0 10px', opacity: 0.6 }}>→</span>
+                <span style={{ fontSize: '20px' }}>🧠</span> Murmuraba (Neural Clean)
+                <span style={{ margin: '0 10px', opacity: 0.6 }}>→</span>
+                <span style={{ fontSize: '20px' }}>🤖</span> Whisper (AI Transcribe)
+              </div>
+              <div>
+                <span style={{ margin: '0 10px', opacity: 0.6 }}>→</span>
+                <span style={{ fontSize: '20px' }}>✨</span> SusurroChunk
+                <span style={{ margin: '0 10px', opacity: 0.6 }}>→</span>
+                <span style={{ fontSize: '20px' }}>💬</span> UI Update
+              </div>
+            </div>
+            
+            <p style={{
+              marginTop: 15,
+              fontSize: '12px',
+              color: '#00ff41',
+              opacity: 0.8,
+              textAlign: 'center',
+            }}>
+              &gt; Each chunk is a complete conversational unit with audio + transcript
+            </p>
+          </div>
+
+          {/* Recording Controls */}
+          <div style={{ marginBottom: 25 }}>
+            <button
+              className="matrix-button"
+              style={{
+                width: '100%',
+                padding: '20px',
+                fontSize: '18px',
+                background: 'rgba(0, 0, 0, 0.8)',
+                border: '2px solid #00ff41',
+                color: '#00ff41',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(0, 255, 65, 0.1)';
+                e.currentTarget.style.boxShadow = '0 0 30px rgba(0, 255, 65, 0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              [START_RECORDING] 🎙️
+            </button>
+            
+            <div style={{
+              marginTop: 10,
+              padding: '10px',
+              background: 'rgba(0, 255, 65, 0.1)',
+              border: '1px solid rgba(0, 255, 65, 0.3)',
+              fontSize: '12px',
+              color: '#00ff41',
+            }}>
+              [LOADING_WHISPER: 100%] ✓
+            </div>
+          </div>
+
+          {/* Chunk Duration Selector */}
+          <div style={{
+            marginBottom: 25,
+            padding: 15,
+            background: 'rgba(0, 0, 0, 0.5)',
+            border: '1px solid rgba(0, 255, 65, 0.3)',
+          }}>
+            <label style={{
+              display: 'block',
+              marginBottom: 10,
+              fontSize: '14px',
+              color: '#00ff41',
+              letterSpacing: '1px',
+            }}>
+              &gt; CONVERSATIONAL_CHUNK_DURATION_SEC:
+            </label>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+              <input
+                type="number"
+                defaultValue="15"
+                readOnly
+                style={{
+                  width: '80px',
+                  padding: '10px',
+                  background: 'rgba(0, 0, 0, 0.8)',
+                  border: '2px solid #00ff41',
+                  color: '#00ff41',
+                  fontSize: '20px',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  fontFamily: 'monospace',
+                }}
+              />
+              
+              <div style={{ display: 'flex', gap: 5 }}>
+                {[5, 10, 15, 30].map((val) => (
+                  <button
+                    key={val}
+                    style={{
+                      padding: '5px 15px',
+                      background: val === 15 ? '#00ff41' : 'rgba(0, 0, 0, 0.8)',
+                      border: '1px solid #00ff41',
+                      color: val === 15 ? '#000' : '#00ff41',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {val}s
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Conversational Feed Area */}
+          <div style={{
+            padding: 20,
+            background: 'rgba(0, 0, 0, 0.5)',
+            border: '1px solid rgba(0, 255, 65, 0.3)',
+            minHeight: '200px',
+            marginBottom: 20,
+          }}>
+            <div style={{
+              fontSize: '14px',
+              color: '#00ff41',
+              opacity: 0.9,
+              marginBottom: 15,
+              fontWeight: 'bold',
+              letterSpacing: '1px',
+            }}>
+              &gt; CONVERSATIONAL_FEED_READY
+            </div>
+            
+            <div style={{
+              fontSize: '13px',
+              color: '#00ff41',
+              opacity: 0.7,
+              lineHeight: '1.8',
+            }}>
+              <p>&gt; Start recording to see audio chunks</p>
+              <p>&gt; Each chunk will appear as a chat message</p>
+              <p>&gt; With instant audio playback + transcription</p>
+            </div>
+          </div>
+
+          {/* Instructions */}
+          <div style={{
+            padding: 15,
+            background: 'rgba(0, 255, 65, 0.05)',
+            border: '1px solid rgba(0, 255, 65, 0.2)',
+          }}>
+            <div style={{
+              fontSize: '12px',
+              color: '#00ff41',
+              opacity: 0.9,
+              marginBottom: 10,
+              fontWeight: 'bold',
+              letterSpacing: '1px',
+            }}>
+              &gt; CONVERSATIONAL_MODE_INSTRUCTIONS:
+            </div>
+            
+            <ol style={{
+              margin: 0,
+              paddingLeft: 20,
+              fontSize: '12px',
+              color: '#00ff41',
+              opacity: 0.8,
+              lineHeight: '1.8',
+            }}>
+              <li>Start recording to see real-time audio chunks</li>
+              <li>Each chunk appears as a chat message instantly</li>
+              <li>Click ▶️ to play audio with waveform visualization</li>
+              <li>Transcription streams in real-time</li>
+              <li>Use [CLEAR] to reset the conversation</li>
+            </ol>
+          </div>
+
+          {/* Animated border effect */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '2px',
+              background: 'linear-gradient(to right, transparent, #00ff41, transparent)',
+              animation: 'scanLine 3s linear infinite',
+            }}
+          />
+        </div>
+
         {/* Code Example */}
         <pre
           className="matrix-code"
@@ -1058,10 +1399,100 @@ await processAudioFile(audioFile)
         >
           [SYSTEM.READY] - MATRIX_AUDIO_PROCESSOR_ONLINE
         </p>
+            </>
+          )}
+
+          {activeTab === 'transcription' && (
+            <div style={{ padding: 20 }}>
+              <h2 style={{ color: '#00ff41', marginBottom: 20 }}>&gt; TRANSCRIPTION_MODULE</h2>
+              
+              {whisperTranscriptions.length > 0 ? (
+                <div className="matrix-transcript">
+                  {whisperTranscriptions.map((text, i) => (
+                    <div key={i} style={{ marginBottom: 15 }}>
+                      <div style={{ color: '#00ff41', opacity: 0.8, fontSize: '12px' }}>
+                        &gt; CHUNK_{i + 1}:
+                      </div>
+                      <div style={{ marginTop: 5, paddingLeft: 20 }}>{text}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', opacity: 0.6, padding: 40 }}>
+                  &gt; NO_TRANSCRIPTIONS_AVAILABLE
+                  <br />
+                  <br />
+                  [PROCESS_AUDIO_TO_VIEW_TRANSCRIPTIONS]
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'analysis' && (
+            <div style={{ padding: 20 }}>
+              <h2 style={{ color: '#00ff41', marginBottom: 20 }}>&gt; AUDIO_ANALYSIS</h2>
+              
+              {audioChunks.length > 0 ? (
+                <div>
+                  <div className="matrix-status" style={{ marginBottom: 20 }}>
+                    &gt; TOTAL_CHUNKS: {audioChunks.length}
+                    <br />
+                    &gt; AVG_VAD_SCORE: {(averageVad * 100).toFixed(2)}%
+                    <br />
+                    &gt; TOTAL_DURATION: {(audioChunks.reduce((acc, chunk) => acc + chunk.duration, 0) / 1000).toFixed(2)}s
+                  </div>
+
+                  <div style={{ marginTop: 20 }}>
+                    <h3 style={{ color: '#00ff41', marginBottom: 15 }}>&gt; CHUNK_DETAILS:</h3>
+                    {audioChunks.map((chunk, i) => (
+                      <div key={i} className="matrix-status" style={{ marginBottom: 10 }}>
+                        &gt; CHUNK_{i + 1}: Duration={(chunk.duration / 1000).toFixed(2)}s | VAD={chunk.vadScore ? (chunk.vadScore * 100).toFixed(1) : 'N/A'}%
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', opacity: 0.6, padding: 40 }}>
+                  &gt; NO_AUDIO_DATA_AVAILABLE
+                  <br />
+                  <br />
+                  [PROCESS_AUDIO_TO_VIEW_ANALYSIS]
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'logs' && (
+            <div style={{ padding: 20 }}>
+              <h2 style={{ color: '#00ff41', marginBottom: 20 }}>&gt; SYSTEM_LOGS</h2>
+              
+              {backgroundLogs.length > 0 ? (
+                <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                  {backgroundLogs.slice(-50).map((log) => (
+                    <div
+                      key={log.id}
+                      className={`matrix-status ${log.type === 'error' ? 'error' : ''}`}
+                      style={{ marginBottom: 5, fontSize: '12px' }}
+                    >
+                      [{log.timestamp.toLocaleTimeString()}] {log.type.toUpperCase()}: {log.message}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', opacity: 0.6, padding: 40 }}>
+                  &gt; NO_LOGS_AVAILABLE
+                  <br />
+                  <br />
+                  [SYSTEM_IDLE]
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Floating logs for background processing */}
-      {backgroundLogs.length > 0 && <WhisperEchoLogs logs={backgroundLogs} maxLogs={15} />}
+      {backgroundLogs.length > 0 && activeTab === 'processor' && <WhisperEchoLogs logs={backgroundLogs} maxLogs={15} />}
     </div>
   );
 };

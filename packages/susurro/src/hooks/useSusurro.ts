@@ -229,13 +229,15 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   const clearConversationalChunks = useCallback(() => {
     // Clear URL objects to prevent memory leaks
-    conversationalChunks.forEach((chunk) => {
-      if (chunk.audioUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(chunk.audioUrl);
-      }
+    setConversationalChunks((prevChunks) => {
+      prevChunks.forEach((chunk) => {
+        if (chunk.audioUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(chunk.audioUrl);
+        }
+      });
+      return [];
     });
-
-    setConversationalChunks([]);
+    
     setProcessedAudioUrls(new Map());
     setChunkTranscriptions(new Map());
     setChunkProcessingTimes(new Map());
@@ -243,7 +245,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     // Clear any pending timeouts
     chunkEmissionTimeoutRef.current.forEach((timeout) => clearTimeout(timeout));
     chunkEmissionTimeoutRef.current.clear();
-  }, [conversationalChunks]);
+  }, []);
 
   // Enhanced transcription handler with conversational support
   const transcribeWithWhisper = useCallback(

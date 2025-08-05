@@ -3,6 +3,8 @@ export interface MurmurabaConfig {
   enableNoiseSuppression?: boolean;
   enableEchoCancellation?: boolean;
   enableVAD?: boolean;
+  wasmPath?: string;
+  vadThreshold?: number;
 }
 
 export interface MurmurabaMetrics {

@@ -162,10 +162,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         try {
           susurroChunk = await middlewarePipeline.process(susurroChunk);
         } catch (error) {
-          // Log middleware processing failure in development only
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('Middleware processing failed:', error);
-          }
+          // Log middleware processing failure
+          console.warn('Middleware processing failed:', error);
         }
         const middlewareLatency = performance.now() - middlewareStartTime;
 
@@ -273,9 +271,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         }
         return null;
       } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('Transcription failed:', error);
-        }
+        console.warn('Transcription failed:', error);
         return null;
       }
     },
@@ -366,9 +362,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
             setTranscriptions((prev) => [...prev, enhancedResult]);
           }
         } catch (error) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('Transcription failed for chunk:', chunk.id, error);
-          }
+          console.warn('Transcription failed for chunk:', chunk.id, error);
         }
       }
 
@@ -502,9 +496,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
             tryEmitChunk(chunk);
           }
         } catch (error) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('Transcription failed for chunk:', chunk.id, error);
-          }
+          console.warn('Transcription failed for chunk:', chunk.id, error);
 
           // Still try to emit with empty transcript if audio is ready
           if (processedAudioUrls.has(chunk.id)) {

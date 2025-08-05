@@ -31,10 +31,13 @@ body {
   min-height: 100vh;
   line-height: 1.5;
   font-family: var(--font-mono);
-  background: var(--matrix-black);
+  background: #000000;
   color: var(--matrix-green);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
 
 /* Remove built-in form typography styles */

@@ -2,26 +2,58 @@
 
 // React and external libraries
 import React from 'react';
-// Updated import for Murmuraba v3 API
+// Real Murmuraba v3 API imports
 import type { MurmurabaConfig, MurmurabaResult } from '@susurro/core';
+import { processFileWithMetrics as murmubaraProcessFile, initializeAudioEngine } from 'murmuraba';
+import type { ProcessingMetrics } from 'murmuraba';
 
-// Mock functions for now - these should be replaced with actual Murmuraba v3 implementation
+// Real Murmuraba VAD processing
 const processFileWithMetrics = async (buffer: ArrayBuffer): Promise<MurmurabaResult> => {
-  // Placeholder implementation - replace with actual Murmuraba v3 file processing
-  return {
-    processedBuffer: buffer,
-    metrics: [],
-    averageVad: 0
-  };
+  try {
+    // Initialize engine if needed
+    await initializeAudioEngine({
+      enableVAD: true,
+      enableNoiseSuppression: true
+    });
+
+    // Process with real Murmuraba VAD and noise reduction
+    const result = await murmubaraProcessFile(buffer, (metrics: ProcessingMetrics) => {
+      // Real-time metrics callback - VAD values from neural processing
+      if (metrics.vad > 0.5) {
+        console.log(`🎤 Voice detected: VAD=${metrics.vad.toFixed(3)}, Frame=${metrics.frame}`);
+      }
+    });
+    
+    return {
+      processedBuffer: result.processedBuffer,
+      metrics: result.metrics || [],
+      averageVad: result.averageVad // Real VAD from Murmuraba engine
+    };
+  } catch (error) {
+    console.warn('Murmuraba processing failed:', error);
+    return {
+      processedBuffer: buffer,
+      metrics: [],
+      averageVad: 0 // Failed processing
+    };
+  }
 };
 
-const initializeAudioEngine = async (config: MurmurabaConfig): Promise<void> => {
-  // Placeholder implementation - replace with actual Murmuraba v3 initialization
-  console.log('Audio engine initialized with config:', config);
+const initializeAudioEngineWrapper = async (config: MurmurabaConfig): Promise<void> => {
+  try {
+    await initializeAudioEngine({
+      enableVAD: true,
+      enableNoiseSuppression: true,
+      ...config
+    });
+  } catch (error) {
+    console.error('Failed to initialize Murmuraba engine:', error);
+    throw error;
+  }
 };
 
 const getEngineStatus = (): string => {
-  // Placeholder implementation - replace with actual Murmuraba v3 status check
+  // Status would come from the hook in real implementation
   return 'ready';
 };
 
@@ -30,8 +62,7 @@ import { useSusurro } from '@susurro/core';
 
 // Relative imports - components
 import { WhisperEchoLogs } from '../../../visualization/components';
-import { MatrixRain } from '../../../../components/MatrixRain';
-// import { TemporalSegmentSelector } from '../temporal-segment-selector'; // TODO: Implement if needed
+// TemporalSegmentSelector not needed for current implementation
 
 // Relative imports - utilities
 import { SilentThreadProcessor } from '../../../../shared/services';
@@ -39,6 +70,7 @@ import { SilentThreadProcessor } from '../../../../shared/services';
 // Styles (last)
 import '../../../../styles/matrix-theme.css';
 import '../../../../styles/improved-layout.css';
+import styles from './whisper-matrix-terminal.module.css';
 
 type CubeFace = 'front' | 'right' | 'back' | 'left';
 
@@ -96,7 +128,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
         }
 
         // Initialize the engine
-        await initializeAudioEngine({
+        await initializeAudioEngineWrapper({
           enableNoiseSuppression: true,
           enableEchoCancellation: true,
         });
@@ -298,9 +330,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh', background: '#000', overflow: 'hidden' }}>
-      {/* Matrix rain background - Behind everything */}
-      <MatrixRain density={0.6} speed={50} fontSize={12} />
+    <div style={{ position: 'relative', width: '100%', minHeight: '100vh', background: 'transparent', overflow: 'auto' }}>
       
       {/* Version indicator in top-left corner */}
       <div
@@ -1490,97 +1520,32 @@ await processFileWithMetrics(audioBuffer)
         </div>
       </div>
       
-      {/* Navigation buttons */}
+      {/* Navigation buttons - Enhanced responsive layout */}
         {currentFace === 'front' && (
-          <div style={{ 
-            position: 'fixed', 
-            bottom: 20, 
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex', 
-            gap: 10, 
-            zIndex: 1000 
-          }}>
+          <div className={styles.navigationContainer}>
             <button
-              style={{
-                background: 'transparent',
-                border: '1px solid #00ff41',
-                color: '#00ff41',
-                padding: '12px 24px',
-                fontFamily: 'Courier New, monospace',
-                cursor: 'pointer',
-                transition: 'all 0.3s',
-                textTransform: 'uppercase',
-              }}
+              className={styles.matrixButton}
               onClick={() => {
                 console.log('Clicking LEFT button');
                 setCurrentFace('left');
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = '#00ff41';
-                e.currentTarget.style.color = '#000';
-                e.currentTarget.style.boxShadow = '0 0 20px #00ff41';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#00ff41';
-                e.currentTarget.style.boxShadow = 'none';
               }}
             >
               [← VISUALIZER]
             </button>
             <button
-              style={{
-                background: 'transparent',
-                border: '1px solid #00ff41',
-                color: '#00ff41',
-                padding: '12px 24px',
-                fontFamily: 'Courier New, monospace',
-                cursor: 'pointer',
-                transition: 'all 0.3s',
-                textTransform: 'uppercase',
-              }}
+              className={styles.matrixButton}
               onClick={() => {
                 console.log('Clicking RIGHT button');
                 setCurrentFace('right');
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = '#00ff41';
-                e.currentTarget.style.color = '#000';
-                e.currentTarget.style.boxShadow = '0 0 20px #00ff41';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#00ff41';
-                e.currentTarget.style.boxShadow = 'none';
               }}
             >
               [FRAGMENT_PROCESSOR →]
             </button>
             <button
-              style={{
-                background: 'transparent',
-                border: '1px solid #00ff41',
-                color: '#00ff41',
-                padding: '12px 24px',
-                fontFamily: 'Courier New, monospace',
-                cursor: 'pointer',
-                transition: 'all 0.3s',
-                textTransform: 'uppercase',
-              }}
+              className={styles.matrixButton}
               onClick={() => {
                 console.log('Clicking BACK button');
                 setCurrentFace('back');
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = '#00ff41';
-                e.currentTarget.style.color = '#000';
-                e.currentTarget.style.boxShadow = '0 0 20px #00ff41';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#00ff41';
-                e.currentTarget.style.boxShadow = 'none';
               }}
             >
               [ANALYSIS ↓]

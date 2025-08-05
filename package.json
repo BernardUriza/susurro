@@ -31,6 +31,8 @@
     "analyze": "node scripts/analyze-project.js",
     "analyze:dead-code": "knip --config config/knip.config.ts",
     "validate-cleanup": "node scripts/cleanup-validation.js",
+    "getmedium": "HUGGINGFACE_TOKEN= node scripts/download-whisper-tiny.js",
+    "getmedium:force": "HUGGINGFACE_TOKEN= node scripts/download-whisper-tiny.js --force",
     "migration:detect-legacy": "grep -r --exclude-dir=node_modules -v '//.*MediaRecorder\\|//.*processAudioFile\\|/\\*.*MediaRecorder\\|/\\*.*processAudioFile' packages/susurro/src/ | grep -E 'MediaRecorder\\b|getUserMedia\\b|ondataavailable\\b|processAudioFile\\s*[\\(:]' && echo 'LEGACY DETECTED' || echo 'LEGACY EXTINCT'",
     "build-lib": "npm run clean && npm run build:types",
     "clean": "rmdir /s /q dist 2>nul || echo No dist folder",
@@ -69,6 +71,7 @@
   "dependencies": {
     "@susurro/core": "file:./packages/susurro",
     "eslint-config-prettier": "^10.1.8",
+    "framer-motion": "^12.23.12",
     "murmuraba": "^3.0.2",
     "react-virtuoso": "^4.13.0"
   },

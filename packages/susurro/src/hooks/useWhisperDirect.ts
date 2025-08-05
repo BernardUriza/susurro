@@ -18,7 +18,7 @@ import {
 } from '../lib/ui-interfaces';
 
 // Smart logging system
-const DEBUG_MODE = process.env.NODE_ENV === 'development';
+const DEBUG_MODE = typeof window !== 'undefined' ? false : (typeof process !== 'undefined' && process.env.NODE_ENV === 'development');
 const log = {
   info: (...args: any[]) => DEBUG_MODE && console.log('[WHISPER]', ...args),
   warn: (...args: any[]) => console.warn('[WHISPER]', ...args),
@@ -179,7 +179,7 @@ class EnhancedFetch {
 // Singleton pattern for Whisper pipeline
 class WhisperPipelineSingleton {
   static task = 'automatic-speech-recognition' as const;
-  static model = 'Xenova/whisper-tiny'; // Using tiny for faster loading
+  static model = 'Xenova/whisper-tiny'; // Use standard model identifier
   static currentCDNIndex = 0;
   static instance: Pipeline | null = null;
   static pipeline: TransformersModule['pipeline'] | null = null;
@@ -200,15 +200,46 @@ class WhisperPipelineSingleton {
       backends: this.env.backends ? Object.keys(this.env.backends) : []
     });
     
-    // Configure environment with firewall-aware settings
-    this.env.allowLocalModels = false;
+    // Configure environment for local model loading
+    this.env.allowLocalModels = true;
     this.env.allowRemoteModels = true;
     
-    // Configure CDN based on network conditions
-    // FORCE FIREWALL MODE - HuggingFace is clearly blocked
-    log.warn('FORCING FIREWALL MODE - HuggingFace blocking detected');
-    this.env.remoteURL = CDN_SOURCES[1].baseUrl; // JSDelivr as primary fallback
-    this.isFirewalled = true; // Force firewall mode
+    // Try local models first, fallback to remote
+    try {
+      // Check if local model exists
+      const localModelCheck = await fetch('/models/whisper-tiny/config.json');
+      if (localModelCheck.ok) {
+        log.info('Local model found, using local path');
+        this.env.remoteURL = '/models/';
+        this.env.allowLocalModels = true;
+      } else {
+        throw new Error('Local model not found');
+      }
+    } catch {
+      log.info('Local model not available, using HuggingFace with authentication');
+      
+      // Configure HuggingFace authentication if available
+      const hfToken = '';
+      if (hfToken && typeof window !== 'undefined') {
+        // Set up authenticated requests for HuggingFace
+        const originalFetch = window.fetch;
+        window.fetch = async (input, init = {}) => {
+          const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : input.toString());
+          if (url.includes('huggingface.co')) {
+            init.headers = {
+              ...init.headers,
+              'Authorization': `Bearer ${hfToken}`,
+              'User-Agent': 'Susurro/1.0.0'
+            };
+          }
+          return originalFetch(input, init);
+        };
+      }
+      
+      this.env.remoteURL = 'https://huggingface.co/';
+    }
+    
+    this.isFirewalled = false;
     
     // @ts-ignore - These properties might not exist in all versions
     this.env.useCache = true;
@@ -334,10 +365,6 @@ class WhisperPipelineSingleton {
     model: string
   ): Promise<Pipeline> {
     log.info('loadInstance called with model:', model);
-    
-    // TEMPORARY: Disable Whisper completely due to recursion and network issues
-    log.error('Whisper model loading disabled due to network/recursion issues');
-    throw new Error('Whisper AI is temporarily disabled due to network restrictions. The app will work without transcription functionality.');
     
     if (!this.pipeline) {
       log.info('Pipeline not initialized, importing @xenova/transformers...');

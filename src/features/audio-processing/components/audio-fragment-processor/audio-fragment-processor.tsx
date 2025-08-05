@@ -438,7 +438,8 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
                 setMessages([]); // Clear messages too
               }}
               style={{
-                height: '500px',
+                height: 'calc(100vh - 300px)',
+                minHeight: '500px',
                 marginBottom: '20px',
               }}
             />

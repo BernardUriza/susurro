@@ -90,7 +90,8 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
         style={{
           display: 'flex',
           flexDirection: 'column',
-          height: '400px',
+          height: style.height || '100%',
+          minHeight: '400px',
           background: 'rgba(0, 0, 0, 0.8)',
           border: '1px solid #00ff41',
           borderRadius: '0',
@@ -158,7 +159,8 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '400px',
+        height: style.height || '100%',
+        minHeight: '400px',
         background: 'rgba(0, 0, 0, 0.8)',
         border: '1px solid #00ff41',
         borderRadius: '0',

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useWhisperDirect } from './use-whisper-direct';
-import { useWhisperHybrid } from './use-whisper-hybrid'; // New hybrid implementation
+import { useWhisperPipeline } from './use-whisper-pipeline'; // Clean pipeline implementation
 import { useMurmubaraEngine } from 'murmuraba';
 import type {
   AudioChunk,
@@ -183,35 +182,45 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const streamingCallbackRef = useRef<((chunk: StreamingSusurroChunk) => void) | null>(null);
   const streamingSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
 
-  // MIGRATION: Using hybrid implementation for gradual transition to Workers
-  // This will use Web Workers if supported, fallback to legacy otherwise
+  // NEW: Using clean pipeline implementation based on HuggingFace example
+  // This provides better performance and cleaner code
   const {
-    isReady: whisperReady,
-    isLoading: whisperIsLoading,
-    progress: whisperProgress,
-    error: whisperError,
-    transcribe: transcribeWhisper,
-  } = useWhisperHybrid({
-    useWorker: true, // Force worker mode for better performance
+    ready: whisperReady,
+    loading: whisperIsLoading,
+    progressItems,
+    transcribe: transcribeWhisperPipeline,
+  } = useWhisperPipeline({
     language: whisperConfig?.language || 'es',
-    model: whisperConfig?.model,
-    autoLoad: true, // Auto-load model on mount
-    onProgressLog: (message, type) => {
-      // Send all worker logs to WhisperEchoLog
+    autoLoad: true,
+    onLog: (message, type) => {
+      // Send all logs to WhisperEchoLog
       if (onWhisperProgressLog) {
         onWhisperProgressLog(message, type);
       }
-    },
-    onProgress: (progress) => {
-      // Additional progress tracking if needed
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[WORKER_PROGRESS]', `${progress}%`);
-      }
     }
   });
+
+  // Calculate overall progress from progress items
+  const whisperProgress = progressItems.length > 0
+    ? Math.round(progressItems.reduce((acc, item) => acc + item.progress, 0) / progressItems.length)
+    : (whisperReady ? 100 : 0);
+
+  // No error state in pipeline (handled internally)
+  const whisperError = null;
   
   // Track transcription state separately (for compatibility)
   const [isTranscribing, setIsTranscribing] = useState(false);
+
+  // Wrap transcribe method to set state
+  const transcribeWhisper = useCallback(async (audioData: Float32Array) => {
+    setIsTranscribing(true);
+    try {
+      const result = await transcribeWhisperPipeline(audioData);
+      return result;
+    } finally {
+      setIsTranscribing(false);
+    }
+  }, [transcribeWhisperPipeline]);
 
   // NEW REFACTORED METHODS - Core functionality
 
@@ -603,11 +612,25 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     initializeAudioEngine,
   ]);
 
+  // Convert Blob to Float32Array for Whisper pipeline
+  const blobToFloat32Array = useCallback(async (blob: Blob): Promise<Float32Array> => {
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioContext = new AudioContext();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    
+    // Get first channel and convert to Float32Array
+    const audioData = audioBuffer.getChannelData(0);
+    audioContext.close();
+    
+    return audioData;
+  }, []);
+
   // Enhanced transcription handler with conversational support
   const transcribeWithWhisper = useCallback(
     async (blob: Blob): Promise<TranscriptionResult | null> => {
       try {
-        const result = await transcribeWhisper(blob);
+        const audioData = await blobToFloat32Array(blob);
+        const result = await transcribeWhisper(audioData);
         if (result) {
           // Add to main transcriptions
           setTranscriptions((prev) => [...prev, result]);
@@ -632,7 +655,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         return null;
       }
     },
-    [transcribeWhisper, conversational, audioChunks, tryEmitChunk]
+    [blobToFloat32Array, transcribeWhisper, conversational, audioChunks, tryEmitChunk]
   );
 
   // MAIN METHOD FOR FILES - Everything in one (defined after transcribeWithWhisper)

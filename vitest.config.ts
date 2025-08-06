@@ -1,1 +1,2 @@
-export * from './config/vitest.config';
+import vitestConfig from './config/vitest.config';
+export default vitestConfig;

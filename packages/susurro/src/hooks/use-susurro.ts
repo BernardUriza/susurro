@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useWhisperDirect } from './useWhisperDirect';
+import { useWhisperDirect } from './use-whisper-direct';
 // REMOVED: Singleton pattern replaced with direct hook usage
 // REMOVED: import { murmurabaManager } from '../lib/murmuraba-singleton';
 import type {

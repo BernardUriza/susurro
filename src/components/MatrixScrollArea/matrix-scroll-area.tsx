@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
-import styles from './MatrixScrollArea.module.css';
+import styles from './matrix-scroll-area.module.css';
 import type { MatrixScrollAreaProps } from './types';
 
 export interface MatrixScrollAreaRef {

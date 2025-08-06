@@ -1,13 +1,20 @@
+// 1. React and external libraries
 import { useState, useEffect } from 'react';
-import styles from './MatrixNavigation.module.css';
+
+// 2. Absolute imports (internal modules)
 import { MatrixScrollArea } from '../MatrixScrollArea';
 import { 
   WhisperMatrixTerminal, 
   AudioFragmentProcessor 
 } from '../../features/audio-processing/components';
 import { WhisperEchoLogs } from '../../features/visualization/components/whisper-echo-logs';
-import { useSusurro } from '../../../packages/susurro/src/hooks/useSusurro';
+import { useSusurro } from '../../../packages/susurro/src/hooks/use-susurro';
+
+// 3. Type imports
 import type { MatrixNavigationProps as NavProps } from './types';
+
+// 4. Style imports
+import styles from './matrix-navigation.module.css';
 
 export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
   const [currentView, setCurrentView] = useState(initialView);

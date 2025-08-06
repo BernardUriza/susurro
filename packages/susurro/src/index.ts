@@ -1,4 +1,4 @@
-export { useSusurro } from './hooks/useSusurro';
+export { useSusurro } from './hooks/use-susurro';
 // All audio functionality consolidated into single useSusurro hook
 // useWhisperDirect is internal - accessed through useSusurro
 export * from './lib/types';
@@ -10,15 +10,15 @@ export { ChunkMiddlewarePipeline } from './lib/chunk-middleware';
 export * from './lib/chunk-middleware';
 // Phase 3: Latency monitoring and optimization - Hook-based exports
 export { LatencyMonitor } from './lib/latency-monitor';
-export { useLatencyMonitor } from './hooks/useLatencyMonitor';
+export { useLatencyMonitor } from './hooks/use-latency-monitor';
 export * from './lib/latency-monitor';
 
 // Hook-based cache management
-export { useModelCache } from './hooks/useModelCache';
+export { useModelCache } from './hooks/use-model-cache';
 
 // REMOVED: Singleton patterns eliminated - replaced with hook-based architecture
 // REMOVED: export { audioEngineManager } from './lib/engine-manager';
 // REMOVED: export { latencyMonitor } from './lib/latency-monitor';
 // REMOVED: export { cacheManager } from './lib/cache-manager';
 
-export type { UseSusurroOptions, UseSusurroReturn } from './hooks/useSusurro';
+export type { UseSusurroOptions, UseSusurroReturn } from './hooks/use-susurro';

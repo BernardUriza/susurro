@@ -1,1 +1,1 @@
-export { MatrixNavigation } from './MatrixNavigation';
+export { MatrixNavigation } from './matrix-navigation';

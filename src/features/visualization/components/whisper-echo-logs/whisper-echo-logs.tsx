@@ -1,6 +1,13 @@
-// React and external libraries
+// 1. React and external libraries
 import React, { useEffect, useRef, useState } from 'react';
+
+// 2. Absolute imports (internal modules)
 import { MatrixScrollArea, MatrixScrollAreaRef } from '../../../../components/MatrixScrollArea';
+
+// 3. Type imports
+// (none in this component)
+
+// 4. Style imports
 import styles from './whisper-echo-logs.module.css';
 
 interface LogEntry {

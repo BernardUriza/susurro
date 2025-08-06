@@ -130,7 +130,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
 
     // Simple transition timing
     setTimeout(() => setIsTransitioning(false), 200);
-  }, [isTransitioning, currentView, addWhisperLog]);
+  }, [isTransitioning, currentView, addWhisperLog, views]);
 
   // Add initial system status log and preload dependencies
   useEffect(() => {

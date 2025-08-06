@@ -61,7 +61,7 @@ export const WHISPER_CONFIG = {
   // Model configurations
   MODELS: {
     DISTIL_LARGE_V3: 'Xenova/distil-whisper/distil-large-v3',
-    FALLBACK: ['whisper-tiny', 'Xenova/whisper-base.en', 'Xenova/whisper-small.en'],
+    FALLBACK: ['whisper-tiny', 'Xenova/whisper-base', 'Xenova/whisper-small'],
   },
 
   // Processing

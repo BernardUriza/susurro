@@ -71,7 +71,7 @@ export const WhisperEchoLogs: React.FC<WhisperEchoLogsProps> = ({
       {!isCollapsed && (
         <MatrixScrollArea
           ref={scrollRef}
-          height="180px"
+          height="155px"
           fadeEdges={true}
           className={styles.scrollArea}
         >

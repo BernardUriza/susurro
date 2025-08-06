@@ -32,13 +32,7 @@ export default defineConfig({
     fs: {
       allow: ['..'],
     },
-    proxy: {
-      '/models': {
-        target: 'https://huggingface.co',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/models/, ''),
-      },
-    },
+    // Model files are served from public/models directory
   },
   worker: {
     format: 'es',

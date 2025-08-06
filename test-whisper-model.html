@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whisper Model Test</title>
+</head>
+<body>
+    <h1>Whisper Model Loading Test</h1>
+    <div id="status">Testing model configuration...</div>
+    <div id="results"></div>
+
+    <script type="module">
+        const baseUrl = 'http://localhost:3000/models/whisper-tiny';
+        const results = document.getElementById('results');
+        const status = document.getElementById('status');
+        
+        async function testFile(filename) {
+            try {
+                const response = await fetch(`${baseUrl}/${filename}`);
+                const contentType = response.headers.get('content-type');
+                const size = response.headers.get('content-length');
+                
+                if (!response.ok) {
+                    return { 
+                        file: filename, 
+                        status: 'ERROR', 
+                        message: `HTTP ${response.status}` 
+                    };
+                }
+                
+                // Check if it's HTML (error page)
+                if (contentType && contentType.includes('text/html')) {
+                    return { 
+                        file: filename, 
+                        status: 'ERROR', 
+                        message: 'Received HTML instead of expected file format' 
+                    };
+                }
+                
+                // For JSON files, validate JSON
+                if (filename.endsWith('.json')) {
+                    const text = await response.text();
+                    try {
+                        JSON.parse(text);
+                        return { 
+                            file: filename, 
+                            status: 'OK', 
+                            message: `Valid JSON (${size} bytes)` 
+                        };
+                    } catch (e) {
+                        return { 
+                            file: filename, 
+                            status: 'ERROR', 
+                            message: 'Invalid JSON: ' + e.message 
+                        };
+                    }
+                }
+                
+                return { 
+                    file: filename, 
+                    status: 'OK', 
+                    message: `File accessible (${size} bytes)` 
+                };
+            } catch (error) {
+                return { 
+                    file: filename, 
+                    status: 'ERROR', 
+                    message: error.message 
+                };
+            }
+        }
+        
+        async function runTests() {
+            const files = [
+                'config.json',
+                'tokenizer.json',
+                'tokenizer_config.json',
+                'preprocessor_config.json',
+                'onnx/encoder_model_quantized.onnx',
+                'onnx/decoder_model_merged_quantized.onnx'
+            ];
+            
+            const testResults = [];
+            
+            for (const file of files) {
+                const result = await testFile(file);
+                testResults.push(result);
+                
+                const div = document.createElement('div');
+                div.style.margin = '10px 0';
+                div.innerHTML = `
+                    <strong>${result.file}:</strong> 
+                    <span style="color: ${result.status === 'OK' ? 'green' : 'red'}">
+                        ${result.status}
+                    </span> 
+                    - ${result.message}
+                `;
+                results.appendChild(div);
+            }
+            
+            const allOk = testResults.every(r => r.status === 'OK');
+            status.innerHTML = allOk 
+                ? '<span style="color: green">✓ All model files are properly configured!</span>'
+                : '<span style="color: red">✗ Some model files have issues. Please check the results above.</span>';
+        }
+        
+        runTests();
+    </script>
+</body>
+</html>

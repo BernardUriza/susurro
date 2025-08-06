@@ -35,3 +35,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.tspublic/models/whisper-tiny/onnx/*.onnx
 public/models/whisper-tiny/onnx/decoder_model_merged.onnx
+public/models/whisper-tiny/onnx/decoder_model_merged_quantized.onnx
+public/models/whisper-tiny/onnx/encoder_model_quantized.onnx

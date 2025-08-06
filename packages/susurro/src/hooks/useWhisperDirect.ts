@@ -18,7 +18,7 @@ import {
 } from '../lib/ui-interfaces';
 
 // Smart logging system - Reduced verbosity for production
-const DEBUG_MODE = false; // Disabled for production
+const DEBUG_MODE = true; // Temporarily enabled for debugging model loading
 const log = {
   info: (...args: unknown[]) => DEBUG_MODE && console.log('[WHISPER]', ...args),
   warn: (...args: unknown[]) => DEBUG_MODE && console.warn('[WHISPER]', ...args),
@@ -81,7 +81,7 @@ if (typeof window !== 'undefined') {
 
       // Add authentication for any huggingface.co requests
       if (url.includes('huggingface.co')) {
-        if (DEBUG_MODE) console.log('[WHISPER] Adding HF auth to request:', url);
+        if (DEBUG_MODE) console.log('[WHISPER] Adding HF auth to request:', url);  
         init.headers = {
           ...init.headers,
           Authorization: `Bearer ${token}`,
@@ -155,8 +155,8 @@ class RetryManager {
 // Singleton pattern for Whisper pipeline
 class WhisperPipelineSingleton {
   static task = 'automatic-speech-recognition' as const;
-  static model = 'Xenova/whisper-tiny.en'; // Use correct Hugging Face model identifier
-  static fallbackModels = ['Xenova/whisper-base.en', 'openai/whisper-tiny']; // Fallback options
+  static model = 'whisper-tiny'; // Use local model identifier
+  static fallbackModels = ['Xenova/whisper-base.en', 'Xenova/whisper-small.en']; // Fallback options
   static currentCDNIndex = 0;
   static instance: Pipeline | null = null;
   static pipeline: TransformersModule['pipeline'] | null = null;
@@ -166,6 +166,17 @@ class WhisperPipelineSingleton {
   static currentModel: string | null = null;
   static isFirewalled: boolean | null = null;
   static originalFetch: typeof fetch;
+
+  // Force reset singleton state - fixes cache issues
+  static resetInstance(): void {
+    log.info('🔄 FORCE RESET: Clearing all singleton state to fix cache issues');
+    this.instance = null;
+    this.isLoading = false;
+    this.loadingPromise = null;
+    this.currentModel = null;
+    this.pipeline = null;
+    this.env = null;
+  }
 
   private static async configureEnvironment(): Promise<void> {
     if (!this.env) return;
@@ -186,9 +197,9 @@ class WhisperPipelineSingleton {
 
     const hfToken = getHuggingFaceToken();
     if (hfToken) {
-      log.info('HuggingFace authentication is configured');
+      log.info('HuggingFace authentication is configured (but using local models)');
     } else {
-      log.warn('No HuggingFace token available for authentication');
+      log.warn('No HuggingFace token available (using local models)');
     }
 
     // Always use local models - they're already downloaded
@@ -213,9 +224,7 @@ class WhisperPipelineSingleton {
       log.info('Configuring ONNX backend...');
       this.env.backends.onnx = {
         wasm: {
-          wasmPaths: this.isFirewalled
-            ? 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/'
-            : 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/',
+          wasmPaths: 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/',
         },
       };
       log.info('ONNX backend configured:', {
@@ -225,7 +234,8 @@ class WhisperPipelineSingleton {
 
     log.info('Environment configuration complete:', {
       allowLocalModels: this.env.allowLocalModels,
-      remoteURL: this.env.remoteURL,
+      allowRemoteModels: this.env.allowRemoteModels,
+      remoteURL: this.env.remoteURL || 'default (Hugging Face)',
       isFirewalled: this.isFirewalled,
     });
   }
@@ -274,13 +284,28 @@ class WhisperPipelineSingleton {
     progress_callback: ((progress: WhisperProgress) => void) | null = null,
     model?: string
   ): Promise<Pipeline> {
+    // Force use the correct model
+    const modelToUse = this.model; // Always use the static model
+    
     log.info('getInstance called');
     log.info('Current state:', {
       hasInstance: !!this.instance,
       isLoading: this.isLoading,
       currentModel: this.currentModel,
-      requestedModel: model || this.model,
+      requestedModel: modelToUse,
     });
+
+    // FORCE RESET - clear any cached state that might have wrong model
+    if (this.currentModel && this.currentModel !== modelToUse) {
+      log.info('🔄 Model mismatch detected, forcing reset:', this.currentModel, '->', modelToUse);
+      this.resetInstance();
+    }
+    
+    // Also reset if we have any lingering Xenova model
+    if (this.currentModel && this.currentModel.includes('Xenova')) {
+      log.info('🔄 Xenova model detected, forcing reset to onnx-community:', this.currentModel);
+      this.resetInstance();
+    }
 
     // If already loaded, return immediately
     if (this.instance) {
@@ -294,16 +319,9 @@ class WhisperPipelineSingleton {
       return this.loadingPromise;
     }
 
-    // Use provided model or default
-    const modelToLoad = model || this.model;
+    // Always use our static model (ignore passed model parameter)
+    const modelToLoad = this.model;
     log.info('Preparing to load model:', modelToLoad);
-
-    // If model has changed, reset instance
-    if (this.currentModel && this.currentModel !== modelToLoad) {
-      log.info('Model change detected, resetting instance');
-      this.instance = null;
-      this.currentModel = null;
-    }
 
     // Start loading
     log.info('Starting model loading process');
@@ -413,7 +431,7 @@ class WhisperPipelineSingleton {
             quantized: true,
             revision: 'main',
             cache_dir: undefined, // Let transformers.js handle cache
-            local_files_only: false, // Allow downloading from Hugging Face
+            local_files_only: true, // Force use of local model files only
             timeout: 120000, // Increase timeout to 2 minutes
             retries: 3,
           } as any);
@@ -470,12 +488,14 @@ class WhisperPipelineSingleton {
 export interface UseWhisperDirectConfig extends WhisperConfig {
   alertService?: AlertService;
   toastService?: ToastService;
+  onProgressLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
 }
 
 export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhisperReturn {
   const {
     alertService = defaultAlertService,
     toastService = defaultToastService,
+    onProgressLog,
     ...whisperConfig
   } = config;
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -509,6 +529,9 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         });
       }
 
+      // Log initial loading state
+      onProgressLog?.('Initializing Whisper AI model...', 'info');
+
       try {
         // const loadStartTime = performance.now();
 
@@ -516,6 +539,8 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         pipelineRef.current = await WhisperPipelineSingleton.getInstance(
           (progress: WhisperProgress) => {
             const percent = progress.progress || 0;
+            const status = progress.status || 'downloading';
+            const file = progress.file || 'model';
 
             // Only update if progress has actually changed (avoid fractional updates)
             setLoadingProgress((prev) => {
@@ -523,10 +548,15 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
               return rounded !== Math.round(prev) ? rounded : prev;
             });
 
+            // Log detailed progress
+            if (percent > 0) {
+              onProgressLog?.(`${status} ${file}... ${Math.round(percent)}%`, 'info');
+            } else {
+              onProgressLog?.(`${status} ${file}...`, 'info');
+            }
+
             // Update progress alert
             if (progressAlertRef.current) {
-              const status = progress.status || 'downloading';
-              const file = progress.file || 'model';
               progressAlertRef.current.update({
                 message: `${status} ${file}...`,
                 progress: percent,
@@ -541,12 +571,16 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         setModelReady(true);
         setLoadingProgress(100);
 
+        // Log success
+        onProgressLog?.('✓ Whisper model loaded successfully', 'success');
+
         // Close loading alert and show success only if we showed it
         if (progressAlertRef.current && shouldShowAlert) {
           progressAlertRef.current.close();
           progressAlertRef.current = null;
 
           toastService.success('[AI_MODEL_READY] You can now start recording!');
+          onProgressLog?.('Ready for audio transcription', 'success');
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load model';
@@ -576,6 +610,9 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         }
 
         setError(new Error(errorMessage));
+
+        // Log error
+        onProgressLog?.(`✗ Model loading failed: ${errorMessage}`, 'error');
 
         if (progressAlertRef.current) {
           progressAlertRef.current.close();

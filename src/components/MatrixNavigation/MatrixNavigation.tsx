@@ -5,11 +5,41 @@ import {
   WhisperMatrixTerminal, 
   AudioFragmentProcessor 
 } from '../../features/audio-processing/components';
+import { WhisperEchoLogs } from '../../features/visualization/components/whisper-echo-logs';
+import { useSusurro } from '../../../packages/susurro/src/hooks/useSusurro';
 import type { MatrixNavigationProps as NavProps } from './types';
 
 export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
   const [currentView, setCurrentView] = useState(initialView);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  
+  // Whisper logs state
+  const [whisperLogs, setWhisperLogs] = useState<Array<{
+    id: string;
+    timestamp: Date;
+    message: string;
+    type: 'info' | 'warning' | 'error' | 'success';
+  }>>([]);
+  
+  // Helper function to add logs
+  const addWhisperLog = (message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
+    setWhisperLogs(prev => [...prev, {
+      id: `log-${Date.now()}-${Math.random()}`,
+      timestamp: new Date(),
+      message,
+      type
+    }]);
+  };
+
+  // Get Whisper status from useSusurro (unused vars are for future functionality)
+  const { whisperReady, whisperProgress, whisperError } = useSusurro({
+    onWhisperProgressLog: addWhisperLog
+  });
+  
+  // Suppress unused variable warnings - these are used by the logging system
+  void whisperReady;
+  void whisperProgress; 
+  void whisperError;
 
   const views = {
     terminal: {
@@ -78,6 +108,11 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
     setTimeout(() => setIsTransitioning(false), 200);
   };
 
+  // Add initial system status log
+  useEffect(() => {
+    addWhisperLog('System initialized - Monitoring Whisper model...', 'info');
+  }, []);
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -140,11 +175,20 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
         </MatrixScrollArea>
       </main>
 
-      {/* Status Bar */}
+      {/* Status Bar with Whisper Logs */}
       <footer className={styles.statusBar}>
-        <span>[ACTIVE: {views[currentView as keyof typeof views].title}]</span>
-        <span>[USE F1-F6 TO NAVIGATE]</span>
-        <span>[SYSTEM: ONLINE]</span>
+        <div className={styles.statusInfo}>
+          <span>[ACTIVE: {views[currentView as keyof typeof views].title}]</span>
+          <span>[USE F1-F6 TO NAVIGATE]</span>
+          <span>[SYSTEM: ONLINE]</span>
+        </div>
+        <div className={styles.whisperLogsContainer}>
+          <WhisperEchoLogs 
+            logs={whisperLogs}
+            maxLogs={50}
+            autoScroll={true}
+          />
+        </div>
       </footer>
     </div>
   );

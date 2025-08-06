@@ -13,7 +13,7 @@
     'nav content'
     'status status';
   grid-template-columns: 200px 1fr;
-  grid-template-rows: calc(100vh - 40px) 40px;
+  grid-template-rows: calc(100vh - 280px) 280px;
   gap: 0;
   z-index: 2;
 }
@@ -28,7 +28,7 @@
   border-right: 1px solid var(--matrix-green);
   position: sticky;
   top: 0;
-  height: calc(100vh - 40px);
+  height: calc(100vh - 280px);
   overflow-y: auto;
 }
 
@@ -190,8 +190,8 @@
   grid-area: status;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 0 var(--space-4);
+  align-items: stretch;
+  padding: 0;
   background: rgba(0, 17, 0, 0.9);
   border-top: 1px solid var(--matrix-green);
   font-size: var(--font-size-xs);
@@ -199,6 +199,23 @@
   position: sticky;
   bottom: 0;
   z-index: 10;
+  height: 280px; /* Increased height for logs */
+}
+
+.statusInfo {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--space-2) var(--space-4);
+  min-width: 200px;
+  gap: var(--space-1);
+}
+
+.whisperLogsContainer {
+  flex: 1;
+  padding: var(--space-2);
+  border-left: 1px solid var(--matrix-green-dim);
 }
 
 /* Mobile Responsive */
@@ -209,7 +226,7 @@
       'content'
       'status';
     grid-template-columns: 1fr;
-    grid-template-rows: 60px 1fr 40px;
+    grid-template-rows: 60px 1fr 280px;
   }
 
   .navigation {
@@ -238,6 +255,18 @@
   .statusBar {
     flex-direction: column;
     gap: var(--space-1);
+    padding: var(--space-1);
+    height: 280px;
+  }
+
+  .statusInfo {
+    min-width: auto;
+    padding: var(--space-1);
+  }
+
+  .whisperLogsContainer {
+    border-left: none;
+    border-top: 1px solid var(--matrix-green-dim);
     padding: var(--space-1);
   }
 }

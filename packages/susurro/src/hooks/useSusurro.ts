@@ -51,7 +51,9 @@ const urlToBlob = async (url: string): Promise<Blob> => {
 };
 
 // Use the enhanced interface from types.ts
-export interface UseSusurroOptions extends BaseUseSusurroOptions {}
+export interface UseSusurroOptions extends BaseUseSusurroOptions {
+  onWhisperProgressLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
+}
 
 export interface UseSusurroReturn {
   isRecording: boolean;
@@ -113,7 +115,7 @@ export interface UseSusurroReturn {
 }
 
 export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
-  const { chunkDurationMs = 8000, whisperConfig = {}, conversational } = options;
+  const { chunkDurationMs = 8000, whisperConfig = {}, conversational, onWhisperProgressLog } = options;
 
   // Direct useMurmubaraEngine hook integration (Murmuraba v3 pattern)
   const {
@@ -188,6 +190,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   } = useWhisperDirect({
     language: whisperConfig?.language || 'en',
     model: whisperConfig?.model,
+    onProgressLog: onWhisperProgressLog,
   });
 
   // NEW REFACTORED METHODS - Core functionality
@@ -873,12 +876,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // NEW: Auto-initialize audio engine when Whisper is ready
   useEffect(() => {
     if (whisperReady && !isEngineInitialized && !isInitializingEngine && !engineError) {
-      initializeAudioEngine({
-        enableVAD: true,
-        enableNoiseSuppression: true,
-        enableEchoCancellation: true,
-        vadThreshold: 0.5,
-      }).catch((error) => {
+      initializeAudioEngine().catch((error) => {
         // Don't throw - allow manual initialization
       });
     }

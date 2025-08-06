@@ -121,12 +121,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     pauseRecording: pauseMurmurabaRecording,
     resumeRecording: resumeMurmurabaRecording,
   } = useMurmubaraEngine({});
-  
+
   const exportChunkAsWav = useCallback(async (chunkId: string, type = 'processed') => {
     // TODO: Implement with murmuraba engine
     return Promise.resolve(new Blob());
   }, []);
-  
+
   const clearRecordings = useCallback(() => {
     // TODO: Implement with murmuraba engine
   }, []);
@@ -182,7 +182,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const streamingCallbackRef = useRef<((chunk: StreamingSusurroChunk) => void) | null>(null);
   const streamingSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
 
-  // Direct Whisper integration - no abstraction layer
+  // Direct Whisper integration - no abstraction layer with callback debugging
   const {
     isTranscribing,
     modelReady: whisperReady,
@@ -192,7 +192,17 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   } = useWhisperDirect({
     language: whisperConfig?.language || 'en',
     model: whisperConfig?.model,
-    onProgressLog: onWhisperProgressLog,
+    onProgressLog: (message, type) => {
+      // Debug callback chain execution - development only
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[USESUSURRO_PROGRESS_CALLBACK]', { message, type, hasCallback: !!onWhisperProgressLog });
+      }
+      if (onWhisperProgressLog) {
+        onWhisperProgressLog(message, type);
+      } else if (process.env.NODE_ENV === 'development') {
+        console.warn('[USESUSURRO_MISSING_CALLBACK]', 'onWhisperProgressLog not provided');
+      }
+    },
   });
 
   // NEW REFACTORED METHODS - Core functionality
@@ -685,7 +695,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         throw new Error(`File processing failed: ${errorMessage}`);
       }
     },
-    [whisperReady, isEngineInitialized, initializeAudioEngine, transcribeWithWhisper, analyzeVAD]
+    [whisperReady, isEngineInitialized, initializeAudioEngine, transcribeWithWhisper, analyzeVAD, calculateDuration]
   );
 
   // Real-time chunk processing with hook pattern (Murmuraba v3 integration)

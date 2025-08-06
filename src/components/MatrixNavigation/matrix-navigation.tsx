@@ -1,5 +1,5 @@
 // 1. React and external libraries
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // 2. Absolute imports (internal modules)
 import { MatrixScrollArea } from '../MatrixScrollArea';
@@ -30,11 +30,16 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
     }>
   >([]);
 
-  // Helper function to add logs
-  const addWhisperLog = (
+  // REFACTOR: Stable callback to survive re-renders and StrictMode cycles
+  const addWhisperLog = useCallback((
     message: string,
     type: 'info' | 'warning' | 'error' | 'success' = 'info'
   ) => {
+    // Debug trace for progress logging issues - development only
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATRIX_NAVIGATION_LOG]', { message, type, timestamp: Date.now() });
+    }
+    
     setWhisperLogs((prev) => [
       ...prev,
       {
@@ -44,7 +49,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
         type,
       },
     ]);
-  };
+  }, []);
 
   // Get Whisper status from useSusurro (unused vars are for future functionality)
   const { whisperReady, whisperProgress, whisperError } = useSusurro({
@@ -113,7 +118,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
     },
   } as const;
 
-  const handleViewChange = (viewKey: keyof typeof views) => {
+  const handleViewChange = useCallback((viewKey: keyof typeof views) => {
     if (isTransitioning || viewKey === currentView) return;
 
     setIsTransitioning(true);
@@ -125,7 +130,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
 
     // Simple transition timing
     setTimeout(() => setIsTransitioning(false), 200);
-  };
+  }, [isTransitioning, currentView, addWhisperLog]);
 
   // Add initial system status log and preload dependencies
   useEffect(() => {
@@ -145,7 +150,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
         }
       );
     }, 500);
-  }, []);
+  }, [addWhisperLog]);
 
   // Keyboard navigation
   useEffect(() => {

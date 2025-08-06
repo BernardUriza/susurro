@@ -49,7 +49,9 @@ const getHuggingFaceToken = (): string | undefined => {
     // If no token found, warn the user
     if (!token) {
       // Token should be provided via environment variables
-      console.warn('[WHISPER] No HuggingFace token found. Please set VITE_HUGGINGFACE_TOKEN in your .env file');
+      console.warn(
+        '[WHISPER] No HuggingFace token found. Please set VITE_HUGGINGFACE_TOKEN in your .env file'
+      );
       // Use empty string to avoid compilation errors
       token = '';
     } else {
@@ -181,11 +183,8 @@ class WhisperPipelineManager {
   };
 
   private readonly task = 'automatic-speech-recognition' as const;
-  private readonly model = 'whisper-tiny'; // Use local whisper-tiny model
-  private readonly fallbackModels = [
-    'Xenova/whisper-base.en',
-    'Xenova/whisper-small.en',
-  ];
+  private readonly model = 'Xenova/whisper-tiny'; // Use local whisper-tiny model (multilingual)
+  private readonly fallbackModels = ['Xenova/whisper-base', 'Xenova/whisper-small'];
 
   // Reset pipeline state - used when switching models or on errors
   resetInstance(): void {
@@ -520,28 +519,43 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
 
   // Add ref to track if loading has been initiated
   const loadingInitiatedRef = useRef(false);
+
+  // REFACTOR: Use stable callbacks to survive StrictMode cycles
+  const stableOnProgressLog = useCallback((message: string, type: 'info' | 'warning' | 'error' | 'success') => {
+    // ANTI-STRICTMODE: Verify callback integrity in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[CALLBACK_INTEGRITY_CHECK]', {
+        hasCallback: !!onProgressLog,
+        message: message.slice(0, 50) + '...',
+        type,
+        strictMode: true // We know we're in StrictMode
+      });
+    }
+    onProgressLog?.(message, type);
+  }, [onProgressLog]);
   
-  // Store callbacks in refs to avoid re-renders
-  const onProgressLogRef = useRef(onProgressLog);
-  const alertServiceRef = useRef(alertService);
-  const toastServiceRef = useRef(toastService);
-  const requestPersistentStorageRef = useRef(requestPersistentStorage);
+  // Removed unused stableAlertService - using direct alertService calls
+  
+  const stableToastService = useCallback((message: string) => {
+    toastService?.success(message);
+  }, [toastService]);
+  
+  const stableRequestPersistentStorage = useCallback(() => {
+    requestPersistentStorage?.();
+  }, [requestPersistentStorage]);
+  
   const whisperConfigModelRef = useRef(whisperConfig.model);
-  
-  // Update refs when props change
+
+  // Only track model changes via ref (non-callback data)
   useEffect(() => {
-    onProgressLogRef.current = onProgressLog;
-    alertServiceRef.current = alertService;
-    toastServiceRef.current = toastService;
-    requestPersistentStorageRef.current = requestPersistentStorage;
     whisperConfigModelRef.current = whisperConfig.model;
-  });
+  }, [whisperConfig.model]);
 
   // Initialize Transformers.js
   useEffect(() => {
     const loadModel = async () => {
       if (!pipelineManagerRef.current) return;
-      
+
       // Check if already loading or loaded
       const state = pipelineManagerRef.current.getState();
       if (state.isLoading || state.instance) {
@@ -553,12 +567,12 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         }
         return;
       }
-      
+
       // Check if another instance is already loading
       if (loadingInitiatedRef.current) {
         return;
       }
-      
+
       // Mark as loading initiated
       loadingInitiatedRef.current = true;
 
@@ -576,11 +590,11 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       }
 
       // Log initial loading state
-      onProgressLog?.('🚀 Iniciando carga del modelo Whisper-Tiny local...', 'info');
+      stableOnProgressLog('🚀 Iniciando carga del modelo Whisper-Tiny local... 0%', 'info');
 
       try {
         // Request persistent storage for better caching
-        await requestPersistentStorage();
+        await stableRequestPersistentStorage();
 
         // Get pipeline instance with progress callback and model
         pipelineRef.current = await pipelineManagerRef.current.getInstance(
@@ -604,10 +618,32 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
                   ? '🔄'
                   : '📊';
 
-            if (percent > 0) {
-              onProgressLog?.(`${emoji} Descargando ${file}... ${Math.round(percent)}%`, 'info');
-            } else {
-              onProgressLog?.(`${emoji} Preparando ${file}...`, 'info');
+            // Always show percentage, even if 0
+            const roundedPercent = Math.round(percent);
+            const fileName = file?.split('/').pop() || 'modelo';
+            
+            // Debug log to verify callback is working - Always log for debugging UI issues
+            console.log('[WHISPER_PROGRESS_DEBUG]', {
+              status,
+              file: fileName,
+              percent: roundedPercent,
+              hasCallback: !!stableOnProgressLog,
+              timestamp: Date.now()
+            });
+            
+            // CRITICAL: Always call progress callback regardless of DEBUG_MODE
+            const progressMessage = status.includes('download') 
+              ? `${emoji} Descargando ${fileName}... ${roundedPercent}%`
+              : status.includes('load')
+              ? `${emoji} Cargando ${fileName}... ${roundedPercent}%`
+              : status.includes('init')
+              ? `🚀 Inicializando ${fileName}... ${roundedPercent}%`
+              : `${emoji} Procesando ${fileName}... ${roundedPercent}%`;
+              
+            // FIXED: Use stable callback that survives StrictMode cycles
+            stableOnProgressLog(progressMessage, 'info');
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[WHISPER_PROGRESS_UI_SENT]', progressMessage);
             }
 
             // Update progress alert
@@ -626,8 +662,8 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         loadingInitiatedRef.current = false; // Reset for potential retry
 
         // Log success
-        onProgressLog?.(
-          '✅ Modelo Distil-Whisper con WebGPU cargado exitosamente (6x más rápido)',
+        stableOnProgressLog(
+          '✅ Modelo Whisper-Tiny cargado exitosamente (100% listo)',
           'success'
         );
 
@@ -636,8 +672,8 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
           progressAlertRef.current.close();
           progressAlertRef.current = null;
 
-          toastService.success('[AI_MODEL_READY] You can now start recording!');
-          onProgressLog?.('🎤 Sistema listo para transcripción de audio', 'success');
+          stableToastService('[AI_MODEL_READY] You can now start recording!');
+          stableOnProgressLog('🎤 Sistema listo para transcripción de audio', 'success');
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load model';
@@ -670,7 +706,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         loadingInitiatedRef.current = false; // Reset to allow retry
 
         // Log error
-        onProgressLog?.(`❌ Error al cargar modelo: ${errorMessage}`, 'error');
+        stableOnProgressLog(`❌ Error al cargar modelo: ${errorMessage}`, 'error');
 
         if (progressAlertRef.current) {
           progressAlertRef.current.close();
@@ -688,7 +724,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
                   : errorMessage
             : errorMessage;
 
-        alertServiceRef.current.show({
+        alertService?.show({
           title: '[MODEL_LOAD_ERROR]',
           message: detailedMessage,
           type: 'error',
@@ -703,13 +739,18 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       pipelineRef.current = currentState.instance;
       setModelReady(true);
       setLoadingProgress(100);
-      onProgressLogRef.current?.('✅ Modelo ya cargado, listo para usar', 'success');
-    } else if (!currentState?.instance && !currentState?.isLoading && !pipelineRef.current && typeof window !== 'undefined') {
+      stableOnProgressLog('✅ Modelo ya cargado, listo para usar', 'success');
+    } else if (
+      !currentState?.instance &&
+      !currentState?.isLoading &&
+      !pipelineRef.current &&
+      typeof window !== 'undefined'
+    ) {
       // Only load if not already loaded and not currently loading
       loadModel();
     } else if (currentState?.isLoading) {
       // Model is loading in another component, just wait
-      onProgressLogRef.current?.('⏳ Modelo cargándose en otro componente...', 'info');
+      stableOnProgressLog('⏳ Modelo cargándose en otro componente...', 'info');
     }
 
     return () => {
@@ -718,7 +759,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         progressAlertRef.current = null;
       }
     };
-  }, []); // Remove all dependencies to run only once
+  }, [stableOnProgressLog, stableRequestPersistentStorage, stableToastService, alertService, whisperConfig.model]); // React 19 StrictMode compatible
 
   // Convert audio blob to base64 data URL
   const audioToBase64 = async (blob: Blob): Promise<string> => {

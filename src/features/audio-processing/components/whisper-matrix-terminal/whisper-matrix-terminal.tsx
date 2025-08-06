@@ -369,13 +369,13 @@ export const WhisperMatrixTerminal: React.FC = () => {
                         animation: isInitializingEngine ? 'pulse 1s infinite' : 'none',
                       }}
                     />
-                    <span style={{ color: isEngineInitialized ? '#00ff41' : '#ff0041' }}>
+                    <span style={{ color: isEngineInitialized ? '#00ff41' : isInitializingEngine ? '#ffff41' : '#ff0041' }}>
                       AUDIO_ENGINE:{' '}
                       {isInitializingEngine
-                        ? 'INITIALIZING...'
+                        ? 'INITIALIZING MURMURABA ENGINE...'
                         : isEngineInitialized
-                          ? 'ONLINE'
-                          : 'OFFLINE'}
+                          ? 'ONLINE ✓'
+                          : 'OFFLINE - CLICK TO INITIALIZE'}
                     </span>
                   </div>
                 </div>
@@ -473,10 +473,10 @@ export const WhisperMatrixTerminal: React.FC = () => {
                   }}
                 >
                   {isProcessing
-                    ? '[CONSOLIDATED_PROCESSING...]'
+                    ? '[PROCESSING_AUDIO...]'
                     : !isEngineInitialized
-                      ? '[ENGINE_INITIALIZING...]'
-                      : '[LOAD_JFK_SAMPLE.WAV]'}
+                      ? '[INICIALIZANDO_ENGINE_MURMURABA...]'
+                      : '[CARGAR_JFK_SAMPLE.WAV]'}
                 </button>
               </div>
 

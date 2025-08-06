@@ -63,15 +63,51 @@ self.addEventListener('message', async (event) => {
         self.postMessage({
           id,
           status: 'progress',
-          file: 'Iniciando descarga',
+          file: 'Verificando caché del modelo',
           progress: 0,
           model: modelId
         });
         
+        // Track if we get any download progress
+        let hasDownloadProgress = false;
+        let isFromCache = true;
+        let lastProgressTime = Date.now();
+        let filesDownloaded = 0;
+        
+        // Send periodic status updates
+        const statusInterval = setInterval(() => {
+          const elapsed = Math.round((Date.now() - lastProgressTime) / 1000);
+          if (!hasDownloadProgress && elapsed > 10) {
+            self.postMessage({
+              id,
+              status: 'progress',
+              file: `Esperando respuesta del servidor... (${elapsed}s)`,
+              progress: 0,
+              model: modelId
+            });
+          }
+        }, 10000); // Every 10 seconds
+        
         // Load the model with progress tracking
-        await WhisperPipelineFactory.getInstance(modelId, (progress) => {
-          // Send all progress events
-          if (progress.status === 'initiate') {
+        console.log('[WORKER] Starting model load with progress callback');
+        
+        try {
+          await WhisperPipelineFactory.getInstance(modelId, (progress) => {
+            console.log('[WORKER] Progress event:', progress);
+            lastProgressTime = Date.now();
+            
+            // If we get download progress, it's not from cache
+            if (progress.status === 'progress' && progress.progress > 0) {
+              hasDownloadProgress = true;
+              isFromCache = false;
+            }
+            
+            if (progress.status === 'done') {
+              filesDownloaded++;
+            }
+            
+            // Send all progress events
+            if (progress.status === 'initiate') {
             self.postMessage({
               id,
               status: 'progress',
@@ -100,13 +136,35 @@ self.addEventListener('message', async (event) => {
               model: modelId
             });
           }
-        });
+          });
+          
+          // Clear the status interval
+          clearInterval(statusInterval);
+          
+          // Send completion message with cache info
+          if (isFromCache) {
+            self.postMessage({
+              id,
+              status: 'progress',
+              file: `Modelo ${modelId} cargado desde caché (${filesDownloaded} archivos)`,
+              progress: 100,
+              model: modelId,
+              fromCache: true
+            });
+          }
 
-        self.postMessage({
-          id,
-          status: 'loaded',
-          model: modelId
-        });
+          self.postMessage({
+            id,
+            status: 'loaded',
+            model: modelId,
+            fromCache: isFromCache
+          });
+          
+        } catch (error) {
+          clearInterval(statusInterval);
+          throw error;
+        }
+        
         break;
       }
 

@@ -47,6 +47,7 @@ export function useWhisperPipeline({
       // Handle messages from worker
       worker.current.onmessage = (e) => {
         const { id, status, ...data } = e.data;
+        console.log('[HOOK] Received from worker:', { id, status, data });
         
         // Log all progress events for debugging
         if (status === 'progress') {
@@ -64,8 +65,13 @@ export function useWhisperPipeline({
             sizeInfo = ` (${loadedMB}/${totalMB} MB)`;
           }
           
-          // Only log at certain intervals to avoid spam
-          if (percent === 0 || percent === 100 || percent % 5 === 0) {
+          // Log ALL progress events - users need to see download progress
+          // Special handling for cache verification
+          if (fileName === 'Verificando caché del modelo' && percent === 0) {
+            onLog?.(`🔍 Verificando caché local...`, 'info');
+          } else if (fileName.includes('cargado desde caché')) {
+            onLog?.(`⚡ ${fileName}`, 'success');
+          } else if (percent > 0) {
             onLog?.(`📥 ${fileName}: ${percent}%${sizeInfo}`, 'info');
           }
         }
@@ -83,7 +89,14 @@ export function useWhisperPipeline({
             setLoading(false);
             setCurrentModel(data.model);
             setProgress(100);
-            onLog?.(`✅ Modelo ${data.model} cargado completamente`, 'success');
+            
+            // Show different message if loaded from cache
+            if (data.fromCache) {
+              onLog?.(`⚡ Modelo ${data.model} cargado desde caché (instantáneo)`, 'success');
+            } else {
+              onLog?.(`✅ Modelo ${data.model} descargado y cargado completamente`, 'success');
+            }
+            
             resolve(data);
             pendingMessages.current.delete(id);
           } else if (status === 'complete') {
@@ -103,7 +116,7 @@ export function useWhisperPipeline({
   }, [onLog]);
 
   // Send message to worker
-  const sendMessage = useCallback((type: string, data?: unknown): Promise<unknown> => {
+  const sendMessage = useCallback((type: string, data?: unknown, progressCallback?: (msg: string) => void): Promise<unknown> => {
     return new Promise((resolve, reject) => {
       if (!worker.current) {
         reject(new Error('Worker not initialized'));
@@ -114,13 +127,30 @@ export function useWhisperPipeline({
       pendingMessages.current.set(id, { resolve, reject });
       worker.current.postMessage({ id, type, data });
       
-      // Timeout after 2 minutes
-      setTimeout(() => {
-        if (pendingMessages.current.has(id)) {
-          pendingMessages.current.delete(id);
-          reject(new Error('Worker timeout'));
+      // Progress check every 5 seconds
+      let progressCheckCount = 0;
+      const progressInterval = setInterval(() => {
+        progressCheckCount++;
+        if (!pendingMessages.current.has(id)) {
+          // Request completed, clear interval
+          clearInterval(progressInterval);
+        } else if (progressCheckCount < 24) { // 24 * 5s = 120s total
+          // Still waiting, send status update
+          if (progressCallback && progressCheckCount % 2 === 0) { // Every 10 seconds
+            progressCallback(`⏳ Cargando modelo... (${progressCheckCount * 5}s)`);
+          }
+        } else {
+          // Timeout after 2 minutes
+          clearInterval(progressInterval);
+          if (pendingMessages.current.has(id)) {
+            pendingMessages.current.delete(id);
+            if (progressCallback) {
+              progressCallback(`❌ Timeout: El modelo tardó demasiado en cargar`);
+            }
+            reject(new Error('Worker timeout after 2 minutes'));
+          }
         }
-      }, 120000);
+      }, 5000);
     });
   }, []);
 
@@ -137,22 +167,36 @@ export function useWhisperPipeline({
 
     setLoading(true);
     setProgress(0);
-    onLog?.(`🚀 Iniciando descarga del modelo Whisper ${modelId.toUpperCase()}...`, 'info');
-    onLog?.(`📊 Esto puede tomar varios minutos dependiendo de tu conexión`, 'info');
+    onLog?.(`🔍 Verificando modelo Whisper ${modelId.toUpperCase()}...`, 'info');
+    onLog?.(`📊 Buscando en caché local o descargando desde Hugging Face CDN`, 'info');
     
-    sendMessage('load', { model: modelId }).catch(error => {
+    sendMessage('load', { model: modelId }, (msg) => {
+      onLog?.(msg, 'info');
+    }).catch(error => {
       setLoading(false);
       setProgress(0);
       onLog?.(`❌ Error al cargar modelo: ${error.message}`, 'error');
     });
   }, [loading, ready, currentModel, initialModel, sendMessage, onLog]);
 
-  // Auto-load on mount if enabled
+  // Model mapping - sync with worker
+  const models = {
+    'tiny': 'Xenova/whisper-tiny',
+    'base': 'Xenova/whisper-base', 
+    'small': 'Xenova/whisper-small',
+    'medium': 'Xenova/whisper-medium'
+  };
+
+  // Auto-load on mount if enabled, or when initialModel changes
   useEffect(() => {
-    if (autoLoad && !ready && !loading && !currentModel) {
-      loadModel(initialModel);
+    if (autoLoad && !loading) {
+      const expectedModel = models[initialModel];
+      // Load if no model is loaded yet, OR if a different model is requested
+      if (!currentModel || currentModel !== expectedModel) {
+        loadModel(initialModel);
+      }
     }
-  }, [autoLoad, ready, loading, currentModel, initialModel, loadModel]);
+  }, [autoLoad, loading, currentModel, initialModel, loadModel]);
 
   // Transcribe audio
   const transcribe = useCallback(async (audioData: Float32Array): Promise<{ text?: string; segments?: unknown[] } | null> => {

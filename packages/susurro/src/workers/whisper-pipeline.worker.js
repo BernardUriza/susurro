@@ -75,14 +75,15 @@ self.addEventListener('message', async (event) => {
         let filesDownloaded = 0;
         
         // Send periodic status updates
+        let lastProgress = 0;
         const statusInterval = setInterval(() => {
           const elapsed = Math.round((Date.now() - lastProgressTime) / 1000);
           if (!hasDownloadProgress && elapsed > 10) {
             self.postMessage({
               id,
               status: 'progress',
-              file: `Esperando respuesta del servidor... (${elapsed}s)`,
-              progress: 0,
+              file: `Conectando con Hugging Face CDN... (${elapsed}s)`,
+              progress: lastProgress,
               model: modelId
             });
           }
@@ -100,6 +101,7 @@ self.addEventListener('message', async (event) => {
             if (progress.status === 'progress' && progress.progress > 0) {
               hasDownloadProgress = true;
               isFromCache = false;
+              lastProgress = progress.progress || 0;
             }
             
             if (progress.status === 'done') {

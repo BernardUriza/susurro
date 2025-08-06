@@ -115,6 +115,12 @@ export function useWhisperPipeline({
     };
   }, [onLog]);
 
+  // Store progress ref for access in sendMessage
+  const progressRef = useRef(0);
+  useEffect(() => {
+    progressRef.current = progress;
+  }, [progress]);
+
   // Send message to worker
   const sendMessage = useCallback((type: string, data?: unknown, progressCallback?: (msg: string) => void): Promise<unknown> => {
     return new Promise((resolve, reject) => {
@@ -135,9 +141,24 @@ export function useWhisperPipeline({
           // Request completed, clear interval
           clearInterval(progressInterval);
         } else if (progressCheckCount < 24) { // 24 * 5s = 120s total
-          // Still waiting, send status update
+          // Still waiting, send status update with current progress
           if (progressCallback && progressCheckCount % 2 === 0) { // Every 10 seconds
-            progressCallback(`⏳ Cargando modelo... (${progressCheckCount * 5}s)`);
+            const currentProgress = progressRef.current;
+            const elapsedTime = progressCheckCount * 5;
+            
+            if (currentProgress > 0) {
+              // Estimate remaining time based on progress
+              const estimatedTotal = (elapsedTime / currentProgress) * 100;
+              const estimatedRemaining = Math.round(estimatedTotal - elapsedTime);
+              
+              if (estimatedRemaining > 0) {
+                progressCallback(`⏳ Descargando modelo... ${currentProgress}% (~${estimatedRemaining}s restantes)`);
+              } else {
+                progressCallback(`⏳ Descargando modelo... ${currentProgress}% (${elapsedTime}s)`);
+              }
+            } else {
+              progressCallback(`⏳ Conectando... (${elapsedTime}s)`);
+            }
           }
         } else {
           // Timeout after 2 minutes

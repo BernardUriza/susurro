@@ -87,6 +87,8 @@ export interface UseSusurroOptions {
   whisperConfig?: WhisperConfig;
   // 🆕 Conversational features
   conversational?: ConversationalOptions;
+  // Whisper progress logging callback
+  onWhisperProgressLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
 }
 
 // 🚀 NEW REFACTORED TYPES - useSusurro Consolidation

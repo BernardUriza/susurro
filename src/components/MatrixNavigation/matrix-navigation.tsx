@@ -1,5 +1,5 @@
 // 1. React and external libraries
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 // 2. Absolute imports (internal modules)
 import { MatrixScrollArea } from '../MatrixScrollArea';
@@ -30,21 +30,36 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
     }>
   >([]);
 
+  // Track recent messages to avoid duplicates
+  const recentMessagesRef = useRef<Set<string>>(new Set());
+  
   // REFACTOR: Stable callback to survive re-renders and StrictMode cycles
   const addWhisperLog = useCallback((
     message: string,
     type: 'info' | 'warning' | 'error' | 'success' = 'info'
   ) => {
-    // Debug trace for progress logging issues - development only
-    // Commented out for production
-    // if (process.env.NODE_ENV === 'development') {
-    //   console.log(`[MATRIX_NAVIGATION_LOG] ${type}: ${message}`);
-    // }
+    // Create a key for duplicate detection (message + type + timestamp within 500ms)
+    const now = Date.now();
+    const messageKey = `${message}-${type}`;
+    
+    // Only block exact duplicates within 500ms (much shorter window)
+    // This prevents StrictMode duplicates but allows legitimate progress updates
+    const isDuplicateStrictMode = recentMessagesRef.current.has(messageKey);
+    
+    if (isDuplicateStrictMode) {
+      return; // Skip StrictMode duplicate
+    }
+    
+    // Add to recent messages with shorter cleanup window
+    recentMessagesRef.current.add(messageKey);
+    setTimeout(() => {
+      recentMessagesRef.current.delete(messageKey);
+    }, 500); // Reduced from 1000ms to 500ms
     
     setWhisperLogs((prev) => [
       ...prev,
       {
-        id: `log-${Date.now()}-${Math.random()}`,
+        id: `log-${now}-${Math.random()}`,
         timestamp: new Date(),
         message,
         type,

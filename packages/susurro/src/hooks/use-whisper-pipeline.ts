@@ -217,7 +217,7 @@ export function useWhisperPipeline({
         loadModel(initialModel);
       }
     }
-  }, [autoLoad, loading, currentModel, initialModel, loadModel]);
+  }, [autoLoad, loading, currentModel, initialModel, loadModel, models]);
 
   // Transcribe audio
   const transcribe = useCallback(async (audioData: Float32Array): Promise<{ text?: string; segments?: unknown[] } | null> => {
@@ -226,9 +226,9 @@ export function useWhisperPipeline({
     }
 
     onLog?.('🎙️ Transcribiendo...', 'info');
-    const result = await sendMessage('transcribe', { audio: audioData, language });
+    const result = await sendMessage('transcribe', { audio: audioData, language }) as { text?: string; segments?: unknown[] } | null;
     
-    if (result?.text) {
+    if (result && 'text' in result && result.text) {
       onLog?.(`✅ "${result.text}"`, 'success');
     }
     

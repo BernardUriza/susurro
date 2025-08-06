@@ -59,17 +59,47 @@ self.addEventListener('message', async (event) => {
       case 'load': {
         const modelId = data?.model || 'tiny';
         
+        // Send initial message
+        self.postMessage({
+          id,
+          status: 'progress',
+          file: 'Iniciando descarga',
+          progress: 0,
+          model: modelId
+        });
+        
         // Load the model with progress tracking
         await WhisperPipelineFactory.getInstance(modelId, (progress) => {
-          self.postMessage({
-            id,
-            status: 'progress',
-            file: progress.file,
-            progress: progress.progress || 0,
-            loaded: progress.loaded,
-            total: progress.total,
-            model: modelId
-          });
+          // Send all progress events
+          if (progress.status === 'initiate') {
+            self.postMessage({
+              id,
+              status: 'progress',
+              file: progress.file || 'Descargando archivo',
+              progress: 0,
+              loaded: 0,
+              total: progress.total || 0,
+              model: modelId
+            });
+          } else if (progress.status === 'progress') {
+            self.postMessage({
+              id,
+              status: 'progress',
+              file: progress.file || 'Descargando',
+              progress: progress.progress || 0,
+              loaded: progress.loaded || 0,
+              total: progress.total || 0,
+              model: modelId
+            });
+          } else if (progress.status === 'done') {
+            self.postMessage({
+              id,
+              status: 'progress',
+              file: progress.file || 'Completado',
+              progress: 100,
+              model: modelId
+            });
+          }
         });
 
         self.postMessage({

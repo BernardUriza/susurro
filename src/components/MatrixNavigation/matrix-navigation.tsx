@@ -1,5 +1,5 @@
 // 1. React and external libraries
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 // 2. Absolute imports (internal modules)
 import { MatrixScrollArea } from '../MatrixScrollArea';
@@ -16,7 +16,7 @@ import type { MatrixNavigationProps as NavProps } from './types';
 // 4. Style imports
 import styles from './matrix-navigation.module.css';
 
-export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
+export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tiny' }: NavProps) => {
   const [currentView, setCurrentView] = useState(initialView);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -36,9 +36,10 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
     type: 'info' | 'warning' | 'error' | 'success' = 'info'
   ) => {
     // Debug trace for progress logging issues - development only
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATRIX_NAVIGATION_LOG] ${type}: ${message}`);
-    }
+    // Commented out for production
+    // if (process.env.NODE_ENV === 'development') {
+    //   console.log(`[MATRIX_NAVIGATION_LOG] ${type}: ${message}`);
+    // }
     
     setWhisperLogs((prev) => [
       ...prev,
@@ -51,9 +52,10 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
     ]);
   }, []);
 
-  // Get Whisper status from useSusurro (unused vars are for future functionality)
+  // Get Whisper status from useSusurro with selected model
   const { whisperReady, whisperProgress, whisperError } = useSusurro({
     onWhisperProgressLog: addWhisperLog,
+    initialModel: initialModel,
   });
 
   // Suppress unused variable warnings - these are used by the logging system
@@ -61,7 +63,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
   void whisperProgress;
   void whisperError;
 
-  const views = {
+  const views = useMemo(() => ({
     terminal: {
       component: <WhisperMatrixTerminal />,
       title: '[WHISPER_MATRIX_TERMINAL]',
@@ -116,7 +118,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
       title: '[HISTORY]',
       key: 'F6',
     },
-  } as const;
+  } as const), []);
 
   const handleViewChange = useCallback((viewKey: keyof typeof views) => {
     if (isTransitioning || viewKey === currentView) return;
@@ -130,7 +132,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
 
     // Simple transition timing
     setTimeout(() => setIsTransitioning(false), 200);
-  }, [isTransitioning, currentView, addWhisperLog, views]);
+  }, [isTransitioning, currentView, addWhisperLog]);
 
   // Add initial system status log and preload dependencies
   useEffect(() => {

@@ -30,7 +30,8 @@
     "src/types/**/*.d.ts",
     "packages/**/*",
     "examples/**/*.tsx",
-    "test/**/*.ts"
+    "test/**/*.ts",
+    "vite.config.ts"
   ],
   "references": [{ "path": "./config/tsconfig.node.json" }],
   "exclude": [

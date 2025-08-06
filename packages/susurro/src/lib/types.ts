@@ -1,6 +1,6 @@
 export interface WhisperConfig {
   apiKey?: string;
-  model?: 'whisper-1';
+  model?: 'whisper-1' | string; // Allow any string for Xenova models
   language?: string;
   temperature?: number;
   prompt?: string;

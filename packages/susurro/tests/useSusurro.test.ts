@@ -19,7 +19,7 @@ vi.mock('murmuraba', () => ({
 }));
 
 // Mock the whisper hook
-vi.mock('../src/hooks/useWhisperDirect', () => ({
+vi.mock('../src/hooks/use-whisper-direct', () => ({
   useWhisperDirect: () => ({
     isTranscribing: false,
     modelReady: true,

@@ -11,16 +11,14 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@xenova/transformers'],
-    include: ['onnxruntime-web'],
+    // Include transformers for proper pre-bundling as per HF recommendations
+    include: ['@xenova/transformers', 'onnxruntime-web'],
   },
   assetsInclude: ['**/*.wasm', '**/*.onnx'],
   build: {
     outDir: 'dist',
     rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html'),
-      },
+      input: resolve(__dirname, 'index.html'),
     },
   },
   server: {
@@ -34,17 +32,5 @@ export default defineConfig({
     },
     // Model files are served from public/models directory
   },
-  worker: {
-    format: 'es',
-    rollupOptions: {
-      output: {
-        // Ensure transformers.js is bundled in the worker
-        manualChunks: (id) => {
-          if (id.includes('@xenova/transformers')) {
-            return 'transformers-worker';
-          }
-        },
-      },
-    },
-  },
+  // Worker configuration removed - using direct execution instead
 });

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useWhisperPipeline } from './use-whisper-pipeline'; // Clean pipeline implementation
-import { useMurmubaraEngine } from 'murmuraba';
+import { useWhisperDirect } from './use-whisper-direct'; // Direct execution implementation
+import { useMurmubaraEngine } from './use-murmuraba-engine-stub';
 import type {
   AudioChunk,
   ProcessingStatus,
@@ -18,7 +18,7 @@ import type {
 } from '../lib/types';
 
 // Import dynamic loaders from centralized location
-import { loadMurmubaraEngine, loadMurmubaraProcessing } from '../lib/dynamic-loaders';
+import { loadMurmubaraProcessing } from '../lib/dynamic-loaders';
 
 // Conversational Evolution - Advanced chunk middleware
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
@@ -29,7 +29,7 @@ import { useLatencyMonitor } from './use-latency-monitor';
 import type { LatencyMetrics, LatencyReport } from '../lib/latency-monitor';
 
 // Debug mode for development
-const DEBUG_MODE = false;
+const DEBUG_MODE = true;
 
 // Helper function to convert URL to Blob - Used in chunk processing
 const urlToBlob = async (url: string): Promise<Blob> => {
@@ -44,6 +44,7 @@ const urlToBlob = async (url: string): Promise<Blob> => {
 // Use the enhanced interface from types.ts
 export interface UseSusurroOptions extends BaseUseSusurroOptions {
   onWhisperProgressLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
+  initialModel?: 'tiny' | 'base' | 'medium';
 }
 
 export interface UseSusurroReturn {
@@ -122,7 +123,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     resumeRecording: resumeMurmurabaRecording,
   } = useMurmubaraEngine({});
 
-  const exportChunkAsWav = useCallback(async (chunkId: string, type = 'processed') => {
+  const exportChunkAsWav = useCallback(async () => {
     // TODO: Implement with murmuraba engine
     return Promise.resolve(new Blob());
   }, []);
@@ -182,41 +183,57 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const streamingCallbackRef = useRef<((chunk: StreamingSusurroChunk) => void) | null>(null);
   const streamingSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
 
-  // NEW: Using clean pipeline implementation based on HuggingFace example
-  // This provides better performance and cleaner code
+  // Using direct Whisper implementation for better reliability
   const {
-    ready: whisperReady,
-    loading: whisperIsLoading,
-    progress: whisperProgress,
-    transcribe: transcribeWhisperPipeline,
-  } = useWhisperPipeline({
+    modelReady: whisperReady,
+    loadingProgress: whisperProgress,
+    error: whisperError,
+    transcribe: transcribeWhisperDirect,
+    // isTranscribing: whisperIsLoading,
+  } = useWhisperDirect({
     language: whisperConfig?.language || 'es',
-    autoLoad: true,
-    initialModel: options.initialModel || 'tiny',
-    onLog: (message, type) => {
-      // Send all logs to WhisperEchoLog
-      if (onWhisperProgressLog) {
-        onWhisperProgressLog(message, type);
-      }
-    }
+    model: options.initialModel ? `Xenova/whisper-${options.initialModel}` as const : 'Xenova/whisper-tiny',
   });
 
-  // No error state in pipeline (handled internally)
-  const whisperError = null;
+  // Log progress updates
+  useEffect(() => {
+    if (onWhisperProgressLog && whisperProgress > 0) {
+      const message = whisperProgress < 100 
+        ? `Loading Whisper model... ${whisperProgress}%`
+        : 'Whisper model ready';
+      onWhisperProgressLog(message, whisperProgress < 100 ? 'info' : 'success');
+    }
+  }, [whisperProgress, onWhisperProgressLog]);
+
+  // Log errors
+  useEffect(() => {
+    if (onWhisperProgressLog && whisperError) {
+      onWhisperProgressLog(whisperError.message, 'error');
+    }
+  }, [whisperError, onWhisperProgressLog]);
   
   // Track transcription state separately (for compatibility)
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   // Wrap transcribe method to set state
-  const transcribeWhisper = useCallback(async (audioData: Float32Array) => {
+  const transcribeWhisper = useCallback(async (audioData: Float32Array | Blob) => {
     setIsTranscribing(true);
     try {
-      const result = await transcribeWhisperPipeline(audioData);
+      // If audioData is Float32Array, convert to Blob
+      let blob: Blob;
+      if (audioData instanceof Blob) {
+        blob = audioData;
+      } else {
+        // Convert Float32Array to WAV blob
+        const buffer = audioData.buffer as ArrayBuffer;
+        blob = new Blob([buffer], { type: 'audio/wav' });
+      }
+      const result = await transcribeWhisperDirect(blob);
       return result;
     } finally {
       setIsTranscribing(false);
     }
-  }, [transcribeWhisperPipeline]);
+  }, [transcribeWhisperDirect]);
 
   // NEW REFACTORED METHODS - Core functionality
 
@@ -1022,7 +1039,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     clearTranscriptions,
     // REMOVED: processAudioFile deprecated in v3
     // Built-in export functions from hook - wrapped for compatibility
-    exportChunkAsWav: (chunkId: string) => exportChunkAsWav(chunkId, 'processed'),
+    exportChunkAsWav: () => exportChunkAsWav(),
     // Whisper-related properties
     whisperReady,
     whisperProgress,

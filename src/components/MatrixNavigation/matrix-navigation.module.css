@@ -27,7 +27,7 @@
   background: rgba(0, 17, 0, 0.8);
   border-right: 1px solid var(--matrix-green);
   position: sticky;
-  top: 0;
+  top: 40px;
   height: calc(100vh - 220px);
   overflow-y: auto;
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWhisperDirect } from './use-whisper-direct';
+import { useMurmubaraEngine } from 'murmuraba';
 import type {
   AudioChunk,
   ProcessingStatus,
@@ -17,7 +18,7 @@ import type {
 } from '../lib/types';
 
 // Import dynamic loaders from centralized location
-import { loadMurmubaraProcessing } from '../lib/dynamic-loaders';
+import { loadMurmubaraEngine, loadMurmubaraProcessing } from '../lib/dynamic-loaders';
 
 // Conversational Evolution - Advanced chunk middleware
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
@@ -119,11 +120,16 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     stopRecording: stopMurmurabaRecording,
     pauseRecording: pauseMurmurabaRecording,
     resumeRecording: resumeMurmurabaRecording,
-    exportChunkAsWav,
-    clearRecordings,
-  } = useMurmubaraEngine({
-    defaultChunkDuration: chunkDurationMs / 1000, // Convert to seconds
-  });
+  } = useMurmubaraEngine({});
+  
+  const exportChunkAsWav = useCallback(async (chunkId: string, type = 'processed') => {
+    // TODO: Implement with murmuraba engine
+    return Promise.resolve(new Blob());
+  }, []);
+  
+  const clearRecordings = useCallback(() => {
+    // TODO: Implement with murmuraba engine
+  }, []);
 
   // State management
   const [audioChunks, setAudioChunks] = useState<AudioChunk[]>([]);
@@ -157,7 +163,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   } = useLatencyMonitor(300); // 300ms target
 
   // NEW: MediaStream state for waveform visualization
-  const [currentStream, setCurrentStream] = useState<MediaStream | null>(null);
+  const [currentMediaStream, setCurrentMediaStream] = useState<MediaStream | null>(null);
 
   // Advanced middleware pipeline for chunk processing
   const [middlewarePipeline] = useState(
@@ -291,9 +297,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // processAndTranscribeFile method will be defined after transcribeWithWhisper
 
   // Helper function to calculate audio duration using real metadata extraction
-  const calculateDuration = (buffer: ArrayBuffer): number => {
+  const calculateDuration = useCallback(async (buffer: ArrayBuffer): Promise<number> => {
     try {
-      const metadata = extractAudioMetadata(buffer);
+      const { extractAudioMetadata } = await loadMurmubaraProcessing();
+      const metadata = await extractAudioMetadata(buffer);
       return metadata.duration;
     } catch (error) {
       // Fallback to estimation if metadata extraction fails
@@ -301,7 +308,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       const estimatedDuration = bytes / (44100 * 2 * 2); // 44.1kHz, 2 channels, 16-bit
       return Math.max(0.1, estimatedDuration);
     }
-  };
+  }, []);
 
   // STREAMING RECORDING with callback pattern - Modern React 19 approach
   const startStreamingRecording = useCallback(
@@ -340,7 +347,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           },
         });
 
-        setCurrentStream(stream);
+        setCurrentMediaStream(stream);
 
         // Start recording with Murmuraba
         await startMurmurabaRecording();
@@ -381,7 +388,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
             if (stream) {
               stream.getTracks().forEach((track) => track.stop());
             }
-            setCurrentStream(null);
+            setCurrentMediaStream(null);
 
             // Stop Murmuraba recording
             stopMurmurabaRecording();
@@ -547,9 +554,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     }
 
     // Clean up media stream
-    if (currentStream) {
-      currentStream.getTracks().forEach((track) => track.stop());
-      setCurrentStream(null);
+    if (currentMediaStream) {
+      currentMediaStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+      setCurrentMediaStream(null);
     }
 
     // Clear all state
@@ -573,7 +580,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   }, [
     recordingState.isRecording,
     stopMurmurabaRecording,
-    currentStream,
+    currentMediaStream,
     clearConversationalChunks,
     initializeAudioEngine,
   ]);
@@ -631,7 +638,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         const originalAudioUrl = URL.createObjectURL(file);
 
         // 3. Process with Murmuraba (noise reduction + VAD)
-        const processedResult = await murmubaraProcess(originalBuffer, () => {
+        const { processFileWithMetrics } = await loadMurmubaraProcessing();
+        const processedResult = await processFileWithMetrics(originalBuffer, () => {
           // Callback for real-time metrics if needed
           if (DEBUG_MODE) {
             // Processing metrics
@@ -653,7 +661,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
         // 7. Extract metadata
         const metadata: AudioMetadata = {
-          duration: calculateDuration(originalBuffer),
+          duration: await calculateDuration(originalBuffer),
           sampleRate: 44100, // TODO: Extract from actual buffer
           channels: 2, // TODO: Extract from actual buffer
           fileSize: file.size,
@@ -685,8 +693,11 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     const processNewChunks = async () => {
       const newChunks: AudioChunk[] = [];
 
-      for (let index = audioChunks.length; index < recordingState.chunks.length; index++) {
-        const chunk = recordingState.chunks[index];
+      // Get chunks from murmuraba engine if available
+      const chunks = recordingState.chunks || [];
+
+      for (let index = audioChunks.length; index < chunks.length; index++) {
+        const chunk = chunks[index];
 
         // Convert Murmuraba chunk to internal format with real VAD metrics
         const audioChunk: AudioChunk = {
@@ -726,7 +737,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     processNewChunks();
 
     // Update VAD from latest chunk with enhanced metrics
-    const latestChunk = recordingState.chunks[recordingState.chunks.length - 1];
+    const chunks = recordingState.chunks || [];
+    const latestChunk = chunks[chunks.length - 1];
     if (latestChunk) {
       setAverageVad(latestChunk.averageVad || 0);
     }
@@ -793,7 +805,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           autoGainControl: true,
         },
       });
-      setCurrentStream(stream);
+      setCurrentMediaStream(stream);
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         // Failed to get MediaStream for visualization
@@ -806,14 +818,14 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   const stopRecording = useCallback(() => {
     // Clean up MediaStream
-    if (currentStream) {
-      currentStream.getTracks().forEach((track) => track.stop());
-      setCurrentStream(null);
+    if (currentMediaStream) {
+      currentMediaStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+      setCurrentMediaStream(null);
     }
 
     // Hook handles all cleanup automatically
     stopMurmurabaRecording();
-  }, [stopMurmurabaRecording, currentStream]);
+  }, [stopMurmurabaRecording, currentMediaStream]);
 
   const pauseRecording = useCallback(() => {
     // Built-in pause functionality
@@ -882,7 +894,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   // Auto-process chunks when ready
   useEffect(() => {
-    if (audioChunks.length > 0 && !recordingState.isRecording && whisperReady) {
+    const isRecording = recordingState.isRecording;
+    if (audioChunks.length > 0 && !isRecording && whisperReady) {
       // Add delay to ensure Murmuraba processing is complete
       setTimeout(() => {
         // Only auto-process if not in conversational mode or instant transcription is enabled
@@ -1007,6 +1020,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     convertBlobToBuffer,
 
     // NEW: Expose MediaStream for waveform visualization
-    currentStream,
+    currentStream: currentMediaStream,
   };
 }

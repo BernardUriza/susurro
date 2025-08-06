@@ -69,6 +69,7 @@
     "packages/*"
   ],
   "dependencies": {
+    "@ricky0123/vad-web": "^0.0.21",
     "@susurro/core": "file:./packages/susurro",
     "eslint-config-prettier": "^10.1.8",
     "framer-motion": "^12.23.12",

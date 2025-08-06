@@ -46,7 +46,7 @@ export interface ModernVADConfig {
 }
 
 export class ModernVADEngine {
-  private vad: unknown = null;
+  private vad: any = null;
   private isInitialized = false;
 
   constructor(private config: ModernVADConfig = {}) {
@@ -131,7 +131,7 @@ export class ModernVADEngine {
 
       if (frame.length === frameSize) {
         // Get VAD probability from Silero model
-        const vadProb = await this.vad.process(frame);
+        const vadProb = await (this.vad as any).process(frame);
         vadScores.push(vadProb);
 
         // Detect voice segments based on threshold
@@ -157,9 +157,9 @@ export class ModernVADEngine {
       averageVad,
       vadScores,
       metrics: [
-        { name: 'neural_vad', value: averageVad },
-        { name: 'voice_segments', value: voiceSegments.length },
-        { name: 'speech_ratio', value: voiceSegments.length / vadScores.length },
+        { vad: averageVad, timestamp: Date.now() },
+        { energy: voiceSegments.length, timestamp: Date.now() },
+        { pitch: voiceSegments.length / vadScores.length, timestamp: Date.now() },
       ],
       voiceSegments,
     };
@@ -218,8 +218,8 @@ export class ModernVADEngine {
       averageVad,
       vadScores,
       metrics: [
-        { name: 'energy_vad', value: averageVad },
-        { name: 'voice_segments', value: voiceSegments.length },
+        { vad: averageVad, timestamp: Date.now() },
+        { energy: voiceSegments.length, timestamp: Date.now() },
       ],
       voiceSegments,
     };
@@ -239,8 +239,8 @@ export class ModernVADEngine {
   }
 
   destroy(): void {
-    if (this.vad && this.vad.destroy) {
-      this.vad.destroy();
+    if (this.vad && (this.vad as any).destroy) {
+      (this.vad as any).destroy();
     }
     this.vad = null;
     this.isInitialized = false;

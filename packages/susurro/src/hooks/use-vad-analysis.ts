@@ -91,6 +91,13 @@ export function useVADAnalysis(): UseVADAnalysisReturn {
       };
     } catch (error) {
       handleAudioError(error, 'vad-analysis', ERROR_MESSAGES.VAD_ANALYSIS_FAILED);
+      // Return empty VAD result on error
+      return {
+        averageVad: 0,
+        vadScores: [],
+        metrics: [],
+        voiceSegments: [],
+      };
     }
   }, []);
 

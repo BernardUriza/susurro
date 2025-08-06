@@ -165,6 +165,9 @@ interface WhisperPipelineState {
   originalFetch: typeof fetch;
 }
 
+// Global singleton instance
+let globalPipelineManager: WhisperPipelineManager | null = null;
+
 class WhisperPipelineManager {
   private state: WhisperPipelineState = {
     instance: null,
@@ -178,9 +181,8 @@ class WhisperPipelineManager {
   };
 
   private readonly task = 'automatic-speech-recognition' as const;
-  private readonly model = 'Xenova/distil-whisper/distil-large-v3'; // WebGPU optimized Distil-Whisper
+  private readonly model = 'whisper-tiny'; // Use local whisper-tiny model
   private readonly fallbackModels = [
-    'whisper-tiny',
     'Xenova/whisper-base.en',
     'Xenova/whisper-small.en',
   ];
@@ -240,7 +242,7 @@ class WhisperPipelineManager {
       log.info('🚀 Configuring WebGPU + ONNX backends for optimal performance...');
 
       // WebGPU backend for modern hardware (6x faster)
-      this.state.env.backends.webgpu = {
+      (this.state.env.backends as any).webgpu = {
         adapter: null, // Let browser choose optimal adapter
       };
 
@@ -508,21 +510,60 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
   } | null>(null);
   const transcriptionQueueRef = useRef<Promise<TranscriptionResult | null>>(Promise.resolve(null));
 
-  // Initialize pipeline manager
+  // Initialize pipeline manager - use global singleton
   useEffect(() => {
-    if (!pipelineManagerRef.current) {
-      pipelineManagerRef.current = new WhisperPipelineManager();
+    if (!globalPipelineManager) {
+      globalPipelineManager = new WhisperPipelineManager();
     }
+    pipelineManagerRef.current = globalPipelineManager;
   }, []);
+
+  // Add ref to track if loading has been initiated
+  const loadingInitiatedRef = useRef(false);
+  
+  // Store callbacks in refs to avoid re-renders
+  const onProgressLogRef = useRef(onProgressLog);
+  const alertServiceRef = useRef(alertService);
+  const toastServiceRef = useRef(toastService);
+  const requestPersistentStorageRef = useRef(requestPersistentStorage);
+  const whisperConfigModelRef = useRef(whisperConfig.model);
+  
+  // Update refs when props change
+  useEffect(() => {
+    onProgressLogRef.current = onProgressLog;
+    alertServiceRef.current = alertService;
+    toastServiceRef.current = toastService;
+    requestPersistentStorageRef.current = requestPersistentStorage;
+    whisperConfigModelRef.current = whisperConfig.model;
+  });
 
   // Initialize Transformers.js
   useEffect(() => {
     const loadModel = async () => {
       if (!pipelineManagerRef.current) return;
+      
+      // Check if already loading or loaded
+      const state = pipelineManagerRef.current.getState();
+      if (state.isLoading || state.instance) {
+        // If already loaded, just update our state
+        if (state.instance) {
+          pipelineRef.current = state.instance;
+          setModelReady(true);
+          setLoadingProgress(100);
+        }
+        return;
+      }
+      
+      // Check if another instance is already loading
+      if (loadingInitiatedRef.current) {
+        return;
+      }
+      
+      // Mark as loading initiated
+      loadingInitiatedRef.current = true;
 
       // Only show loading alert if not already loaded and not currently loading
-      const shouldShowAlert =
-        !pipelineRef.current && !pipelineManagerRef.current.getState().isLoading;
+      const shouldShowAlert = !pipelineRef.current;
 
       if (shouldShowAlert) {
         // Show loading alert
@@ -535,7 +576,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       }
 
       // Log initial loading state
-      onProgressLog?.('🚀 Iniciando carga del modelo Distil-Whisper con WebGPU...', 'info');
+      onProgressLog?.('🚀 Iniciando carga del modelo Whisper-Tiny local...', 'info');
 
       try {
         // Request persistent storage for better caching
@@ -582,6 +623,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
 
         setModelReady(true);
         setLoadingProgress(100);
+        loadingInitiatedRef.current = false; // Reset for potential retry
 
         // Log success
         onProgressLog?.(
@@ -625,6 +667,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         }
 
         setError(new Error(errorMessage));
+        loadingInitiatedRef.current = false; // Reset to allow retry
 
         // Log error
         onProgressLog?.(`❌ Error al cargar modelo: ${errorMessage}`, 'error');
@@ -645,7 +688,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
                   : errorMessage
             : errorMessage;
 
-        alertService.show({
+        alertServiceRef.current.show({
           title: '[MODEL_LOAD_ERROR]',
           message: detailedMessage,
           type: 'error',
@@ -653,13 +696,20 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       }
     };
 
-    // Check if model is already loaded
-    if (pipelineManagerRef.current?.getState().instance) {
-      pipelineRef.current = pipelineManagerRef.current.getState().instance;
+    // Check if model is already loaded in global manager
+    const currentState = pipelineManagerRef.current?.getState();
+    if (currentState?.instance && !pipelineRef.current) {
+      // Model already loaded globally, just update local state
+      pipelineRef.current = currentState.instance;
       setModelReady(true);
       setLoadingProgress(100);
-    } else if (!pipelineRef.current && typeof window !== 'undefined') {
+      onProgressLogRef.current?.('✅ Modelo ya cargado, listo para usar', 'success');
+    } else if (!currentState?.instance && !currentState?.isLoading && !pipelineRef.current && typeof window !== 'undefined') {
+      // Only load if not already loaded and not currently loading
       loadModel();
+    } else if (currentState?.isLoading) {
+      // Model is loading in another component, just wait
+      onProgressLogRef.current?.('⏳ Modelo cargándose en otro componente...', 'info');
     }
 
     return () => {
@@ -668,7 +718,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         progressAlertRef.current = null;
       }
     };
-  }, [alertService, onProgressLog, requestPersistentStorage, toastService, whisperConfig.model]);
+  }, []); // Remove all dependencies to run only once
 
   // Convert audio blob to base64 data URL
   const audioToBase64 = async (blob: Blob): Promise<string> => {

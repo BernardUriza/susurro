@@ -43,7 +43,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     setStatus(whisperReady ? '[RECORDING_ACTIVE]' : '[RECORDING_NO_TRANSCRIPTION]');
     setChunksProcessed(0);
 
-    const onChunkProcessed = (chunk: StreamingSusurroChunk) => {
+    const onChunkProcessed = () => {
       setChunksProcessed((prev) => prev + 1);
     };
 

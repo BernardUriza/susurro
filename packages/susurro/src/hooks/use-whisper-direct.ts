@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { WhisperConfig, TranscriptionResult, UseWhisperReturn } from '../lib/types';
-import { useModelCache } from './useModelCache';
+import { useModelCache } from './use-model-cache';
 import type {
   Pipeline,
   TransformersModule,
@@ -42,15 +42,16 @@ const getHuggingFaceToken = (): string | undefined => {
 
     // Check for token in window object (can be set by the app)
     token =
-      (window as any).HUGGINGFACE_TOKEN ||
-      (window as any).HF_TOKEN ||
-      (window as any).VITE_HUGGINGFACE_TOKEN;
+      (window as unknown as any).HUGGINGFACE_TOKEN ||
+      (window as unknown as any).HF_TOKEN ||
+      (window as unknown as any).VITE_HUGGINGFACE_TOKEN;
 
-    // If no token found, use hardcoded token for development
+    // If no token found, warn the user
     if (!token) {
-      // This token is from .env.local - should be injected at build time in production
-      token = '***REMOVED***';
-      if (DEBUG_MODE) console.log('[WHISPER] Using hardcoded development token');
+      // Token should be provided via environment variables
+      console.warn('[WHISPER] No HuggingFace token found. Please set VITE_HUGGINGFACE_TOKEN in your .env file');
+      // Use empty string to avoid compilation errors
+      token = '';
     } else {
       if (DEBUG_MODE) console.log('[WHISPER] Found token from window object');
     }
@@ -81,7 +82,7 @@ if (typeof window !== 'undefined') {
 
       // Add authentication for any huggingface.co requests
       if (url.includes('huggingface.co')) {
-        if (DEBUG_MODE) console.log('[WHISPER] Adding HF auth to request:', url);  
+        if (DEBUG_MODE) console.log('[WHISPER] Adding HF auth to request:', url);
         init.headers = {
           ...init.headers,
           Authorization: `Bearer ${token}`,
@@ -173,12 +174,16 @@ class WhisperPipelineManager {
     loadingPromise: null,
     currentModel: null,
     isFirewalled: null,
-    originalFetch: globalThis.fetch
+    originalFetch: globalThis.fetch,
   };
-  
+
   private readonly task = 'automatic-speech-recognition' as const;
   private readonly model = 'Xenova/distil-whisper/distil-large-v3'; // WebGPU optimized Distil-Whisper
-  private readonly fallbackModels = ['whisper-tiny', 'Xenova/whisper-base.en', 'Xenova/whisper-small.en'];
+  private readonly fallbackModels = [
+    'whisper-tiny',
+    'Xenova/whisper-base.en',
+    'Xenova/whisper-small.en',
+  ];
 
   // Reset pipeline state - used when switching models or on errors
   resetInstance(): void {
@@ -233,19 +238,19 @@ class WhisperPipelineManager {
     // Configure backends with WebGPU priority for 6x performance improvement
     if (this.state.env.backends) {
       log.info('🚀 Configuring WebGPU + ONNX backends for optimal performance...');
-      
+
       // WebGPU backend for modern hardware (6x faster)
       this.state.env.backends.webgpu = {
         adapter: null, // Let browser choose optimal adapter
       };
-      
+
       // ONNX backend as fallback
       this.state.env.backends.onnx = {
         wasm: {
           wasmPaths: 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/',
         },
       };
-      
+
       log.info('🎯 Multi-backend configuration complete:', {
         webgpu: 'Primary (6x performance boost)',
         onnx: 'Fallback for compatibility',
@@ -267,7 +272,7 @@ class WhisperPipelineManager {
   ): Promise<Pipeline> {
     // Force use the correct model
     const modelToUse = this.model; // Always use the configured model
-    
+
     log.info('getInstance called');
     log.info('Current state:', {
       hasInstance: !!this.state.instance,
@@ -278,13 +283,21 @@ class WhisperPipelineManager {
 
     // FORCE RESET - clear any cached state that might have wrong model
     if (this.state.currentModel && this.state.currentModel !== modelToUse) {
-      log.info('🔄 Model mismatch detected, forcing reset:', this.state.currentModel, '->', modelToUse);
+      log.info(
+        '🔄 Model mismatch detected, forcing reset:',
+        this.state.currentModel,
+        '->',
+        modelToUse
+      );
       this.resetInstance();
     }
-    
+
     // Also reset if we have any lingering Xenova model
     if (this.state.currentModel && this.state.currentModel.includes('Xenova')) {
-      log.info('🔄 Xenova model detected, forcing reset to onnx-community:', this.state.currentModel);
+      log.info(
+        '🔄 Xenova model detected, forcing reset to onnx-community:',
+        this.state.currentModel
+      );
       this.resetInstance();
     }
 
@@ -331,17 +344,14 @@ class WhisperPipelineManager {
       log.info('Pipeline not initialized, importing @xenova/transformers...');
       const importStart = performance.now();
 
-      // Dynamic import with enhanced error handling
-      const transformers = await RetryManager.withRetry(
-        async () => {
-          return await import('@xenova/transformers');
-        },
-        2,
-        1000
-      ).catch((err: Error) => {
-        log.error('Failed to import transformers after retries:', err);
-        throw new Error(`Failed to import transformers: ${err.message}`);
-      });
+      // Dynamic import with enhanced error handling + bundle size optimization
+      const { loadTransformers } = await import('../lib/dynamic-loaders');
+      const transformers = await RetryManager.withRetry(loadTransformers, 2, 1000).catch(
+        (err: Error) => {
+          log.error('Failed to import transformers after retries:', err);
+          throw new Error(`Failed to import transformers: ${err.message}`);
+        }
+      );
 
       const importTime = performance.now() - importStart;
       log.info('Transformers imported successfully in', importTime.toFixed(2), 'ms');
@@ -401,9 +411,9 @@ class WhisperPipelineManager {
               if (progress_callback) progress_callback(progress);
             },
             quantized: true,
-            dtype: { 
-              encoder_model: 'fp32', 
-              decoder_model_merged: 'q4' // 4-bit quantization for 6x speed boost
+            dtype: {
+              encoder_model: 'fp32',
+              decoder_model_merged: 'q4', // 4-bit quantization for 6x speed boost
             },
             device: 'webgpu', // Prefer WebGPU for hardware acceleration
             revision: 'main',
@@ -509,9 +519,10 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
   useEffect(() => {
     const loadModel = async () => {
       if (!pipelineManagerRef.current) return;
-      
+
       // Only show loading alert if not already loaded and not currently loading
-      const shouldShowAlert = !pipelineRef.current && !pipelineManagerRef.current.getState().isLoading;
+      const shouldShowAlert =
+        !pipelineRef.current && !pipelineManagerRef.current.getState().isLoading;
 
       if (shouldShowAlert) {
         // Show loading alert
@@ -529,7 +540,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       try {
         // Request persistent storage for better caching
         await requestPersistentStorage();
-        
+
         // Get pipeline instance with progress callback and model
         pipelineRef.current = await pipelineManagerRef.current.getInstance(
           (progress: WhisperProgress) => {
@@ -544,10 +555,14 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
             });
 
             // Log detailed progress with emojis
-            const emoji = status.includes('download') ? '📥' : 
-                         status.includes('progress') ? '⏳' : 
-                         status.includes('load') ? '🔄' : '📊';
-            
+            const emoji = status.includes('download')
+              ? '📥'
+              : status.includes('progress')
+                ? '⏳'
+                : status.includes('load')
+                  ? '🔄'
+                  : '📊';
+
             if (percent > 0) {
               onProgressLog?.(`${emoji} Descargando ${file}... ${Math.round(percent)}%`, 'info');
             } else {
@@ -569,7 +584,10 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         setLoadingProgress(100);
 
         // Log success
-        onProgressLog?.('✅ Modelo Distil-Whisper con WebGPU cargado exitosamente (6x más rápido)', 'success');
+        onProgressLog?.(
+          '✅ Modelo Distil-Whisper con WebGPU cargado exitosamente (6x más rápido)',
+          'success'
+        );
 
         // Close loading alert and show success only if we showed it
         if (progressAlertRef.current && shouldShowAlert) {
@@ -650,7 +668,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         progressAlertRef.current = null;
       }
     };
-  }, []);
+  }, [alertService, onProgressLog, requestPersistentStorage, toastService, whisperConfig.model]);
 
   // Convert audio blob to base64 data URL
   const audioToBase64 = async (blob: Blob): Promise<string> => {
@@ -739,7 +757,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
 
       return transcriptionPromise;
     },
-    [whisperConfig, modelReady, isTranscribing]
+    [whisperConfig, modelReady, isTranscribing, alertService]
   );
 
   const clearTranscript = useCallback(() => {

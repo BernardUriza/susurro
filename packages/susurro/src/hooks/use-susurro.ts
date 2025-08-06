@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWhisperDirect } from './use-whisper-direct';
-// REMOVED: Singleton pattern replaced with direct hook usage
-// REMOVED: import { murmurabaManager } from '../lib/murmuraba-singleton';
 import type {
   AudioChunk,
   ProcessingStatus,
@@ -18,24 +16,15 @@ import type {
   VoiceSegment,
 } from '../lib/types';
 
-// Direct import from Murmuraba v3 - Real package integration
-import { useMurmubaraEngine } from 'murmuraba';
-
-// Import Murmuraba processing functions - ONLY useSusurro should access these
-import {
-  processFileWithMetrics as murmubaraProcess,
-  murmubaraVAD,
-  extractAudioMetadata,
-} from 'murmuraba';
-
-// audioEngineManager removed - useMurmubaraEngine handles engine internally
-import type { ProcessingMetrics as MurmurabaProcessingMetrics } from 'murmuraba';
+// Import dynamic loaders from centralized location
+import { loadMurmubaraProcessing } from '../lib/dynamic-loaders';
 
 // Conversational Evolution - Advanced chunk middleware
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
+import { getModernVAD, destroyModernVAD } from '../lib/modern-vad';
 
 // Phase 3: Latency optimization and measurement - Hook-based approach
-import { useLatencyMonitor } from './useLatencyMonitor';
+import { useLatencyMonitor } from './use-latency-monitor';
 import type { LatencyMetrics, LatencyReport } from '../lib/latency-monitor';
 
 // Debug mode for development
@@ -116,7 +105,12 @@ export interface UseSusurroReturn {
 }
 
 export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
-  const { chunkDurationMs = 8000, whisperConfig = {}, conversational, onWhisperProgressLog } = options;
+  const {
+    chunkDurationMs = 8000,
+    whisperConfig = {},
+    conversational,
+    onWhisperProgressLog,
+  } = options;
 
   // Direct useMurmubaraEngine hook integration (Murmuraba v3 pattern)
   const {
@@ -204,10 +198,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       // We just mark it as initialized for our state tracking
       setIsEngineInitialized(true);
       setEngineError(null);
-      
-      if (DEBUG_MODE) {
-        console.log('[useSusurro] Audio engine initialized via useMurmubaraEngine');
-      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Engine initialization failed';
       setEngineError(errorMsg);
@@ -216,10 +206,28 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     }
   }, []);
 
-  // VAD analysis helper
+  // VAD analysis helper with Modern Neural VAD
   const analyzeVAD = useCallback(async (buffer: ArrayBuffer): Promise<VADAnalysisResult> => {
     try {
-      // Using real murmubaraVAD from v3.0.3
+      // Primary: Use Modern Neural VAD (Silero) for superior accuracy
+      const modernVAD = getModernVAD({
+        positiveSpeechThreshold: 0.6, // Higher threshold for better precision
+        negativeSpeechThreshold: 0.4,
+        frameSamples: 1536, // Optimized for 32ms frames
+      });
+
+      const modernResult = await modernVAD.analyze(buffer);
+
+      if (modernResult.averageVad > 0) {
+        // Modern VAD successful
+        // Debug logging removed - use DEBUG_MODE flag if needed
+        return modernResult;
+      }
+
+      // Fallback: Use Murmuraba VAD if Modern VAD fails
+      // Debug logging removed - use DEBUG_MODE flag if needed
+
+      const { murmubaraVAD } = await loadMurmubaraProcessing();
       const result = await murmubaraVAD(buffer);
 
       // Process results to find voice segments
@@ -322,7 +330,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       };
 
       try {
-
         // Get user media stream
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -386,7 +393,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
         // Store session reference
         streamingSessionRef.current = streamingSession;
-
       } catch (error) {
         setIsStreamingRecording(false);
         streamingCallbackRef.current = null;
@@ -395,11 +401,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         throw new Error(`Streaming recording failed: ${errorMsg}`);
       }
     },
-    [
-      isStreamingRecording,
-      startMurmurabaRecording,
-      stopMurmurabaRecording,
-    ]
+    [isStreamingRecording, startMurmurabaRecording, stopMurmurabaRecording]
   );
 
   const stopStreamingRecording = useCallback(async (): Promise<StreamingSusurroChunk[]> => {
@@ -507,6 +509,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       chunkTranscriptions,
       chunkProcessingTimes,
       middlewarePipeline,
+      recordLatencyMetrics,
     ]
   );
 
@@ -532,7 +535,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   // Reset - just cleanup state since useMurmubaraEngine manages the engine
   const resetAudioEngine = useCallback(async () => {
-
     // Stop any ongoing recordings
     if (recordingState.isRecording) {
       stopMurmurabaRecording();
@@ -559,7 +561,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     setAudioChunks([]);
     setTranscriptions([]);
     clearConversationalChunks();
-
 
     // Optionally reinitialize after a short delay
     setTimeout(async () => {
@@ -630,15 +631,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         const originalAudioUrl = URL.createObjectURL(file);
 
         // 3. Process with Murmuraba (noise reduction + VAD)
-        const processedResult = await murmubaraProcess(
-          originalBuffer,
-          (_metrics: MurmurabaProcessingMetrics) => {
-            // Callback for real-time metrics if needed
-            if (DEBUG_MODE) {
-              // Processing metrics
-            }
+        const processedResult = await murmubaraProcess(originalBuffer, () => {
+          // Callback for real-time metrics if needed
+          if (DEBUG_MODE) {
+            // Processing metrics
           }
-        );
+        });
 
         // 4. Create URL for processed audio
         const processedBlob = new Blob([processedResult.processedBuffer], { type: 'audio/wav' });
@@ -706,7 +704,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         if (conversational?.onChunk && chunk.processedAudioUrl) {
           if (chunk.processedAudioUrl) {
             setProcessedAudioUrls((prev) =>
-              new Map(prev).set(audioChunk.id, chunk.processedAudioUrl!)
+              new Map(prev).set(audioChunk.id, chunk.processedAudioUrl as string)
             );
           }
 
@@ -777,11 +775,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         stage: 'complete',
       });
     },
-    [transcribeWhisper]
+    [transcribeWithWhisper]
   );
 
-  // Recording functions - Placeholder for Murmuraba v3 integration
-  // Recording functions - Direct hook integration (Murmuraba v3 pattern)
+  // Recording functions - Direct hook integration
   const startRecording = useCallback(async () => {
     startTimeRef.current = Date.now();
     setAudioChunks([]);
@@ -877,7 +874,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // NEW: Auto-initialize audio engine when Whisper is ready
   useEffect(() => {
     if (whisperReady && !isEngineInitialized && !isInitializingEngine && !engineError) {
-      initializeAudioEngine().catch((_error) => {
+      initializeAudioEngine().catch(() => {
         // Don't throw - allow manual initialization
       });
     }
@@ -936,6 +933,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     processedAudioUrls,
     transcribeWhisper,
     tryEmitChunk,
+    transcribeWithWhisper,
   ]);
 
   // Cleanup on unmount
@@ -950,6 +948,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           // Error stopping streaming session on unmount
         });
       }
+
+      // Clean up Modern VAD resources
+      destroyModernVAD();
 
       // Murmuraba v3 hook handles all cleanup automatically
     };

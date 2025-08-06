@@ -3,9 +3,9 @@ import { useState, useEffect } from 'react';
 
 // 2. Absolute imports (internal modules)
 import { MatrixScrollArea } from '../MatrixScrollArea';
-import { 
-  WhisperMatrixTerminal, 
-  AudioFragmentProcessor 
+import {
+  WhisperMatrixTerminal,
+  AudioFragmentProcessor,
 } from '../../features/audio-processing/components';
 import { WhisperEchoLogs } from '../../features/visualization/components/whisper-echo-logs';
 import { useSusurro } from '../../../packages/susurro/src/hooks/use-susurro';
@@ -19,45 +19,53 @@ import styles from './matrix-navigation.module.css';
 export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
   const [currentView, setCurrentView] = useState(initialView);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  
+
   // Whisper logs state
-  const [whisperLogs, setWhisperLogs] = useState<Array<{
-    id: string;
-    timestamp: Date;
-    message: string;
-    type: 'info' | 'warning' | 'error' | 'success';
-  }>>([]);
-  
+  const [whisperLogs, setWhisperLogs] = useState<
+    Array<{
+      id: string;
+      timestamp: Date;
+      message: string;
+      type: 'info' | 'warning' | 'error' | 'success';
+    }>
+  >([]);
+
   // Helper function to add logs
-  const addWhisperLog = (message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
-    setWhisperLogs(prev => [...prev, {
-      id: `log-${Date.now()}-${Math.random()}`,
-      timestamp: new Date(),
-      message,
-      type
-    }]);
+  const addWhisperLog = (
+    message: string,
+    type: 'info' | 'warning' | 'error' | 'success' = 'info'
+  ) => {
+    setWhisperLogs((prev) => [
+      ...prev,
+      {
+        id: `log-${Date.now()}-${Math.random()}`,
+        timestamp: new Date(),
+        message,
+        type,
+      },
+    ]);
   };
 
   // Get Whisper status from useSusurro (unused vars are for future functionality)
   const { whisperReady, whisperProgress, whisperError } = useSusurro({
-    onWhisperProgressLog: addWhisperLog
+    onWhisperProgressLog: addWhisperLog,
   });
-  
+
   // Suppress unused variable warnings - these are used by the logging system
   void whisperReady;
-  void whisperProgress; 
+  void whisperProgress;
   void whisperError;
 
   const views = {
     terminal: {
       component: <WhisperMatrixTerminal />,
       title: '[WHISPER_MATRIX_TERMINAL]',
-      key: 'F1'
+      key: 'F1',
     },
     processor: {
       component: <AudioFragmentProcessor onBack={() => setCurrentView('terminal')} />,
       title: '[AUDIO_FRAGMENT_PROCESSOR]',
-      key: 'F2'
+      key: 'F2',
     },
     analytics: {
       component: (
@@ -68,7 +76,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
         </div>
       ),
       title: '[ANALYTICS]',
-      key: 'F3'
+      key: 'F3',
     },
     settings: {
       component: (
@@ -79,7 +87,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
         </div>
       ),
       title: '[SETTINGS]',
-      key: 'F4'
+      key: 'F4',
     },
     export: {
       component: (
@@ -90,7 +98,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
         </div>
       ),
       title: '[EXPORT]',
-      key: 'F5'
+      key: 'F5',
     },
     history: {
       component: (
@@ -101,33 +109,41 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
         </div>
       ),
       title: '[HISTORY]',
-      key: 'F6'
-    }
+      key: 'F6',
+    },
   } as const;
 
   const handleViewChange = (viewKey: keyof typeof views) => {
     if (isTransitioning || viewKey === currentView) return;
-    
+
     setIsTransitioning(true);
     setCurrentView(viewKey);
-    
+
     // Log view change
     const viewName = views[viewKey].title;
     addWhisperLog(`🔀 Navegando a ${viewName}`, 'info');
-    
+
     // Simple transition timing
     setTimeout(() => setIsTransitioning(false), 200);
   };
 
-  // Add initial system status log
+  // Add initial system status log and preload dependencies
   useEffect(() => {
     addWhisperLog('👋 Bienvenido a Susurro Whisper AI', 'success');
     addWhisperLog('🔄 Inicializando sistema de transcripción...', 'info');
-    
+
     // Add system info after a short delay
     setTimeout(() => {
       addWhisperLog('🧠 Preparando modelo de IA para transcripción', 'info');
       addWhisperLog('📡 Conectando con sistema de audio...', 'info');
+
+      // Preload heavy dependencies for better UX
+      import('../../../packages/susurro/src/lib/dynamic-loaders').then(
+        ({ preloadCriticalDependencies }) => {
+          preloadCriticalDependencies();
+          addWhisperLog('📦 Pre-cargando dependencias en segundo plano...', 'info');
+        }
+      );
     }, 500);
   }, []);
 
@@ -135,14 +151,14 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       const keyMap = {
-        'F1': 'terminal',
-        'F2': 'processor', 
-        'F3': 'analytics',
-        'F4': 'settings',
-        'F5': 'export',
-        'F6': 'history'
+        F1: 'terminal',
+        F2: 'processor',
+        F3: 'analytics',
+        F4: 'settings',
+        F5: 'export',
+        F6: 'history',
       } as const;
-      
+
       const viewKey = keyMap[e.key as keyof typeof keyMap];
       if (viewKey) {
         e.preventDefault();
@@ -152,7 +168,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, []);
+  }, [handleViewChange]);
 
   return (
     <div className={styles.container}>
@@ -177,16 +193,12 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
       </nav>
 
       {/* Content Area with MatrixScrollArea */}
-      <main 
+      <main
         className={`${styles.content} ${isTransitioning ? styles.transitioning : ''}`}
         role="main"
         aria-live="polite"
       >
-        <MatrixScrollArea 
-          height="100%" 
-          fadeEdges={true}
-          className={styles.scrollArea}
-        >
+        <MatrixScrollArea height="100%" fadeEdges={true} className={styles.scrollArea}>
           <div className={styles.contentInner}>
             {views[currentView as keyof typeof views].component}
           </div>
@@ -201,11 +213,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
           <span>[SYSTEM: ONLINE]</span>
         </div>
         <div className={styles.whisperLogsContainer}>
-          <WhisperEchoLogs 
-            logs={whisperLogs}
-            maxLogs={50}
-            autoScroll={true}
-          />
+          <WhisperEchoLogs logs={whisperLogs} maxLogs={50} autoScroll={true} />
         </div>
       </footer>
     </div>

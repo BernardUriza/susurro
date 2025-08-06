@@ -8,7 +8,6 @@ import { useSusurro } from '@susurro/core';
 import type { CompleteAudioResult } from '@susurro/core';
 
 // Relative imports - components
-import { WhisperEchoLogs } from '../../../visualization/components';
 // TemporalSegmentSelector not needed for current implementation
 
 // Relative imports - utilities
@@ -58,54 +57,28 @@ export const WhisperMatrixTerminal: React.FC = () => {
   const [completeResult, setCompleteResult] = React.useState<CompleteAudioResult | null>(null);
 
   // Direct values from useSusurro - no abstraction needed
-  const [backgroundLogs, setBackgroundLogs] = React.useState<
-    Array<{
-      id: string;
-      timestamp: Date;
-      message: string;
-      type: 'info' | 'warning' | 'error' | 'success';
-    }>
-  >([]);
 
   // Silent thread processor for non-blocking transcription
   const silentThreadProcessorRef = React.useRef<SilentThreadProcessor | null>(null);
 
-  // Helper function to add background logs
-  const addBackgroundLog = (
-    message: string,
-    type: 'info' | 'warning' | 'error' | 'success' = 'info'
-  ) => {
-    setBackgroundLogs((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-${Math.random()}`,
-        timestamp: new Date(),
-        message,
-        type,
-      },
-    ]);
-  };
-
   // Component lifecycle logging
   React.useEffect(() => {
     console.log('[WhisperMatrixTerminal] Component mounted');
-    
+
     return () => {
       console.log('[WhisperMatrixTerminal] Component unmounting');
       // Any cleanup if needed
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount/unmount
-  
+
   // REMOVED: Manual engine initialization - useSusurro handles this automatically
   // Auto-initialization happens when Whisper model is ready
   React.useEffect(() => {
     if (isEngineInitialized) {
       setStatus('[SYSTEM] Audio neural processor ready');
-      addBackgroundLog('Audio engine initialized automatically', 'success');
     } else if (engineError) {
       setStatus(`[ERROR] Audio engine initialization failed: ${engineError}`);
-      addBackgroundLog(`Engine initialization failed: ${engineError}`, 'error');
     } else if (isInitializingEngine) {
       setStatus('[SYSTEM] Initializing audio engine...');
     }
@@ -114,15 +87,8 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
   React.useEffect(() => {
     silentThreadProcessorRef.current = new SilentThreadProcessor((message, type) => {
-      setBackgroundLogs((prev) => [
-        ...prev,
-        {
-          id: `log-${Date.now()}-${Math.random()}`,
-          timestamp: new Date(),
-          message,
-          type,
-        },
-      ]);
+      // Silent thread processor now logs to console instead of UI
+      console.log(`[SilentThread] [${type}] ${message}`);
     });
   }, []);
 
@@ -147,7 +113,6 @@ export const WhisperMatrixTerminal: React.FC = () => {
       // Check if engines are ready (useSusurro handles initialization)
       if (!isEngineInitialized) {
         setStatus('[ERROR] Audio engine not initialized. Please wait or refresh the page.');
-        addBackgroundLog('Attempted to process file before engine initialization', 'error');
         return false;
       }
 
@@ -167,23 +132,22 @@ export const WhisperMatrixTerminal: React.FC = () => {
         `[PROCESSING_COMPLETE] VAD: ${vadPercentage}% | Duration: ${result.metadata.duration.toFixed(2)}s`
       );
 
-      addBackgroundLog(`File processed successfully - VAD: ${vadPercentage}%`, 'success');
-      addBackgroundLog(`Processing time: ${result.processingTime.toFixed(0)}ms`, 'info');
-      addBackgroundLog(`Audio duration: ${result.metadata.duration.toFixed(2)}s`, 'info');
-      addBackgroundLog('Complete pipeline: Murmuraba + Whisper + VAD', 'success');
+      console.log(`File processed successfully - VAD: ${vadPercentage}%`);
+      console.log(`Processing time: ${result.processingTime.toFixed(0)}ms`);
+      console.log(`Audio duration: ${result.metadata.duration.toFixed(2)}s`);
+      console.log('Complete pipeline: Murmuraba + Whisper + VAD');
 
       // Set transcription if available
       if (result.transcriptionText) {
         setWhisperTranscriptions([result.transcriptionText]);
-        addBackgroundLog('Transcription completed via consolidated pipeline', 'success');
+        console.log('Transcription completed via consolidated pipeline');
       }
 
       return true;
     } catch (err) {
       setStatus(`[ERROR] ${err instanceof Error ? err.message : 'Unknown error'}`);
-      addBackgroundLog(
-        `File processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
-        'error'
+      console.error(
+        `File processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`
       );
       return false;
     }
@@ -299,15 +263,15 @@ export const WhisperMatrixTerminal: React.FC = () => {
                   }}
                 >
                   <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                    <img 
-                      src="/banner.png" 
-                      alt="SUSURRO MATRIX" 
-                      style={{ 
-                        maxWidth: '100%', 
+                    <img
+                      src="/banner.png"
+                      alt="SUSURRO MATRIX"
+                      style={{
+                        maxWidth: '100%',
                         height: 'auto',
                         marginBottom: '20px',
-                        filter: 'drop-shadow(0 0 30px rgba(0, 255, 65, 0.6))'
-                      }} 
+                        filter: 'drop-shadow(0 0 30px rgba(0, 255, 65, 0.6))',
+                      }}
                     />
                     <p
                       className="matrix-subtitle fade-in"
@@ -433,17 +397,11 @@ export const WhisperMatrixTerminal: React.FC = () => {
                           });
 
                           setStatus('[SYSTEM] Audio neural processor ready');
-                          addBackgroundLog(
-                            'Audio engine initialized successfully on retry',
-                            'success'
-                          );
+                          console.log('Audio engine initialized successfully on retry');
                         } catch (error) {
                           const errorMsg = error instanceof Error ? error.message : 'Unknown error';
                           setStatus(`[ERROR] Audio engine initialization failed: ${errorMsg}`);
-                          addBackgroundLog(
-                            `Engine initialization retry failed: ${errorMsg}`,
-                            'error'
-                          );
+                          console.error(`Engine initialization retry failed: ${errorMsg}`);
                         }
                       }}
                       className="matrix-button"
@@ -920,22 +878,18 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
                             // SIMPLIFIED: processAndTranscribeFile already handled transcription
                             // This button is now mainly for re-transcription if needed
-                            addBackgroundLog(
-                              'Transcription already completed via consolidated pipeline',
-                              'info'
+                            console.log(
+                              'Transcription already completed via consolidated pipeline'
                             );
 
                             if (completeResult.transcriptionText) {
                               setWhisperTranscriptions([completeResult.transcriptionText]);
-                              addBackgroundLog(
-                                'Using existing transcription from complete result',
-                                'success'
-                              );
+                              console.log('Using existing transcription from complete result');
                               setIsTranscribing(false);
                               setStatus('[TRANSCRIPTION_ALREADY_AVAILABLE]');
                             } else {
                               // Fallback: re-transcribe the processed audio
-                              addBackgroundLog('Re-transcribing processed audio', 'info');
+                              console.log('Re-transcribing processed audio');
 
                               fetch(completeResult.processedAudioUrl)
                                 .then((res) => res.blob())
@@ -944,23 +898,20 @@ export const WhisperMatrixTerminal: React.FC = () => {
                                     blob,
                                     transcribeWithWhisper,
                                     (progress) => {
-                                      addBackgroundLog(
-                                        `Re-transcription: ${progress}% complete`,
-                                        'info'
-                                      );
+                                      console.log(`Re-transcription: ${progress}% complete`);
                                     }
                                   );
                                 })
                                 .then((text) => {
                                   if (text) {
                                     setWhisperTranscriptions([text]);
-                                    addBackgroundLog('Re-transcription completed', 'success');
+                                    console.log('Re-transcription completed');
                                   }
                                   setIsTranscribing(false);
                                   setStatus('[WHISPER_BACKGROUND_COMPLETE]');
                                 })
                                 .catch((error) => {
-                                  addBackgroundLog(`Re-transcription failed: ${error}`, 'error');
+                                  console.error(`Re-transcription failed: ${error}`);
                                   setIsTranscribing(false);
                                 });
                             }
@@ -1297,8 +1248,6 @@ const result = await processAndTranscribeFile(file)
           </div>
         </div>
       </div>
-
-      <WhisperEchoLogs logs={backgroundLogs} maxLogs={15} />
     </div>
   );
 };

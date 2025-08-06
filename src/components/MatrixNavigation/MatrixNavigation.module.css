@@ -13,7 +13,7 @@
     'nav content'
     'status status';
   grid-template-columns: 200px 1fr;
-  grid-template-rows: calc(100vh - 280px) 280px;
+  grid-template-rows: calc(100vh - 220px) 220px;
   gap: 0;
   z-index: 2;
 }
@@ -28,7 +28,7 @@
   border-right: 1px solid var(--matrix-green);
   position: sticky;
   top: 0;
-  height: calc(100vh - 280px);
+  height: calc(100vh - 220px);
   overflow-y: auto;
 }
 
@@ -199,7 +199,7 @@
   position: sticky;
   bottom: 0;
   z-index: 10;
-  height: 280px; /* Increased height for logs */
+  height: 220px; /* Adjusted height for logs */
 }
 
 .statusInfo {
@@ -226,7 +226,7 @@
       'content'
       'status';
     grid-template-columns: 1fr;
-    grid-template-rows: 60px 1fr 280px;
+    grid-template-rows: 60px 1fr 220px;
   }
 
   .navigation {
@@ -256,7 +256,7 @@
     flex-direction: column;
     gap: var(--space-1);
     padding: var(--space-1);
-    height: 280px;
+    height: 220px;
   }
 
   .statusInfo {

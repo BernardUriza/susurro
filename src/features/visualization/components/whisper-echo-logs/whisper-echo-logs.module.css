@@ -1,19 +1,22 @@
 @import '../../../../styles/tokens.css';
 
 .container {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: 400px;
+  position: relative;
+  width: 100%;
+  height: 100%;
   background: rgba(0, 0, 0, 0.95);
   border: 1px solid var(--matrix-green);
   padding: var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   color: var(--matrix-green);
-  z-index: 1000;
   box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
   backdrop-filter: blur(10px);
+  transition: height 0.3s ease;
+}
+
+.container.collapsed {
+  height: auto;
 }
 
 .header {
@@ -25,6 +28,34 @@
   justify-content: space-between;
 }
 
+.collapsed .header {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.headerControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.collapseButton {
+  background: transparent;
+  border: 1px solid var(--matrix-green-dim);
+  color: var(--matrix-green);
+  padding: 2px 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  transition: all 0.2s;
+}
+
+.collapseButton:hover {
+  border-color: var(--matrix-green);
+  background: rgba(0, 255, 65, 0.1);
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+}
+
 .indicator {
   font-size: 10px;
   opacity: 0.7;
@@ -32,7 +63,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.3;
   }
   50% {
@@ -101,9 +133,6 @@
 /* Mobile adjustments */
 @media (max-width: 768px) {
   .container {
-    bottom: 10px;
-    right: 10px;
-    width: calc(100vw - 20px);
-    max-width: 350px;
+    width: 100%;
   }
 }

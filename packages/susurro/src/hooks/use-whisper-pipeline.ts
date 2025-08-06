@@ -47,6 +47,10 @@ export function useWhisperPipeline({
     resolve: (value: any) => void;
     reject: (error: any) => void;
   }>());
+  
+  // Track last log time and percentage for throttling
+  const lastLogTime = useRef<{ [key: string]: number }>({});
+  const lastLogPercent = useRef<{ [key: string]: number }>({});
 
   // Initialize worker
   useEffect(() => {
@@ -102,10 +106,25 @@ export function useWhisperPipeline({
             prev.map(item => {
               if (item.file === data.file) {
                 const percent = Math.round(data.progress || 0);
+                const now = Date.now();
+                const lastTime = lastLogTime.current[data.file] || 0;
+                const lastPercent = lastLogPercent.current[data.file] || 0;
                 
-                // Log significant progress milestones
-                if (percent > 0 && percent % 25 === 0) {
+                // Log only if:
+                // 1. 2+ seconds have passed since last log OR
+                // 2. Progress increased by 10% or more OR  
+                // 3. Reached 100%
+                const timeDiff = now - lastTime;
+                const percentDiff = percent - lastPercent;
+                
+                if (percent > 0 && (
+                  timeDiff >= 2000 || // 2 seconds
+                  percentDiff >= 10 || // 10% increment
+                  percent === 100 // Completed
+                )) {
                   onLog?.(`📥 ${data.file}: ${percent}%`, 'info');
+                  lastLogTime.current[data.file] = now;
+                  lastLogPercent.current[data.file] = percent;
                 }
                 
                 return { 

@@ -71,7 +71,8 @@
       "Bash(gh issue comment:*)",
       "Bash(git rm:*)",
       "Bash(grep:*)",
-      "Bash(git clone:*)"
+      "Bash(git clone:*)",
+      "Bash(npx tsup:*)"
     ],
     "deny": []
   }

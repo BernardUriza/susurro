@@ -68,7 +68,7 @@ describe('Whisper Pipeline E2E Test', () => {
     console.log('✅ Page loaded');
     
     // Wait for initial render
-    await page.waitForTimeout(2000);
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Take initial screenshot
     await page.screenshot({ 
@@ -159,7 +159,7 @@ describe('Whisper Pipeline E2E Test', () => {
           console.log('  Recent logs:', currentLogs);
         }
         
-        await page.waitForTimeout(1000);
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
     
@@ -233,7 +233,7 @@ describe('Whisper Pipeline E2E Test', () => {
           console.log('✅ Sample file uploaded');
           
           // Wait for transcription
-          await page.waitForTimeout(5000);
+          await new Promise(resolve => setTimeout(resolve, 5000));
           
           // Take screenshot of transcription
           await page.screenshot({ 

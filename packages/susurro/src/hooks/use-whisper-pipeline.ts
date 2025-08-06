@@ -194,6 +194,7 @@ export function useWhisperPipeline({
       return;
     }
 
+    setLoading(true); // Set loading immediately to prevent duplicate calls
     onLog?.('🚀 Iniciando carga del modelo Whisper...', 'info');
     sendMessage('load').catch(error => {
       onLog?.(`❌ Error al cargar modelo: ${error.message}`, 'error');

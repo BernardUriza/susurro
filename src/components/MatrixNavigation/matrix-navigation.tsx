@@ -37,7 +37,7 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
   ) => {
     // Debug trace for progress logging issues - development only
     if (process.env.NODE_ENV === 'development') {
-      console.log('[MATRIX_NAVIGATION_LOG]', { message, type, timestamp: Date.now() });
+      console.log(`[MATRIX_NAVIGATION_LOG] ${type}: ${message}`);
     }
     
     setWhisperLogs((prev) => [

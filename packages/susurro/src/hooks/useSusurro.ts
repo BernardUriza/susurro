@@ -34,8 +34,9 @@ import type { ProcessingMetrics as MurmurabaProcessingMetrics } from 'murmuraba'
 // Conversational Evolution - Advanced chunk middleware
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
 
-// Phase 3: Latency optimization and measurement
-import { latencyMonitor, type LatencyMetrics, type LatencyReport } from '../lib/latency-monitor';
+// Phase 3: Latency optimization and measurement - Hook-based approach
+import { useLatencyMonitor } from './useLatencyMonitor';
+import type { LatencyMetrics, LatencyReport } from '../lib/latency-monitor';
 
 // Debug mode for development
 const DEBUG_MODE = false;
@@ -154,11 +155,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const [currentStreamingChunks, setCurrentStreamingChunks] = useState<StreamingSusurroChunk[]>([]);
   const [isStreamingRecording, setIsStreamingRecording] = useState(false);
 
-  // Phase 3: Latency monitoring state
-  const [latencyReport, setLatencyReport] = useState<LatencyReport>(
-    latencyMonitor.generateReport()
-  );
-  const [latencyStatus, setLatencyStatus] = useState(latencyMonitor.getRealtimeStatus());
+  // Phase 3: Latency monitoring - Modern hook-based approach
+  const {
+    latencyReport,
+    latencyStatus,
+    recordMetrics: recordLatencyMetrics,
+  } = useLatencyMonitor(300); // 300ms target
 
   // NEW: MediaStream state for waveform visualization
   const [currentStream, setCurrentStream] = useState<MediaStream | null>(null);
@@ -195,12 +197,23 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   // NEW REFACTORED METHODS - Core functionality
 
-  // Audio engine initialization - NO-OP since useMurmubaraEngine handles it
+  // Audio engine initialization - Fully integrated with useMurmubaraEngine
   const initializeAudioEngine = useCallback(async () => {
-    // The useMurmubaraEngine hook handles initialization internally
-    // We just mark it as initialized for our state tracking
-    setIsEngineInitialized(true);
-    setEngineError(null);
+    try {
+      // The useMurmubaraEngine hook handles initialization internally
+      // We just mark it as initialized for our state tracking
+      setIsEngineInitialized(true);
+      setEngineError(null);
+      
+      if (DEBUG_MODE) {
+        console.log('[useSusurro] Audio engine initialized via useMurmubaraEngine');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Engine initialization failed';
+      setEngineError(errorMsg);
+      setIsEngineInitialized(false);
+      throw error;
+    }
   }, []);
 
   // VAD analysis helper
@@ -451,10 +464,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
             audioSize: chunk.blob?.size,
           };
 
-          latencyMonitor.recordMetrics(latencyMetrics);
+          recordLatencyMetrics(latencyMetrics);
 
-          // Update real-time status
-          setLatencyStatus(latencyMonitor.getRealtimeStatus());
+          // Real-time status is automatically updated by the hook
         }
 
         // Add to conversational chunks state
@@ -620,7 +632,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         // 3. Process with Murmuraba (noise reduction + VAD)
         const processedResult = await murmubaraProcess(
           originalBuffer,
-          (metrics: MurmurabaProcessingMetrics) => {
+          (_metrics: MurmurabaProcessingMetrics) => {
             // Callback for real-time metrics if needed
             if (DEBUG_MODE) {
               // Processing metrics
@@ -860,23 +872,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     }
   }, [conversational, conversationalChunks.length, cleanupOldChunks]);
 
-  // Phase 3: Update latency reports periodically
-  useEffect(() => {
-    const updateLatencyReport = () => {
-      setLatencyReport(latencyMonitor.generateReport());
-      setLatencyStatus(latencyMonitor.getRealtimeStatus());
-    };
-
-    // Update every 10 seconds for real-time monitoring
-    const interval = setInterval(updateLatencyReport, 10000);
-
-    return () => clearInterval(interval);
-  }, []);
+  // Phase 3: Latency reports are now handled automatically by the useLatencyMonitor hook
 
   // NEW: Auto-initialize audio engine when Whisper is ready
   useEffect(() => {
     if (whisperReady && !isEngineInitialized && !isInitializingEngine && !engineError) {
-      initializeAudioEngine().catch((error) => {
+      initializeAudioEngine().catch((_error) => {
         // Don't throw - allow manual initialization
       });
     }

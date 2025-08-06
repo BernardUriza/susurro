@@ -1,2 +1,1 @@
-export { useScrollAnimation, scrollAnimations } from './useScrollAnimation';
-export { useVirtualScroll, useSmoothScroll } from './useVirtualScroll';
+// Only keep active hooks - removed unused scroll and animation hooks

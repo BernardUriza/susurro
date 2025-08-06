@@ -1,4 +1,12 @@
-// Cache Manager for Transformers.js models
+/**
+ * @deprecated This singleton pattern has been replaced with hook-based architecture.
+ * Use useModelCache hook instead of this manager.
+ * This file will be removed in a future version.
+ * 
+ * Migration: Replace cacheManager usage with useModelCache hook.
+ */
+
+// DEPRECATED: Cache Manager for Transformers.js models
 // Uses multiple storage strategies for maximum persistence
 
 interface CacheStatus {

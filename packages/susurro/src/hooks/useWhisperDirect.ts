@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { WhisperConfig, TranscriptionResult, UseWhisperReturn } from '../lib/types';
+import { useModelCache } from './useModelCache';
 import type {
   Pipeline,
   TransformersModule,
@@ -9,7 +10,6 @@ import type {
   WhisperProgress,
   WhisperOutput,
 } from '../lib/whisper-types';
-import { cacheManager } from '../lib/cache-manager';
 import {
   AlertService,
   ToastService,
@@ -152,48 +152,61 @@ class RetryManager {
   }
 }
 
-// Singleton pattern for Whisper pipeline
-class WhisperPipelineSingleton {
-  static task = 'automatic-speech-recognition' as const;
-  static model = 'whisper-tiny'; // Use local model identifier
-  static fallbackModels = ['Xenova/whisper-base.en', 'Xenova/whisper-small.en']; // Fallback options
-  static currentCDNIndex = 0;
-  static instance: Pipeline | null = null;
-  static pipeline: TransformersModule['pipeline'] | null = null;
-  static env: TransformersEnvironment | null = null;
-  static isLoading: boolean = false;
-  static loadingPromise: Promise<Pipeline> | null = null;
-  static currentModel: string | null = null;
-  static isFirewalled: boolean | null = null;
-  static originalFetch: typeof fetch;
+// Modern hook-based Whisper pipeline management
+interface WhisperPipelineState {
+  instance: Pipeline | null;
+  pipeline: TransformersModule['pipeline'] | null;
+  env: TransformersEnvironment | null;
+  isLoading: boolean;
+  loadingPromise: Promise<Pipeline> | null;
+  currentModel: string | null;
+  isFirewalled: boolean | null;
+  originalFetch: typeof fetch;
+}
 
-  // Force reset singleton state - fixes cache issues
-  static resetInstance(): void {
-    log.info('🔄 FORCE RESET: Clearing all singleton state to fix cache issues');
-    this.instance = null;
-    this.isLoading = false;
-    this.loadingPromise = null;
-    this.currentModel = null;
-    this.pipeline = null;
-    this.env = null;
+class WhisperPipelineManager {
+  private state: WhisperPipelineState = {
+    instance: null,
+    pipeline: null,
+    env: null,
+    isLoading: false,
+    loadingPromise: null,
+    currentModel: null,
+    isFirewalled: null,
+    originalFetch: globalThis.fetch
+  };
+  
+  private readonly task = 'automatic-speech-recognition' as const;
+  private readonly model = 'whisper-tiny';
+  private readonly fallbackModels = ['Xenova/whisper-base.en', 'Xenova/whisper-small.en'];
+
+  // Reset pipeline state - used when switching models or on errors
+  resetInstance(): void {
+    log.info('🔄 RESET: Clearing pipeline state for fresh initialization');
+    this.state.instance = null;
+    this.state.isLoading = false;
+    this.state.loadingPromise = null;
+    this.state.currentModel = null;
+    this.state.pipeline = null;
+    this.state.env = null;
   }
 
-  private static async configureEnvironment(): Promise<void> {
-    if (!this.env) return;
+  private async configureEnvironment(): Promise<void> {
+    if (!this.state.env) return;
 
     log.info('Configuring environment...');
     log.info('Initial env state:', {
-      allowLocalModels: this.env.allowLocalModels,
-      remoteURL: this.env.remoteURL,
-      backends: this.env.backends ? Object.keys(this.env.backends) : [],
+      allowLocalModels: this.state.env.allowLocalModels,
+      remoteURL: this.state.env.remoteURL,
+      backends: this.state.env.backends ? Object.keys(this.state.env.backends) : [],
     });
 
     // Configure environment for local model loading
-    this.env.allowLocalModels = true;
-    this.env.allowRemoteModels = true;
+    this.state.env.allowLocalModels = true;
+    this.state.env.allowRemoteModels = true;
 
     // Store the original fetch reference (global interceptor is already set up)
-    this.originalFetch = originalGlobalFetch || window.fetch;
+    this.state.originalFetch = originalGlobalFetch || window.fetch;
 
     const hfToken = getHuggingFaceToken();
     if (hfToken) {
@@ -204,149 +217,107 @@ class WhisperPipelineSingleton {
 
     // Always use local models - they're already downloaded
     log.info('Using local model files from /models/whisper-tiny/');
-    this.env.remoteURL = '/models/';
-    this.env.allowLocalModels = true;
-    this.env.allowRemoteModels = false; // Prevent remote fetching
+    this.state.env.remoteURL = '/models/';
+    this.state.env.allowLocalModels = true;
+    this.state.env.allowRemoteModels = false; // Prevent remote fetching
 
-    this.isFirewalled = false;
+    this.state.isFirewalled = false;
 
     // @ts-expect-error - These properties might not exist in all versions
-    this.env.useCache = true;
+    this.state.env.useCache = true;
     // @ts-expect-error - useBrowserCache might not be in type definition
-    this.env.useBrowserCache = true;
+    this.state.env.useBrowserCache = true;
     // @ts-expect-error - cacheDir might not be in type definition
-    this.env.cacheDir = 'transformers-cache';
-
-    // originalFetch is already set above to avoid recursion
+    this.state.env.cacheDir = 'transformers-cache';
 
     // Configure ONNX backend with reliable WASM paths
-    if (this.env.backends) {
+    if (this.state.env.backends) {
       log.info('Configuring ONNX backend...');
-      this.env.backends.onnx = {
+      this.state.env.backends.onnx = {
         wasm: {
           wasmPaths: 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/',
         },
       };
       log.info('ONNX backend configured:', {
-        wasmPaths: this.env.backends.onnx.wasm.wasmPaths,
+        wasmPaths: this.state.env.backends.onnx.wasm.wasmPaths,
       });
     }
 
     log.info('Environment configuration complete:', {
-      allowLocalModels: this.env.allowLocalModels,
-      allowRemoteModels: this.env.allowRemoteModels,
-      remoteURL: this.env.remoteURL || 'default (Hugging Face)',
-      isFirewalled: this.isFirewalled,
+      allowLocalModels: this.state.env.allowLocalModels,
+      allowRemoteModels: this.state.env.allowRemoteModels,
+      remoteURL: this.state.env.remoteURL || 'default (Hugging Face)',
+      isFirewalled: this.state.isFirewalled,
     });
   }
 
-  // CDN fallback method commented out for now - not currently used
-  // private static async fetchWithCDNFallback(url: string, options?: RequestInit): Promise<Response> {
-  //   const cdnSources = this.isFirewalled
-  //     ? CDN_SOURCES.slice(1) // Skip HuggingFace if firewall detected
-  //     : CDN_SOURCES;
-
-  //   let lastError: Error | null = null;
-
-  //   for (const cdn of cdnSources) {
-  //     try {
-  //       // Transform URL to use alternative CDN
-  //       let transformedUrl = url;
-  //       if (url.includes('huggingface.co')) {
-  //         const modelPath = url.split('huggingface.co/')[1];
-  //         transformedUrl = `${cdn.baseUrl}/${modelPath}`;
-  //       }
-
-  //       log.info(`Attempting to fetch from ${cdn.name}:`, transformedUrl);
-
-  //       const response = await RetryManager.withRetry(
-  //         async () => {
-  //           const fetchToUse = this.originalFetch || globalThis.fetch;
-  //           return await fetchToUse(transformedUrl, options);
-  //         },
-  //         2,
-  //         1000
-  //       );
-
-  //       log.info(`Successfully fetched from ${cdn.name}`);
-  //       return response;
-  //     } catch (error) {
-  //       lastError = error instanceof Error ? error : new Error(String(error));
-  //       log.warn(`Failed to fetch from ${cdn.name}:`, lastError.message);
-  //       continue;
-  //     }
-  //   }
-
-  //   throw lastError || new Error('All CDN sources failed');
-  // }
-
-  static async getInstance(
+  async getInstance(
     progress_callback: ((progress: WhisperProgress) => void) | null = null,
     model?: string
   ): Promise<Pipeline> {
     // Force use the correct model
-    const modelToUse = this.model; // Always use the static model
+    const modelToUse = this.model; // Always use the configured model
     
     log.info('getInstance called');
     log.info('Current state:', {
-      hasInstance: !!this.instance,
-      isLoading: this.isLoading,
-      currentModel: this.currentModel,
+      hasInstance: !!this.state.instance,
+      isLoading: this.state.isLoading,
+      currentModel: this.state.currentModel,
       requestedModel: modelToUse,
     });
 
     // FORCE RESET - clear any cached state that might have wrong model
-    if (this.currentModel && this.currentModel !== modelToUse) {
-      log.info('🔄 Model mismatch detected, forcing reset:', this.currentModel, '->', modelToUse);
+    if (this.state.currentModel && this.state.currentModel !== modelToUse) {
+      log.info('🔄 Model mismatch detected, forcing reset:', this.state.currentModel, '->', modelToUse);
       this.resetInstance();
     }
     
     // Also reset if we have any lingering Xenova model
-    if (this.currentModel && this.currentModel.includes('Xenova')) {
-      log.info('🔄 Xenova model detected, forcing reset to onnx-community:', this.currentModel);
+    if (this.state.currentModel && this.state.currentModel.includes('Xenova')) {
+      log.info('🔄 Xenova model detected, forcing reset to onnx-community:', this.state.currentModel);
       this.resetInstance();
     }
 
     // If already loaded, return immediately
-    if (this.instance) {
+    if (this.state.instance) {
       log.info('Model already loaded, returning existing instance');
-      return this.instance;
+      return this.state.instance;
     }
 
     // If currently loading, wait for the existing loading promise
-    if (this.isLoading && this.loadingPromise) {
+    if (this.state.isLoading && this.state.loadingPromise) {
       log.info('Model is currently loading, waiting for existing promise');
-      return this.loadingPromise;
+      return this.state.loadingPromise;
     }
 
-    // Always use our static model (ignore passed model parameter)
+    // Always use our configured model (ignore passed model parameter)
     const modelToLoad = this.model;
     log.info('Preparing to load model:', modelToLoad);
 
     // Start loading
     log.info('Starting model loading process');
-    this.isLoading = true;
-    this.loadingPromise = this.loadInstance(progress_callback, modelToLoad);
+    this.state.isLoading = true;
+    this.state.loadingPromise = this.loadInstance(progress_callback, modelToLoad);
 
     try {
       const startTime = performance.now();
-      this.instance = await this.loadingPromise;
+      this.state.instance = await this.state.loadingPromise;
       const loadTime = performance.now() - startTime;
       log.info(`Model loaded successfully in ${loadTime.toFixed(2)}ms`);
-      this.currentModel = modelToLoad;
-      return this.instance;
+      this.state.currentModel = modelToLoad;
+      return this.state.instance;
     } finally {
-      this.isLoading = false;
+      this.state.isLoading = false;
     }
   }
 
-  private static async loadInstance(
+  private async loadInstance(
     progress_callback: ((progress: WhisperProgress) => void) | null = null,
     model: string
   ): Promise<Pipeline> {
     log.info('loadInstance called with model:', model);
 
-    if (!this.pipeline) {
+    if (!this.state.pipeline) {
       log.info('Pipeline not initialized, importing @xenova/transformers...');
       const importStart = performance.now();
 
@@ -370,27 +341,18 @@ class WhisperPipelineSingleton {
         envKeys: transformers.env ? Object.keys(transformers.env) : [],
       });
 
-      this.pipeline = transformers.pipeline as any;
-      this.env = transformers.env as any;
+      this.state.pipeline = transformers.pipeline as any;
+      this.state.env = transformers.env as any;
 
-      if (this.env) {
+      if (this.state.env) {
         await this.configureEnvironment();
       }
     } else {
       log.info('Pipeline already initialized');
     }
 
-    // Check cache first
-    log.info('Checking cache status...');
-    const cacheCheckStart = performance.now();
-    const cacheStatus = await cacheManager.getCacheStatus();
-    const cacheCheckTime = performance.now() - cacheCheckStart;
-    log.info('Cache status checked in', cacheCheckTime.toFixed(2), 'ms:', cacheStatus);
-
-    // Request persistent storage for better caching
-    log.info('Requesting persistent storage...');
-    const storageResult = await cacheManager.requestPersistentStorage();
-    log.info('Persistent storage request result:', storageResult);
+    // Cache checking is now handled by the useModelCache hook
+    log.info('Cache management is handled by useModelCache hook');
 
     // Add timeout for model loading (3 minutes for better reliability)
     log.info('Setting up timeout promise (180 seconds)...');
@@ -401,7 +363,7 @@ class WhisperPipelineSingleton {
       }, 180000);
     });
 
-    if (!this.pipeline) {
+    if (!this.state.pipeline) {
       log.error('Pipeline not initialized after setup');
       throw new Error('Pipeline not initialized');
     }
@@ -410,7 +372,7 @@ class WhisperPipelineSingleton {
       task: this.task,
       model: model,
       quantized: true,
-      isFirewalled: this.isFirewalled,
+      isFirewalled: this.state.isFirewalled,
     });
 
     // Load model with enhanced error handling and CDN fallbacks
@@ -419,7 +381,7 @@ class WhisperPipelineSingleton {
 
       const loadPromise = RetryManager.withRetry(
         async () => {
-          return await this.pipeline!(this.task, model, {
+          return await this.state.pipeline!(this.task, model, {
             progress_callback: (progress: WhisperProgress) => {
               log.progress('Progress update:', {
                 status: progress.status,
@@ -436,7 +398,7 @@ class WhisperPipelineSingleton {
             retries: 3,
           } as any);
         },
-        this.isFirewalled ? 5 : 3,
+        this.state.isFirewalled ? 5 : 3,
         2000
       ); // More retries if firewall detected
 
@@ -456,10 +418,10 @@ class WhisperPipelineSingleton {
       log.info('Instance type:', typeof result);
       log.info('Instance properties:', result ? Object.keys(result) : 'null');
 
-      this.instance = result as Pipeline;
+      this.state.instance = result as Pipeline;
       log.info('SUCCESS: Model loaded successfully');
 
-      return this.instance;
+      return this.state.instance;
     } catch (error) {
       log.error('Model loading failed after all attempts:', error);
 
@@ -483,6 +445,11 @@ class WhisperPipelineSingleton {
       throw error;
     }
   }
+
+  // Get current state for debugging
+  getState(): WhisperPipelineState {
+    return { ...this.state };
+  }
 }
 
 export interface UseWhisperDirectConfig extends WhisperConfig {
@@ -503,21 +470,33 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
   const [error, setError] = useState<Error | null>(null);
   const [modelReady, setModelReady] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
-  const [isLoadingFromCache] = useState(false);
+
+  // Hook-based cache management
+  const { cacheStatus, requestPersistentStorage } = useModelCache();
+  const [isLoadingFromCache] = useState(cacheStatus.hasCache);
 
   const pipelineRef = useRef<Pipeline | null>(null);
+  const pipelineManagerRef = useRef<WhisperPipelineManager | null>(null);
   const progressAlertRef = useRef<{
     close: () => void;
     update: (options: { message: string; progress: number }) => void;
   } | null>(null);
   const transcriptionQueueRef = useRef<Promise<TranscriptionResult | null>>(Promise.resolve(null));
 
+  // Initialize pipeline manager
+  useEffect(() => {
+    if (!pipelineManagerRef.current) {
+      pipelineManagerRef.current = new WhisperPipelineManager();
+    }
+  }, []);
+
   // Initialize Transformers.js
   useEffect(() => {
     const loadModel = async () => {
+      if (!pipelineManagerRef.current) return;
+      
       // Only show loading alert if not already loaded and not currently loading
-      const shouldShowAlert =
-        !WhisperPipelineSingleton.instance && !WhisperPipelineSingleton.isLoading;
+      const shouldShowAlert = !pipelineRef.current && !pipelineManagerRef.current.getState().isLoading;
 
       if (shouldShowAlert) {
         // Show loading alert
@@ -533,10 +512,11 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       onProgressLog?.('🚀 Iniciando carga del modelo Whisper...', 'info');
 
       try {
-        // const loadStartTime = performance.now();
-
+        // Request persistent storage for better caching
+        await requestPersistentStorage();
+        
         // Get pipeline instance with progress callback and model
-        pipelineRef.current = await WhisperPipelineSingleton.getInstance(
+        pipelineRef.current = await pipelineManagerRef.current.getInstance(
           (progress: WhisperProgress) => {
             const percent = progress.progress || 0;
             const status = progress.status || 'downloading';
@@ -569,8 +549,6 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
           },
           whisperConfig.model
         );
-
-        // const loadEndTime = performance.now();
 
         setModelReady(true);
         setLoadingProgress(100);
@@ -643,8 +621,8 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
     };
 
     // Check if model is already loaded
-    if (WhisperPipelineSingleton.instance) {
-      pipelineRef.current = WhisperPipelineSingleton.instance;
+    if (pipelineManagerRef.current?.getState().instance) {
+      pipelineRef.current = pipelineManagerRef.current.getState().instance;
       setModelReady(true);
       setLoadingProgress(100);
     } else if (!pipelineRef.current && typeof window !== 'undefined') {
@@ -692,8 +670,6 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
           const audioDataUrl = await audioToBase64(audioBlob);
 
           // Perform transcription
-          // const startTime = Date.now();
-
           const output: WhisperOutput = await pipelineRef.current(audioDataUrl, {
             chunk_length_s: 30,
             stride_length_s: 5,

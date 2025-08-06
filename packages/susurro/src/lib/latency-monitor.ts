@@ -285,5 +285,11 @@ export class LatencyMonitor {
   }
 }
 
-// Global singleton instance
+/**
+ * @deprecated This singleton instance has been replaced with hook-based architecture.
+ * Use useLatencyMonitor hook instead of this global instance.
+ * This export will be removed in a future version.
+ * 
+ * Migration: Replace latencyMonitor usage with useLatencyMonitor hook.
+ */
 export const latencyMonitor = new LatencyMonitor();

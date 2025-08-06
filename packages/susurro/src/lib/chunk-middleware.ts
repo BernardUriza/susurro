@@ -106,12 +106,12 @@ export class ChunkMiddlewarePipeline {
   private middlewares: ChunkMiddleware[] = [];
   private context: MiddlewareContext; // Used to store middleware execution context
 
-  constructor(_context: Partial<MiddlewareContext> = {}) {
+  constructor(context: Partial<MiddlewareContext> = {}) {
     this.context = {
       startTime: Date.now(),
       processingStage: 'pre-emit',
       metadata: {},
-      ..._context,
+      ...context,
     };
 
     // Register default middlewares

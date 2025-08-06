@@ -1,7 +1,13 @@
 /**
- * Global Audio Engine Manager
- * Singleton pattern to ensure only one engine instance exists
+ * @deprecated This singleton pattern has been replaced with hook-based architecture.
+ * Use useMurmubaraEngine hook directly instead of this manager.
+ * This file will be removed in a future version.
+ * 
+ * Migration: Replace audioEngineManager usage with useMurmubaraEngine hook.
  */
+
+// DEPRECATED: Global Audio Engine Manager
+// Singleton pattern to ensure only one engine instance exists
 
 import { 
   initializeAudioEngine as murmubaraInit, 
@@ -110,21 +116,7 @@ class AudioEngineManager {
     }
   }
   
-  private async forceDestroy(): Promise<void> {
-    try {
-      console.log('[AudioEngineManager] Force destroying any existing engine...');
-      await murmubaraDestroy();
-      this.isInitialized = false;
-      // Add small delay to ensure cleanup completes
-      await new Promise(resolve => setTimeout(resolve, 50));
-    } catch (error) {
-      // Ignore errors during force destroy
-      console.log('[AudioEngineManager] Force destroy completed (error ignored):', error);
-      this.isInitialized = false;
-      // Add small delay even on error
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-  }
+  // forceDestroy method removed - was never used
   
   async reset(): Promise<void> {
     console.log('[AudioEngineManager] Reset called');

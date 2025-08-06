@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useWhisperDirect } from './use-whisper-direct'; // Direct execution implementation
+import { useWhisper } from './use-whisper';
 import { useMurmubaraEngine } from './use-murmuraba-engine-stub';
 import type {
   AudioChunk,
@@ -11,7 +11,6 @@ import type {
   CompleteAudioResult,
   StreamingSusurroChunk,
   RecordingConfig,
-  AudioEngineConfig,
   VADAnalysisResult,
   AudioMetadata,
   VoiceSegment,
@@ -28,8 +27,7 @@ import { getModernVAD, destroyModernVAD } from '../lib/modern-vad';
 import { useLatencyMonitor } from './use-latency-monitor';
 import type { LatencyMetrics, LatencyReport } from '../lib/latency-monitor';
 
-// Debug mode for development
-const DEBUG_MODE = true;
+// Debug mode for development - removed unused variable
 
 // Helper function to convert URL to Blob - Used in chunk processing
 const urlToBlob = async (url: string): Promise<Blob> => {
@@ -82,7 +80,7 @@ export interface UseSusurroReturn {
 
   // NEW REFACTORED METHODS - useSusurro consolidation
   // Audio engine management
-  initializeAudioEngine: (config?: AudioEngineConfig) => Promise<void>;
+  initializeAudioEngine: () => Promise<void>;
   resetAudioEngine: () => Promise<void>;
   isEngineInitialized: boolean;
   engineError: string | null;
@@ -183,16 +181,15 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const streamingCallbackRef = useRef<((chunk: StreamingSusurroChunk) => void) | null>(null);
   const streamingSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
 
-  // Using direct Whisper implementation for better reliability
+  // Using simple Whisper implementation following HuggingFace tutorial
   const {
-    modelReady: whisperReady,
-    loadingProgress: whisperProgress,
+    isReady: whisperReady,
+    progress: whisperProgress,
     error: whisperError,
     transcribe: transcribeWhisperDirect,
-    // isTranscribing: whisperIsLoading,
-  } = useWhisperDirect({
+  } = useWhisper({
     language: whisperConfig?.language || 'es',
-    model: options.initialModel ? `Xenova/whisper-${options.initialModel}` as const : 'Xenova/whisper-tiny',
+    model: options.initialModel ? `Xenova/whisper-${options.initialModel}` : 'Xenova/whisper-tiny',
   });
 
   // Log progress updates
@@ -219,16 +216,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const transcribeWhisper = useCallback(async (audioData: Float32Array | Blob) => {
     setIsTranscribing(true);
     try {
-      // If audioData is Float32Array, convert to Blob
-      let blob: Blob;
-      if (audioData instanceof Blob) {
-        blob = audioData;
-      } else {
-        // Convert Float32Array to WAV blob
-        const buffer = audioData.buffer as ArrayBuffer;
-        blob = new Blob([buffer], { type: 'audio/wav' });
-      }
-      const result = await transcribeWhisperDirect(blob);
+      const result = await transcribeWhisperDirect(audioData);
       return result;
     } finally {
       setIsTranscribing(false);
@@ -240,12 +228,28 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // Audio engine initialization - Fully integrated with useMurmubaraEngine
   const initializeAudioEngine = useCallback(async () => {
     try {
-      // The useMurmubaraEngine hook handles initialization internally
-      // We just mark it as initialized for our state tracking
+      // Initialize audio engine
+      
+      // Import and initialize the global murmuraba engine
+      const { initializeAudioEngine: murmubaraInit } = await import('murmuraba');
+      
+      // Initialize the global engine with configuration
+      await murmubaraInit({
+        noiseReductionLevel: 'medium',
+        bufferSize: 1024,
+        algorithm: 'rnnoise',
+        logLevel: 'info',
+        autoCleanup: true,
+        useAudioWorklet: true,
+        // Add other config options as needed
+      });
+
+      // Audio engine initialized successfully
       setIsEngineInitialized(true);
       setEngineError(null);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Engine initialization failed';
+      // Engine initialization failed
       setEngineError(errorMsg);
       setIsEngineInitialized(false);
       throw error;
@@ -625,42 +629,49 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     initializeAudioEngine,
   ]);
 
-  // Convert Blob to Float32Array for Whisper pipeline
-  const blobToFloat32Array = useCallback(async (blob: Blob): Promise<Float32Array> => {
-    const arrayBuffer = await blob.arrayBuffer();
-    const audioContext = new AudioContext();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    
-    // Get first channel and convert to Float32Array
-    const audioData = audioBuffer.getChannelData(0);
-    audioContext.close();
-    
-    return audioData;
-  }, []);
+  // Removed blobToFloat32Array - not needed with new simple hook
 
-  // Enhanced transcription handler with conversational support
+  // Simplified transcription handler
   const transcribeWithWhisper = useCallback(
     async (blob: Blob): Promise<TranscriptionResult | null> => {
       try {
-        const audioData = await blobToFloat32Array(blob);
-        const result = await transcribeWhisper(audioData);
+        const result = await transcribeWhisper(blob);
         if (result) {
+          // Create TranscriptionResult format expected by the app
+          const transcriptionResult: TranscriptionResult = {
+            text: result.text,
+            chunkIndex: 0,
+            timestamp: Date.now(),
+            segments: result.chunks?.map((chunk, index) => ({
+              id: index,
+              seek: chunk.timestamp[0],
+              start: chunk.timestamp[0],
+              end: chunk.timestamp[1],
+              text: chunk.text,
+              tokens: [],
+              temperature: 0,
+              avg_logprob: 0,
+              compression_ratio: 0,
+              no_speech_prob: 0,
+            })),
+          };
+          
           // Add to main transcriptions
-          setTranscriptions((prev) => [...prev, result]);
+          setTranscriptions((prev) => [...prev, transcriptionResult]);
 
           // Handle conversational mode transcription
-          if (conversational?.onChunk && result.chunkIndex !== undefined) {
-            const chunk = audioChunks[result.chunkIndex];
+          if (conversational?.onChunk && transcriptionResult.chunkIndex !== undefined) {
+            const chunk = audioChunks[transcriptionResult.chunkIndex];
             if (chunk) {
               // Store transcription for this chunk
-              setChunkTranscriptions((prev) => new Map(prev).set(chunk.id, result.text));
+              setChunkTranscriptions((prev) => new Map(prev).set(chunk.id, transcriptionResult.text));
 
               // Try to emit chunk if audio is also ready
               tryEmitChunk(chunk);
             }
           }
 
-          return result;
+          return transcriptionResult;
         }
         return null;
       } catch (error) {
@@ -668,7 +679,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         return null;
       }
     },
-    [blobToFloat32Array, transcribeWhisper, conversational, audioChunks, tryEmitChunk]
+    [transcribeWhisper, conversational, audioChunks, tryEmitChunk]
   );
 
   // MAIN METHOD FOR FILES - Everything in one (defined after transcribeWithWhisper)
@@ -691,14 +702,39 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         // 2. Create URL for original audio
         const originalAudioUrl = URL.createObjectURL(file);
 
-        // 3. Process with Murmuraba (noise reduction + VAD)
-        const { processFileWithMetrics } = await loadMurmubaraProcessing();
+        // 3. Process with Murmuraba (noise reduction + VAD)  
+        const { processFileWithMetrics, getEngineStatus, initializeAudioEngine: murmubaraInit } = await loadMurmubaraProcessing();
+        
+        // Type cast to ensure TypeScript knows the correct return type
+        type ProcessFileWithMetricsResult = {
+          processedBuffer: ArrayBuffer;
+          metrics: ProcessingMetrics[];
+          averageVad: number;
+        };
+        
+        // Check if engine is initialized, if not initialize it
+        try {
+          const engineStatus = getEngineStatus ? getEngineStatus() : 'uninitialized';
+          if (engineStatus === 'uninitialized') {
+            // Engine not initialized, initializing now
+            if (murmubaraInit) {
+              await murmubaraInit({
+                noiseReductionLevel: 'medium',
+                bufferSize: 1024,
+                algorithm: 'rnnoise',
+                logLevel: 'info',
+                autoCleanup: true,
+                useAudioWorklet: true,
+              });
+            }
+          }
+        } catch (initError) {
+          // Engine status check failed, proceeding anyway
+        }
+
         const processedResult = await processFileWithMetrics(originalBuffer, () => {
           // Callback for real-time metrics if needed
-          if (DEBUG_MODE) {
-            // Processing metrics
-          }
-        });
+        }) as ProcessFileWithMetricsResult;
 
         // 4. Create URL for processed audio
         const processedBlob = new Blob([processedResult.processedBuffer], { type: 'audio/wav' });

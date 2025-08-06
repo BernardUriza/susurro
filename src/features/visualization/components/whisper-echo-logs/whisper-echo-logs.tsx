@@ -60,7 +60,12 @@ export const WhisperEchoLogs: React.FC<WhisperEchoLogsProps> = ({
               className={`${styles.logEntry} ${getLogTypeClass(log.type)}`}
             >
               <span className={styles.timestamp}>
-                [{log.timestamp.toLocaleTimeString()}]
+                [{log.timestamp.toLocaleTimeString('es-ES', { 
+                  hour12: false, 
+                  hour: '2-digit', 
+                  minute: '2-digit', 
+                  second: '2-digit' 
+                })}]
               </span>
               <span className={styles.message}>{log.message}</span>
             </div>

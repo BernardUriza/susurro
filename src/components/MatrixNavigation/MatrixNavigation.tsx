@@ -104,13 +104,24 @@ export const MatrixNavigation = ({ initialView = 'terminal' }: NavProps) => {
     setIsTransitioning(true);
     setCurrentView(viewKey);
     
+    // Log view change
+    const viewName = views[viewKey].title;
+    addWhisperLog(`🔀 Navegando a ${viewName}`, 'info');
+    
     // Simple transition timing
     setTimeout(() => setIsTransitioning(false), 200);
   };
 
   // Add initial system status log
   useEffect(() => {
-    addWhisperLog('System initialized - Monitoring Whisper model...', 'info');
+    addWhisperLog('👋 Bienvenido a Susurro Whisper AI', 'success');
+    addWhisperLog('🔄 Inicializando sistema de transcripción...', 'info');
+    
+    // Add system info after a short delay
+    setTimeout(() => {
+      addWhisperLog('🧠 Preparando modelo de IA para transcripción', 'info');
+      addWhisperLog('📡 Conectando con sistema de audio...', 'info');
+    }, 500);
   }, []);
 
   // Keyboard navigation

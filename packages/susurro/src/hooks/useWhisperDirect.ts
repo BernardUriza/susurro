@@ -530,7 +530,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
       }
 
       // Log initial loading state
-      onProgressLog?.('Initializing Whisper AI model...', 'info');
+      onProgressLog?.('🚀 Iniciando carga del modelo Whisper...', 'info');
 
       try {
         // const loadStartTime = performance.now();
@@ -548,11 +548,15 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
               return rounded !== Math.round(prev) ? rounded : prev;
             });
 
-            // Log detailed progress
+            // Log detailed progress with emojis
+            const emoji = status.includes('download') ? '📥' : 
+                         status.includes('progress') ? '⏳' : 
+                         status.includes('load') ? '🔄' : '📊';
+            
             if (percent > 0) {
-              onProgressLog?.(`${status} ${file}... ${Math.round(percent)}%`, 'info');
+              onProgressLog?.(`${emoji} Descargando ${file}... ${Math.round(percent)}%`, 'info');
             } else {
-              onProgressLog?.(`${status} ${file}...`, 'info');
+              onProgressLog?.(`${emoji} Preparando ${file}...`, 'info');
             }
 
             // Update progress alert
@@ -572,7 +576,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         setLoadingProgress(100);
 
         // Log success
-        onProgressLog?.('✓ Whisper model loaded successfully', 'success');
+        onProgressLog?.('✅ Modelo Whisper cargado exitosamente', 'success');
 
         // Close loading alert and show success only if we showed it
         if (progressAlertRef.current && shouldShowAlert) {
@@ -580,7 +584,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
           progressAlertRef.current = null;
 
           toastService.success('[AI_MODEL_READY] You can now start recording!');
-          onProgressLog?.('Ready for audio transcription', 'success');
+          onProgressLog?.('🎤 Sistema listo para transcripción de audio', 'success');
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load model';
@@ -612,7 +616,7 @@ export function useWhisperDirect(config: UseWhisperDirectConfig = {}): UseWhispe
         setError(new Error(errorMessage));
 
         // Log error
-        onProgressLog?.(`✗ Model loading failed: ${errorMessage}`, 'error');
+        onProgressLog?.(`❌ Error al cargar modelo: ${errorMessage}`, 'error');
 
         if (progressAlertRef.current) {
           progressAlertRef.current.close();

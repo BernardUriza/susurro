@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import styles from './MatrixRain.module.css';
+import styles from './matrix-rain.module.css';
 
 interface MatrixRainProps {
   density?: number;

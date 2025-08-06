@@ -1,1 +1,1 @@
-export { MatrixRain } from './MatrixRain';
+export { MatrixRain } from './matrix-rain';

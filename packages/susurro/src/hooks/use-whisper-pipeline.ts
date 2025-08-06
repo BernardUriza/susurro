@@ -1,185 +1,91 @@
 /**
- * useWhisperPipeline Hook
- * Clean implementation based on Hugging Face's react-translator pattern
- * Manages Web Worker for Whisper transcription
+ * Simplified useWhisperPipeline Hook
+ * Based on official Hugging Face examples
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-
-interface ProgressItem {
-  file: string;
-  progress: number;
-  loaded?: number;
-  total?: number;
-}
 
 interface UseWhisperPipelineOptions {
   onLog?: (message: string, type: 'info' | 'success' | 'warning' | 'error') => void;
   autoLoad?: boolean;
   language?: string;
+  initialModel?: 'tiny' | 'base' | 'small' | 'medium';
 }
 
 interface UseWhisperPipelineReturn {
-  // State
   ready: boolean;
   loading: boolean;
-  progressItems: ProgressItem[];
-  
-  // Methods
+  currentModel: string | null;
+  progress: number;
   transcribe: (audioData: Float32Array) => Promise<any>;
-  loadModel: () => void;
+  loadModel: (modelId?: 'tiny' | 'base' | 'small' | 'medium') => void;
 }
 
 export function useWhisperPipeline({
   onLog,
-  autoLoad = true,
-  language = 'es'
+  autoLoad = false,
+  language = 'es',
+  initialModel = 'tiny'
 }: UseWhisperPipelineOptions = {}): UseWhisperPipelineReturn {
-  // State
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [progressItems, setProgressItems] = useState<ProgressItem[]>([]);
+  const [currentModel, setCurrentModel] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   
-  // Refs
   const worker = useRef<Worker | null>(null);
   const messageId = useRef(0);
-  const pendingMessages = useRef(new Map<number, {
-    resolve: (value: any) => void;
-    reject: (error: any) => void;
-  }>());
-  
-  // Track last log time and percentage for throttling
-  const lastLogTime = useRef<{ [key: string]: number }>({});
-  const lastLogPercent = useRef<{ [key: string]: number }>({});
+  const pendingMessages = useRef(new Map());
 
   // Initialize worker
   useEffect(() => {
-    // Create worker if it doesn't exist
     if (!worker.current) {
-      onLog?.('🏗️ Creando Web Worker para Whisper Pipeline...', 'info');
-      
       worker.current = new Worker(
         new URL('../workers/whisper-pipeline.worker.js', import.meta.url),
         { type: 'module' }
       );
+
+      // Handle messages from worker
+      worker.current.onmessage = (e) => {
+        const { id, status, ...data } = e.data;
+        
+        // Handle response to specific message
+        if (id !== undefined && pendingMessages.current.has(id)) {
+          const { resolve, reject } = pendingMessages.current.get(id);
+          
+          if (status === 'error') {
+            reject(new Error(data.error));
+            onLog?.(`❌ Error: ${data.error}`, 'error');
+          } else if (status === 'loaded') {
+            setReady(true);
+            setLoading(false);
+            setCurrentModel(data.model);
+            setProgress(100);
+            onLog?.(`✅ Modelo ${data.model} cargado`, 'success');
+            resolve(data);
+          } else if (status === 'progress') {
+            const percent = Math.round(data.progress || 0);
+            setProgress(percent);
+            
+            // Log only significant progress updates
+            if (percent % 10 === 0 || percent === 100) {
+              onLog?.(`📥 ${data.file}: ${percent}%`, 'info');
+            }
+          } else if (status === 'complete') {
+            resolve(data.result);
+          }
+          
+          if (status === 'loaded' || status === 'complete' || status === 'error') {
+            pendingMessages.current.delete(id);
+          }
+        }
+      };
     }
 
-    // Message handler
-    const onMessageReceived = (e: MessageEvent) => {
-      const { id, status, ...data } = e.data;
-      
-      // Handle responses to specific messages
-      if (id !== undefined) {
-        const pending = pendingMessages.current.get(id);
-        if (pending) {
-          if (status === 'error') {
-            pending.reject(new Error(data.error));
-            onLog?.(`❌ Error: ${data.error}`, 'error');
-          } else {
-            pending.resolve({ status, ...data });
-          }
-          pendingMessages.current.delete(id);
-        }
-      }
-
-      // Handle status updates
-      switch (status) {
-        case 'worker_ready':
-          onLog?.('✅ Worker listo', 'success');
-          break;
-
-        case 'initiate':
-          // Model file start load
-          setLoading(true);
-          setProgressItems(prev => [...prev, { 
-            file: data.file, 
-            progress: 0,
-            loaded: data.loaded,
-            total: data.total
-          }]);
-          onLog?.(`📦 Iniciando descarga: ${data.file}`, 'info');
-          break;
-
-        case 'progress':
-          // Model file progress
-          setProgressItems(prev =>
-            prev.map(item => {
-              if (item.file === data.file) {
-                const percent = Math.round(data.progress || 0);
-                const now = Date.now();
-                const lastTime = lastLogTime.current[data.file] || 0;
-                const lastPercent = lastLogPercent.current[data.file] || 0;
-                
-                // Log only if:
-                // 1. 2+ seconds have passed since last log OR
-                // 2. Progress increased by 10% or more OR  
-                // 3. Reached 100%
-                const timeDiff = now - lastTime;
-                const percentDiff = percent - lastPercent;
-                
-                if (percent > 0 && (
-                  timeDiff >= 2000 || // 2 seconds
-                  percentDiff >= 10 || // 10% increment
-                  percent === 100 // Completed
-                )) {
-                  onLog?.(`📥 ${data.file}: ${percent}%`, 'info');
-                  lastLogTime.current[data.file] = now;
-                  lastLogPercent.current[data.file] = percent;
-                }
-                
-                return { 
-                  ...item, 
-                  progress: data.progress,
-                  loaded: data.loaded,
-                  total: data.total
-                };
-              }
-              return item;
-            })
-          );
-          break;
-
-        case 'done':
-          // Model file loaded
-          setProgressItems(prev =>
-            prev.filter(item => item.file !== data.file)
-          );
-          onLog?.(`✅ Cargado: ${data.file}`, 'success');
-          break;
-
-        case 'ready':
-          // Pipeline ready
-          setReady(true);
-          setLoading(false);
-          onLog?.('🎤 Modelo Whisper listo para transcripción', 'success');
-          break;
-
-        case 'loaded':
-          // Model fully loaded
-          setReady(true);
-          setLoading(false);
-          setProgressItems([]);
-          onLog?.('✅ Modelo completamente cargado', 'success');
-          break;
-
-        case 'transcribe_start':
-          onLog?.('🎙️ Iniciando transcripción...', 'info');
-          break;
-
-        case 'transcribe_complete':
-          if (data.result?.text) {
-            onLog?.(`✅ Transcripción: "${data.result.text}"`, 'success');
-          }
-          break;
-      }
-    };
-
-    // Attach event listener
-    worker.current.addEventListener('message', onMessageReceived);
-
-    // Cleanup
     return () => {
-      worker.current?.removeEventListener('message', onMessageReceived);
+      if (worker.current) {
+        worker.current.terminate();
+        worker.current = null;
+      }
     };
   }, [onLog]);
 
@@ -193,40 +99,42 @@ export function useWhisperPipeline({
 
       const id = messageId.current++;
       pendingMessages.current.set(id, { resolve, reject });
-
-      // Set timeout
+      worker.current.postMessage({ id, type, data });
+      
+      // Timeout after 2 minutes
       setTimeout(() => {
         if (pendingMessages.current.has(id)) {
           pendingMessages.current.delete(id);
-          reject(new Error(`Worker timeout for ${type}`));
+          reject(new Error('Worker timeout'));
         }
-      }, 60000); // 60 second timeout for model loading
-
-      worker.current.postMessage({ id, type, data });
+      }, 120000);
     });
   }, []);
 
   // Load model
-  const loadModel = useCallback(() => {
-    if (loading || ready) {
-      onLog?.('⚠️ Modelo ya cargado o cargando', 'warning');
+  const loadModel = useCallback((modelId: 'tiny' | 'base' | 'small' | 'medium' = initialModel) => {
+    if (loading) return;
+    if (ready && currentModel === modelId) {
+      onLog?.(`⚠️ Modelo ${modelId} ya cargado`, 'warning');
       return;
     }
 
-    setLoading(true); // Set loading immediately to prevent duplicate calls
-    onLog?.('🚀 Iniciando carga del modelo Whisper...', 'info');
-    sendMessage('load').catch(error => {
-      onLog?.(`❌ Error al cargar modelo: ${error.message}`, 'error');
+    setLoading(true);
+    setProgress(0);
+    onLog?.(`🚀 Cargando modelo ${modelId}...`, 'info');
+    
+    sendMessage('load', { model: modelId }).catch(error => {
       setLoading(false);
+      onLog?.(`❌ Error: ${error.message}`, 'error');
     });
-  }, [loading, ready, sendMessage, onLog]);
+  }, [loading, ready, currentModel, initialModel, sendMessage, onLog]);
 
   // Auto-load on mount if enabled
   useEffect(() => {
-    if (autoLoad && !ready && !loading) {
-      loadModel();
+    if (autoLoad && !ready && !loading && !currentModel) {
+      loadModel(initialModel);
     }
-  }, [autoLoad, ready, loading, loadModel]);
+  }, [autoLoad, ready, loading, currentModel, initialModel, loadModel]);
 
   // Transcribe audio
   const transcribe = useCallback(async (audioData: Float32Array): Promise<any> => {
@@ -234,28 +142,21 @@ export function useWhisperPipeline({
       throw new Error('Model not ready');
     }
 
-    try {
-      const response = await sendMessage('transcribe', { 
-        audio: audioData,
-        language 
-      });
-      
-      if (response.status === 'transcribe_complete') {
-        return response.result;
-      }
-      
-      throw new Error('Transcription failed');
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      onLog?.(`❌ Error en transcripción: ${errorMsg}`, 'error');
-      throw error;
+    onLog?.('🎙️ Transcribiendo...', 'info');
+    const result = await sendMessage('transcribe', { audio: audioData, language });
+    
+    if (result?.text) {
+      onLog?.(`✅ "${result.text}"`, 'success');
     }
+    
+    return result;
   }, [ready, language, sendMessage, onLog]);
 
   return {
     ready,
     loading,
-    progressItems,
+    currentModel,
+    progress,
     transcribe,
     loadModel
   };

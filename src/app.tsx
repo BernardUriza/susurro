@@ -1,20 +1,34 @@
 // React and external libraries
+import { useState } from 'react';
 
 // Relative imports - components
 import { MatrixNavigation } from './components/MatrixNavigation';
 import { MatrixRain } from './components/MatrixRain';
+import { ModelSelector } from './components/ModelSelector';
 
 function App() {
+  const [selectedModel, setSelectedModel] = useState<'tiny' | 'base' | 'medium' | null>(null);
+
   return (
     <div style={{ position: 'relative', width: '100%', minHeight: '100vh', background: '#000000' }}>
-      <MatrixRain 
-        density={50}
-        speed={50}
-        opacity={0.08}
-        fontSize={16}
-        color='#00ff41'
-      />
-      <MatrixNavigation />
+      {!selectedModel ? (
+        <ModelSelector 
+          onModelSelect={(modelId) => {
+            setSelectedModel(modelId);
+          }}
+        />
+      ) : (
+        <>
+          <MatrixRain 
+            density={50}
+            speed={50}
+            opacity={0.08}
+            fontSize={16}
+            color='#00ff41'
+          />
+          <MatrixNavigation initialModel={selectedModel} />
+        </>
+      )}
     </div>
   );
 }

@@ -1,133 +1,116 @@
 import { pipeline, env } from '@xenova/transformers';
 
+// Disable local models - always use Hugging Face CDN
+env.allowLocalModels = false;
+env.allowRemoteModels = true;
+
 /**
- * Singleton Whisper Pipeline
- * Based on Hugging Face's react-translator example
- * Ensures only one instance of the pipeline is loaded
+ * Simplified Whisper Pipeline based on official Hugging Face examples
+ * Manages multiple model instances dynamically
  */
-class WhisperPipeline {
+class WhisperPipelineFactory {
   static task = 'automatic-speech-recognition';
-  static model = 'Xenova/whisper-tiny';
+  static models = {
+    'tiny': 'Xenova/whisper-tiny',
+    'base': 'Xenova/whisper-base', 
+    'small': 'Xenova/whisper-small',
+    'medium': 'Xenova/whisper-medium'
+  };
+  
   static instance = null;
+  static currentModel = null;
 
-  static async getInstance(progress_callback = null) {
-    if (this.instance === null) {
-      // Configure environment for local models
-      env.allowLocalModels = true;
-      env.allowRemoteModels = false;
-      env.localURL = '/models/';
-      env.remoteURL = '/models/';
-      
-      // Configure backends
-      env.backends.onnx = {
-        wasm: {
-          wasmPaths: 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/',
-          numThreads: 2,
-        }
-      };
-
-      // Create pipeline with progress callback
-      this.instance = await pipeline(this.task, this.model, {
-        quantized: false,
-        device: 'wasm',
-        local_files_only: true,
-        progress_callback,
-      });
+  static async getInstance(modelId = 'tiny', progress_callback = null) {
+    const modelName = this.models[modelId];
+    
+    if (!modelName) {
+      throw new Error(`Unknown model: ${modelId}`);
     }
+
+    // Return existing instance if same model
+    if (this.instance && this.currentModel === modelName) {
+      return this.instance;
+    }
+
+    // Clear previous instance if switching models
+    if (this.instance && this.currentModel !== modelName) {
+      this.instance = null;
+    }
+
+    // Create new pipeline instance
+    this.currentModel = modelName;
+    this.instance = pipeline(this.task, modelName, {
+      quantized: true,
+      progress_callback,
+      // Use CDN for model files
+      revision: 'main',
+    });
+
     return this.instance;
   }
 }
 
-// Track if model is being loaded
-let isLoading = false;
-
-// Listen for messages from the main thread
+// Handle messages from main thread
 self.addEventListener('message', async (event) => {
   const { id, type, data } = event.data;
 
-  // Helper to send messages back
-  const reply = (status, payload = {}) => {
-    self.postMessage({ id, status, ...payload });
-  };
-
   try {
     switch (type) {
-      case 'load':
-        if (isLoading) {
-          reply('error', { error: 'Model is already loading' });
-          return;
-        }
-
-        isLoading = true;
+      case 'load': {
+        const modelId = data?.model || 'tiny';
         
-        // Get the pipeline instance with progress tracking
-        await WhisperPipeline.getInstance((progress) => {
-          // Send progress updates to main thread
-          if (progress.status === 'progress') {
-            reply('progress', {
-              file: progress.file,
-              progress: progress.progress || 0,
-              loaded: progress.loaded,
-              total: progress.total,
-            });
-          } else if (progress.status === 'ready') {
-            reply('ready');
-          } else if (progress.status === 'initiate') {
-            reply('initiate', {
-              file: progress.file,
-              loaded: 0,
-              total: progress.total || 0,
-            });
-          } else if (progress.status === 'done') {
-            reply('done', { file: progress.file });
-          }
+        // Load the model with progress tracking
+        await WhisperPipelineFactory.getInstance(modelId, (progress) => {
+          self.postMessage({
+            id,
+            status: 'progress',
+            file: progress.file,
+            progress: progress.progress || 0,
+            loaded: progress.loaded,
+            total: progress.total,
+            model: modelId
+          });
         });
 
-        isLoading = false;
-        reply('loaded');
+        self.postMessage({
+          id,
+          status: 'loaded',
+          model: modelId
+        });
         break;
+      }
 
-      case 'transcribe':
-        const transcriber = await WhisperPipeline.getInstance();
+      case 'transcribe': {
+        const transcriber = await WhisperPipelineFactory.getInstance();
         
         if (!transcriber) {
-          reply('error', { error: 'Model not loaded' });
-          return;
+          throw new Error('Model not loaded');
         }
 
-        // Send start signal
-        reply('transcribe_start');
-
         // Perform transcription
-        const result = await transcriber(data.audio, {
+        const output = await transcriber(data.audio, {
           language: data.language || 'spanish',
           task: 'transcribe',
           chunk_length_s: 30,
           return_timestamps: true,
         });
 
-        // Send result
-        reply('transcribe_complete', { result });
-        break;
-
-      case 'status':
-        reply('status', {
-          loaded: WhisperPipeline.instance !== null,
-          loading: isLoading,
+        self.postMessage({
+          id,
+          status: 'complete',
+          result: output
         });
         break;
+      }
 
       default:
-        reply('error', { error: `Unknown message type: ${type}` });
+        throw new Error(`Unknown message type: ${type}`);
     }
   } catch (error) {
-    console.error('Worker error:', error);
-    reply('error', { 
-      error: error.message || 'Unknown error occurred',
-      stack: error.stack 
+    self.postMessage({
+      id,
+      status: 'error',
+      error: error.message
     });
   }
 });
-
-// Send ready signal
-self.postMessage({ status: 'worker_ready' });

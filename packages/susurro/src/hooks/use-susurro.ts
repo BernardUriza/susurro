@@ -187,11 +187,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const {
     ready: whisperReady,
     loading: whisperIsLoading,
-    progressItems,
+    progress: whisperProgress,
     transcribe: transcribeWhisperPipeline,
   } = useWhisperPipeline({
     language: whisperConfig?.language || 'es',
     autoLoad: true,
+    initialModel: options.initialModel || 'tiny',
     onLog: (message, type) => {
       // Send all logs to WhisperEchoLog
       if (onWhisperProgressLog) {
@@ -199,11 +200,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       }
     }
   });
-
-  // Calculate overall progress from progress items
-  const whisperProgress = progressItems.length > 0
-    ? Math.round(progressItems.reduce((acc, item) => acc + item.progress, 0) / progressItems.length)
-    : (whisperReady ? 100 : 0);
 
   // No error state in pipeline (handled internally)
   const whisperError = null;

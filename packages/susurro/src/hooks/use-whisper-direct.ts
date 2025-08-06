@@ -411,17 +411,14 @@ class WhisperPipelineManager {
               });
               if (progress_callback) progress_callback(progress);
             },
-            quantized: true,
-            dtype: {
-              encoder_model: 'fp32',
-              decoder_model_merged: 'q4', // 4-bit quantization for 6x speed boost
-            },
-            device: 'webgpu', // Prefer WebGPU for hardware acceleration
+            quantized: false, // Use non-quantized for local model
+            dtype: 'fp32', // Use fp32 for local model
+            device: 'wasm', // Use WASM for local model (WebGPU might not work with local files)
             revision: 'main',
             cache_dir: undefined, // Let transformers.js handle cache
-            local_files_only: false, // Allow downloading Distil-Whisper from HuggingFace
-            timeout: 180000, // Increase timeout for initial model download
-            retries: 3,
+            local_files_only: true, // ONLY use local files, no downloads
+            timeout: 30000, // Reduced timeout for local loading
+            retries: 1, // Less retries for local files
           } as any);
         },
         this.state.isFirewalled ? 5 : 3,

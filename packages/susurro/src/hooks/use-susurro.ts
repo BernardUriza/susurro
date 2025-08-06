@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWhisperDirect } from './use-whisper-direct';
+import { useWhisperHybrid } from './use-whisper-hybrid'; // New hybrid implementation
 import { useMurmubaraEngine } from 'murmuraba';
 import type {
   AudioChunk,
@@ -182,28 +183,35 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const streamingCallbackRef = useRef<((chunk: StreamingSusurroChunk) => void) | null>(null);
   const streamingSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
 
-  // Direct Whisper integration - no abstraction layer with callback debugging
+  // MIGRATION: Using hybrid implementation for gradual transition to Workers
+  // This will use Web Workers if supported, fallback to legacy otherwise
   const {
-    isTranscribing,
-    modelReady: whisperReady,
-    loadingProgress: whisperProgress,
+    isReady: whisperReady,
+    isLoading: whisperIsLoading,
+    progress: whisperProgress,
     error: whisperError,
     transcribe: transcribeWhisper,
-  } = useWhisperDirect({
-    language: whisperConfig?.language || 'en',
+  } = useWhisperHybrid({
+    useWorker: true, // Force worker mode for better performance
+    language: whisperConfig?.language || 'es',
     model: whisperConfig?.model,
+    autoLoad: true, // Auto-load model on mount
     onProgressLog: (message, type) => {
-      // Debug callback chain execution - development only
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[USESUSURRO_PROGRESS_CALLBACK]', { message, type, hasCallback: !!onWhisperProgressLog });
-      }
+      // Send all worker logs to WhisperEchoLog
       if (onWhisperProgressLog) {
         onWhisperProgressLog(message, type);
-      } else if (process.env.NODE_ENV === 'development') {
-        console.warn('[USESUSURRO_MISSING_CALLBACK]', 'onWhisperProgressLog not provided');
       }
     },
+    onProgress: (progress) => {
+      // Additional progress tracking if needed
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[WORKER_PROGRESS]', `${progress}%`);
+      }
+    }
   });
+  
+  // Track transcription state separately (for compatibility)
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   // NEW REFACTORED METHODS - Core functionality
 

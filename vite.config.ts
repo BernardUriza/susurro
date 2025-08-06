@@ -36,5 +36,15 @@ export default defineConfig({
   },
   worker: {
     format: 'es',
+    rollupOptions: {
+      output: {
+        // Ensure transformers.js is bundled in the worker
+        manualChunks: (id) => {
+          if (id.includes('@xenova/transformers')) {
+            return 'transformers-worker';
+          }
+        },
+      },
+    },
   },
 });

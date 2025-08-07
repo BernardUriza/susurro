@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whisper Model - Fetch Intercept Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .fetch-log {
+            background: #000;
+            padding: 5px;
+            margin: 2px 0;
+            border-left: 3px solid #0088ff;
+        }
+        .error { color: #ff0000; }
+        .success { color: #00ff00; }
+    </style>
+</head>
+<body>
+    <h1>Fetch Intercept Test - Whisper Model Loading</h1>
+    <div id="output"></div>
+    
+    <script type="module">
+        const output = document.getElementById('output');
+        const originalFetch = window.fetch;
+        
+        // Intercept all fetch calls to see what URLs are being requested
+        window.fetch = async function(...args) {
+            const url = args[0];
+            const div = document.createElement('div');
+            div.className = 'fetch-log';
+            div.textContent = `FETCH: ${url}`;
+            output.appendChild(div);
+            console.log('FETCH intercepted:', url);
+            
+            try {
+                const response = await originalFetch.apply(this, args);
+                const clonedResponse = response.clone();
+                
+                // Log response details
+                const statusDiv = document.createElement('div');
+                statusDiv.className = response.ok ? 'success' : 'error';
+                statusDiv.textContent = `  → Status: ${response.status}, Type: ${response.headers.get('content-type')}`;
+                output.appendChild(statusDiv);
+                
+                // If it's an error response and HTML, show what we got
+                if (!response.ok || response.headers.get('content-type')?.includes('text/html')) {
+                    const text = await clonedResponse.text();
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error';
+                    errorDiv.textContent = `  → HTML Response (first 200 chars): ${text.substring(0, 200)}`;
+                    output.appendChild(errorDiv);
+                }
+                
+                return response;
+            } catch (error) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.textContent = `  → FETCH ERROR: ${error.message}`;
+                output.appendChild(errorDiv);
+                throw error;
+            }
+        };
+        
+        async function testModelLoading() {
+            const titleDiv = document.createElement('div');
+            titleDiv.innerHTML = '<br><strong>=== Starting Model Load Test ===</strong><br>';
+            output.appendChild(titleDiv);
+            
+            try {
+                const { pipeline, env } = await import('@xenova/transformers');
+                
+                // Try different configurations
+                console.log('Testing configuration 1: localModelPath = /models/');
+                env.allowLocalModels = true;
+                env.allowRemoteModels = false;
+                env.localModelPath = '/models/';
+                env.useBrowserCache = false;
+                
+                const infoDiv = document.createElement('div');
+                infoDiv.innerHTML = '<br><strong>Loading model with localModelPath = /models/</strong><br>';
+                output.appendChild(infoDiv);
+                
+                const transcriber = await pipeline(
+                    'automatic-speech-recognition',
+                    'whisper-tiny',
+                    {
+                        progress_callback: (progress) => {
+                            if (progress.status) {
+                                console.log('Progress:', progress);
+                            }
+                        }
+                    }
+                );
+                
+                const successDiv = document.createElement('div');
+                successDiv.className = 'success';
+                successDiv.innerHTML = '<br><strong>✓ MODEL LOADED SUCCESSFULLY!</strong>';
+                output.appendChild(successDiv);
+                
+            } catch (error) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.innerHTML = `<br><strong>✗ Model loading failed:</strong><br>${error.message}`;
+                output.appendChild(errorDiv);
+                
+                // Try alternative configuration
+                const retryDiv = document.createElement('div');
+                retryDiv.innerHTML = '<br><strong>Trying alternative configuration...</strong><br>';
+                output.appendChild(retryDiv);
+                
+                try {
+                    const { pipeline, env } = await import('@xenova/transformers');
+                    
+                    // Try with Xenova CDN path format
+                    env.allowLocalModels = false;
+                    env.allowRemoteModels = true;
+                    env.remoteURL = 'http://localhost:3000/models/';
+                    env.useBrowserCache = false;
+                    
+                    const transcriber = await pipeline(
+                        'automatic-speech-recognition',
+                        'whisper-tiny'
+                    );
+                    
+                    const successDiv = document.createElement('div');
+                    successDiv.className = 'success';
+                    successDiv.innerHTML = '<br><strong>✓ Alternative config worked!</strong>';
+                    output.appendChild(successDiv);
+                    
+                } catch (error2) {
+                    const errorDiv2 = document.createElement('div');
+                    errorDiv2.className = 'error';
+                    errorDiv2.innerHTML = `<br><strong>✗ Alternative also failed:</strong><br>${error2.message}`;
+                    output.appendChild(errorDiv2);
+                }
+            }
+        }
+        
+        // Start the test
+        setTimeout(testModelLoading, 1000);
+    </script>
+</body>
+</html>

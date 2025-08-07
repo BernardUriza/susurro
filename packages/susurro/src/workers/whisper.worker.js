@@ -1,14 +1,15 @@
 import { pipeline, env } from '@xenova/transformers';
 
-// Configure environment for local models
+// Configure environment for local models ONLY - no network requests
 env.allowLocalModels = true;
-env.allowRemoteModels = true;
-env.remoteURL = 'https://huggingface.co/';
+env.allowRemoteModels = false; // Disable remote models to prevent CDN requests
+env.localModelPath = '/models/'; // Point to our local models directory
+env.useBrowserCache = false; // Disable browser cache to force local loading
 
-// Singleton pattern for Whisper pipeline - exactly as in HF tutorial
+// Singleton pattern for Whisper pipeline - using local models
 class WhisperPipeline {
   static task = 'automatic-speech-recognition';
-  static model = 'Xenova/whisper-tiny';
+  static model = 'whisper-tiny'; // Model name - will be resolved with localModelPath
   static instance = null;
 
   static async getInstance(progress_callback = null) {

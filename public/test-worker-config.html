@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Worker Configuration</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+        .error { color: #f00; }
+        .success { color: #0f0; }
+        .info { color: #ff0; }
+        pre { background: #000; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Testing Worker Configuration</h1>
+    <pre id="output"></pre>
+    
+    <script type="module">
+        const output = document.getElementById('output');
+        
+        function log(msg) {
+            output.textContent += msg + '\n';
+            console.log(msg);
+        }
+        
+        // Test 1: Create a worker with the exact same code
+        log('Creating test worker with same configuration as whisper.worker.js...\n');
+        
+        const workerCode = `
+            import { pipeline, env } from '@xenova/transformers';
+            
+            // Exact same configuration as whisper.worker.js
+            env.allowLocalModels = true;
+            env.allowRemoteModels = false;
+            env.localModelPath = '/models/';
+            env.useBrowserCache = false;
+            
+            self.addEventListener('message', async (event) => {
+                if (event.data.type === 'test') {
+                    try {
+                        self.postMessage({ status: 'starting' });
+                        
+                        // Log the configuration
+                        self.postMessage({ 
+                            status: 'config',
+                            config: {
+                                allowLocalModels: env.allowLocalModels,
+                                allowRemoteModels: env.allowRemoteModels,
+                                localModelPath: env.localModelPath,
+                                useBrowserCache: env.useBrowserCache
+                            }
+                        });
+                        
+                        // Try to create the pipeline
+                        const transcriber = await pipeline(
+                            'automatic-speech-recognition',
+                            'whisper-tiny',
+                            {
+                                progress_callback: (x) => {
+                                    self.postMessage({
+                                        status: 'progress',
+                                        detail: x
+                                    });
+                                }
+                            }
+                        );
+                        
+                        self.postMessage({ status: 'success' });
+                    } catch (error) {
+                        self.postMessage({ 
+                            status: 'error', 
+                            error: error.message,
+                            stack: error.stack
+                        });
+                    }
+                }
+            });
+        `;
+        
+        // Create blob URL for worker
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(blob);
+        
+        try {
+            const worker = new Worker(workerUrl, { type: 'module' });
+            
+            worker.addEventListener('message', (event) => {
+                const { status, config, detail, error, stack } = event.data;
+                
+                if (status === 'starting') {
+                    log('Worker: Starting model load...');
+                } else if (status === 'config') {
+                    log('Worker configuration:');
+                    log(JSON.stringify(config, null, 2));
+                } else if (status === 'progress') {
+                    log(`Progress: ${JSON.stringify(detail)}`);
+                } else if (status === 'success') {
+                    log('\n✓ SUCCESS! Model loaded in worker!');
+                } else if (status === 'error') {
+                    log(`\n✗ ERROR: ${error}`);
+                    if (stack) {
+                        log('\nStack trace:');
+                        log(stack);
+                    }
+                }
+            });
+            
+            worker.addEventListener('error', (event) => {
+                log(`\n✗ Worker error: ${event.message}`);
+            });
+            
+            // Start the test
+            worker.postMessage({ type: 'test' });
+            
+        } catch (error) {
+            log(`\n✗ Failed to create worker: ${error.message}`);
+        }
+        
+        // Also test directly in the main thread
+        log('\n\nTesting in main thread as well...\n');
+        
+        import('@xenova/transformers').then(async ({ pipeline, env }) => {
+            env.allowLocalModels = true;
+            env.allowRemoteModels = false;
+            env.localModelPath = '/models/';
+            env.useBrowserCache = false;
+            
+            try {
+                const transcriber = await pipeline(
+                    'automatic-speech-recognition',
+                    'whisper-tiny',
+                    {
+                        progress_callback: (x) => {
+                            log(`Main thread progress: ${JSON.stringify(x)}`);
+                        }
+                    }
+                );
+                log('\n✓ Main thread: Model loaded successfully!');
+            } catch (error) {
+                log(`\n✗ Main thread error: ${error.message}`);
+            }
+        });
+    </script>
+</body>
+</html>

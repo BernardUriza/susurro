@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWhisper } from './use-whisper';
-import { useMurmubaraEngine } from './use-murmuraba-engine-stub';
+import { useMurmubaraEngine } from 'murmuraba';
 import type {
   AudioChunk,
   ProcessingStatus,
@@ -61,7 +61,7 @@ export interface UseSusurroReturn {
   // Whisper-related properties
   whisperReady: boolean;
   whisperProgress: number;
-  whisperError: Error | null;
+  whisperError: Error | string | null;
   transcribeWithWhisper: (blob: Blob) => Promise<TranscriptionResult | null>;
   // Built-in export functions (Murmuraba v3)
   exportChunkAsWav: (chunkId: string) => Promise<Blob>;
@@ -119,7 +119,13 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     stopRecording: stopMurmurabaRecording,
     pauseRecording: pauseMurmurabaRecording,
     resumeRecording: resumeMurmurabaRecording,
-  } = useMurmubaraEngine({});
+    isInitialized: murmubaraInitialized,
+    initialize: initializeMurmuraba,
+    error: murmubaraError,
+    isLoading: murmubaraLoading,
+  } = useMurmubaraEngine({
+    autoInitialize: false, // Manual initialization for better control
+  });
 
   const exportChunkAsWav = useCallback(async () => {
     // TODO: Implement with murmuraba engine
@@ -150,7 +156,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // NEW REFACTORED STATE - Audio engine and file processing
   const [isEngineInitialized, setIsEngineInitialized] = useState(false);
   const [engineError, setEngineError] = useState<string | null>(null);
-  const [isInitializingEngine] = useState(false);
+  const [isInitializingEngine, setIsInitializingEngine] = useState(false);
   const [currentStreamingChunks, setCurrentStreamingChunks] = useState<StreamingSusurroChunk[]>([]);
   const [isStreamingRecording, setIsStreamingRecording] = useState(false);
 
@@ -189,15 +195,16 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     transcribe: transcribeWhisperDirect,
   } = useWhisper({
     language: whisperConfig?.language || 'es',
-    model: options.initialModel ? `Xenova/whisper-${options.initialModel}` : 'Xenova/whisper-tiny',
+    model: options.initialModel ? `whisper-${options.initialModel}` : 'whisper-tiny',
   });
 
   // Log progress updates
   useEffect(() => {
     if (onWhisperProgressLog && whisperProgress > 0) {
-      const message = whisperProgress < 100 
-        ? `Loading Whisper model... ${whisperProgress}%`
-        : 'Whisper model ready';
+      const message =
+        whisperProgress < 100
+          ? `Loading Whisper model... ${whisperProgress}%`
+          : 'Whisper model ready';
       onWhisperProgressLog(message, whisperProgress < 100 ? 'info' : 'success');
     }
   }, [whisperProgress, onWhisperProgressLog]);
@@ -205,56 +212,62 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // Log errors
   useEffect(() => {
     if (onWhisperProgressLog && whisperError) {
-      onWhisperProgressLog(whisperError.message, 'error');
+      onWhisperProgressLog(
+        typeof whisperError === 'string'
+          ? whisperError
+          : (whisperError as Error)?.message || 'Unknown error',
+        'error'
+      );
     }
   }, [whisperError, onWhisperProgressLog]);
-  
+
   // Track transcription state separately (for compatibility)
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   // Wrap transcribe method to set state
-  const transcribeWhisper = useCallback(async (audioData: Float32Array | Blob) => {
-    setIsTranscribing(true);
-    try {
-      const result = await transcribeWhisperDirect(audioData);
-      return result;
-    } finally {
-      setIsTranscribing(false);
-    }
-  }, [transcribeWhisperDirect]);
+  const transcribeWhisper = useCallback(
+    async (audioData: Float32Array | Blob) => {
+      setIsTranscribing(true);
+      try {
+        const result = await transcribeWhisperDirect(audioData);
+        return result;
+      } finally {
+        setIsTranscribing(false);
+      }
+    },
+    [transcribeWhisperDirect]
+  );
 
   // NEW REFACTORED METHODS - Core functionality
 
   // Audio engine initialization - Fully integrated with useMurmubaraEngine
   const initializeAudioEngine = useCallback(async () => {
     try {
-      // Initialize audio engine
-      
-      // Import and initialize the global murmuraba engine
-      const { initializeAudioEngine: murmubaraInit } = await import('murmuraba');
-      
-      // Initialize the global engine with configuration
-      await murmubaraInit({
-        noiseReductionLevel: 'medium',
-        bufferSize: 1024,
-        algorithm: 'rnnoise',
-        logLevel: 'info',
-        autoCleanup: true,
-        useAudioWorklet: true,
-        // Add other config options as needed
-      });
+      setIsInitializingEngine(true);
+      setEngineError(null);
+
+      // Check if we're in a browser environment
+      if (typeof window === 'undefined') {
+        throw new Error('Audio engine can only be initialized in browser environment');
+      }
+
+      // Use the murmuraba hook's initialize method
+      await initializeMurmuraba();
 
       // Audio engine initialized successfully
       setIsEngineInitialized(true);
       setEngineError(null);
+      console.log('✅ [useSusurro] Audio engine initialized successfully');
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Engine initialization failed';
-      // Engine initialization failed
+      console.error('❌ [useSusurro] Engine initialization failed:', errorMsg, error);
       setEngineError(errorMsg);
       setIsEngineInitialized(false);
       throw error;
+    } finally {
+      setIsInitializingEngine(false);
     }
-  }, []);
+  }, [initializeMurmuraba]);
 
   // VAD analysis helper with Modern Neural VAD
   const analyzeVAD = useCallback(async (buffer: ArrayBuffer): Promise<VADAnalysisResult> => {
@@ -655,7 +668,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
               no_speech_prob: 0,
             })),
           };
-          
+
           // Add to main transcriptions
           setTranscriptions((prev) => [...prev, transcriptionResult]);
 
@@ -664,7 +677,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
             const chunk = audioChunks[transcriptionResult.chunkIndex];
             if (chunk) {
               // Store transcription for this chunk
-              setChunkTranscriptions((prev) => new Map(prev).set(chunk.id, transcriptionResult.text));
+              setChunkTranscriptions((prev) =>
+                new Map(prev).set(chunk.id, transcriptionResult.text)
+              );
 
               // Try to emit chunk if audio is also ready
               tryEmitChunk(chunk);
@@ -702,16 +717,20 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         // 2. Create URL for original audio
         const originalAudioUrl = URL.createObjectURL(file);
 
-        // 3. Process with Murmuraba (noise reduction + VAD)  
-        const { processFileWithMetrics, getEngineStatus, initializeAudioEngine: murmubaraInit } = await loadMurmubaraProcessing();
-        
+        // 3. Process with Murmuraba (noise reduction + VAD)
+        const {
+          processFileWithMetrics,
+          getEngineStatus,
+          initializeAudioEngine: murmubaraInit,
+        } = await loadMurmubaraProcessing();
+
         // Type cast to ensure TypeScript knows the correct return type
         type ProcessFileWithMetricsResult = {
           processedBuffer: ArrayBuffer;
-          metrics: ProcessingMetrics[];
+          metrics: unknown[];
           averageVad: number;
         };
-        
+
         // Check if engine is initialized, if not initialize it
         try {
           const engineStatus = getEngineStatus ? getEngineStatus() : 'uninitialized';
@@ -732,9 +751,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           // Engine status check failed, proceeding anyway
         }
 
-        const processedResult = await processFileWithMetrics(originalBuffer, () => {
+        const processedResult = (await processFileWithMetrics(originalBuffer, () => {
           // Callback for real-time metrics if needed
-        }) as ProcessFileWithMetricsResult;
+        })) as ProcessFileWithMetricsResult;
 
         // 4. Create URL for processed audio
         const processedBlob = new Blob([processedResult.processedBuffer], { type: 'audio/wav' });
@@ -775,7 +794,14 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         throw new Error(`File processing failed: ${errorMessage}`);
       }
     },
-    [whisperReady, isEngineInitialized, initializeAudioEngine, transcribeWithWhisper, analyzeVAD, calculateDuration]
+    [
+      whisperReady,
+      isEngineInitialized,
+      initializeAudioEngine,
+      transcribeWithWhisper,
+      analyzeVAD,
+      calculateDuration,
+    ]
   );
 
   // Real-time chunk processing with hook pattern (Murmuraba v3 integration)
@@ -973,14 +999,48 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   // Phase 3: Latency reports are now handled automatically by the useLatencyMonitor hook
 
+  // Sync engine state with murmuraba hook state
+  useEffect(() => {
+    if (murmubaraInitialized && !isEngineInitialized && !isInitializingEngine) {
+      setIsEngineInitialized(true);
+      setEngineError(null);
+      console.log('✅ [useSusurro] Murmuraba engine synchronized as initialized');
+    } else if (murmubaraError && !engineError) {
+      setEngineError(murmubaraError);
+      setIsEngineInitialized(false);
+      console.error('❌ [useSusurro] Murmuraba error synchronized:', murmubaraError);
+    }
+  }, [
+    murmubaraInitialized,
+    murmubaraError,
+    isEngineInitialized,
+    isInitializingEngine,
+    engineError,
+  ]);
+
   // NEW: Auto-initialize audio engine when Whisper is ready
   useEffect(() => {
-    if (whisperReady && !isEngineInitialized && !isInitializingEngine && !engineError) {
-      initializeAudioEngine().catch(() => {
+    if (
+      whisperReady &&
+      !isEngineInitialized &&
+      !isInitializingEngine &&
+      !engineError &&
+      !murmubaraLoading
+    ) {
+      console.log('🚀 [useSusurro] Auto-initializing audio engine after Whisper is ready');
+      initializeAudioEngine().catch((error) => {
+        console.error('❌ [useSusurro] Auto-initialization failed:', error.message);
         // Don't throw - allow manual initialization
       });
     }
-  }, [whisperReady, isEngineInitialized, isInitializingEngine, engineError, initializeAudioEngine]);
+  }, [
+    whisperReady,
+    isEngineInitialized,
+    isInitializingEngine,
+    engineError,
+    murmubaraLoading,
+    initializeAudioEngine,
+  ]);
 
   // Auto-process chunks when ready
   useEffect(() => {

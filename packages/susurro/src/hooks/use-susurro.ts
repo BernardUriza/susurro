@@ -123,7 +123,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     isLoading: murmubaraLoading,
   } = useMurmubaraEngine({
     autoInitialize: false, // Manual initialization for better control
-    chunkDuration: chunkDurationMs / 1000, // Convert ms to seconds
+    // chunkDuration is set when calling startMurmurabaRecording
   });
 
   const exportChunkAsWav = useCallback(async () => {
@@ -381,10 +381,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
       // Configuration with defaults
       const recordingConfig = {
-        chunkDuration: config.chunkDuration || chunkDurationMs / 1000, // Use config or default (8s)
-        vadThreshold: config.vadThreshold || 0.5,
-        enableRealTimeTranscription: config.enableRealTimeTranscription ?? true,
-        enableNoiseReduction: config.enableNoiseReduction ?? true,
+        chunkDuration: config?.chunkDuration || chunkDurationMs / 1000, // Use config or default (8s)
+        vadThreshold: config?.vadThreshold || 0.5,
+        enableRealTimeTranscription: config?.enableRealTimeTranscription ?? true,
+        enableNoiseReduction: config?.enableNoiseReduction ?? true,
       };
 
       try {
@@ -820,7 +820,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           
           // Store and emit chunk
           setCurrentStreamingChunks((prev) => [...prev, streamingChunk]);
-          streamingCallbackRef.current(streamingChunk);
+          if (streamingCallbackRef.current) {
+            streamingCallbackRef.current(streamingChunk);
+          }
           
           // Update last processed index
           lastProcessedChunkIndexRef.current = chunks.length;

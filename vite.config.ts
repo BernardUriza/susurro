@@ -60,7 +60,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     target: ['es2020', 'chrome64', 'firefox67', 'safari12'],
-    chunkSizeWarningLimit: 850, // Allow larger chunks for vendor libraries (transformers.js and murmuraba)
+    chunkSizeWarningLimit: 1100, // Allow larger chunks for vendor libraries (transformers.js: 1068KB and murmuraba: 788KB)
     rollupOptions: {
       input: resolve(__dirname, 'index.html'),
       // Proper code-splitting configuration  

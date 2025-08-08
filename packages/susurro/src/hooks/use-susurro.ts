@@ -79,7 +79,7 @@ async function resampleTo16k(buffer: AudioBuffer): Promise<Float32Array> {
   return rendered.getChannelData(0).slice();
 }
 
-async function transcribeBlobWith(asr: unknown, blob: Blob, language: string) {
+async function transcribeBlobWith(asr: CallableFunction, blob: Blob, language: string) {
   const ab = await blob.arrayBuffer();
   const ctx = new AudioContext();
   const decoded = await ctx.decodeAudioData(ab);
@@ -219,7 +219,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const [whisperReady, setWhisperReady] = useState(false);
   const [whisperProgress, setWhisperProgress] = useState(0);
   const [whisperError, setWhisperError] = useState<Error | string | null>(null);
-  const asrRef = useRef<unknown>(null);
+  const asrRef = useRef<CallableFunction | null>(null);
 
   // Use the specific Xenova models that are known to work
   const modelMap: Record<string, string> = {
@@ -340,6 +340,14 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     isInitializingEngine,
     murmubaraLoading,
   ]);
+
+  // Move clearConversationalChunks declaration before resetAudioEngine
+  const clearConversationalChunks = useCallback(() => {
+    setConversationalChunks([]);
+    processedAudioUrls.current.clear();
+    chunkTranscriptions.current.clear();
+    chunkProcessingTimes.current.clear();
+  }, []);
 
   const resetAudioEngine = useCallback(async () => {
     if (recordingState.isRecording) stopMurmurabaRecording();
@@ -708,13 +716,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     }
   }, [audioChunks, recordingState.isRecording, whisperReady, processChunks, conversational]);
 
-  // — Limpieza —
-  const clearConversationalChunks = useCallback(() => {
-    setConversationalChunks([]);
-    processedAudioUrls.current.clear();
-    chunkTranscriptions.current.clear();
-    chunkProcessingTimes.current.clear();
-  }, []);
+  // — Limpieza — (already moved before resetAudioEngine)
 
   useEffect(() => {
     return () => {

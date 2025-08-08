@@ -54,9 +54,6 @@
     "node": ">=20.0.0",
     "npm": ">=9.0.0"
   },
-  "dependencies": {
-    "@xenova/transformers": "^2.17.2"
-  },
   "peerDependencies": {
     "@ricky0123/vad-web": ">=0.0.7",
     "murmuraba": ">=3.0.0",
@@ -80,5 +77,8 @@
   "homepage": "https://github.com/BernardUriza/susurro#readme",
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.7.1"
   }
 }

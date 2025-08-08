@@ -9,7 +9,7 @@ export const loadTransformers = async () => {
   const transformers = await import(
     /* webpackChunkName: "transformers-core" */
     /* webpackPreload: true */
-    '@xenova/transformers'
+    '@huggingface/transformers'
   );
 
   return transformers;
@@ -55,7 +55,7 @@ export const preloadCriticalDependencies = () => {
     import(
       /* webpackChunkName: "transformers-core" */
       /* webpackPrefetch: true */
-      '@xenova/transformers'
+      '@huggingface/transformers'
     ).catch(() => {
       // Ignore preload errors - will load when needed
     });

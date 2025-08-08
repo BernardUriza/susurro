@@ -50,7 +50,7 @@ export default defineConfig({
       'buffer', 
       'util', 
       'process',
-      '@xenova/transformers',
+      '@huggingface/transformers',
       'onnxruntime-web'
     ],
     esbuildOptions: {
@@ -60,7 +60,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     target: ['es2020', 'chrome64', 'firefox67', 'safari12'],
-    chunkSizeWarningLimit: 1100, // Allow larger chunks for vendor libraries (transformers.js: 1068KB and murmuraba: 788KB)
+    chunkSizeWarningLimit: 1400, // Allow larger chunks for vendor libraries (transformers.js v3: 1396KB and murmuraba: 788KB)
     rollupOptions: {
       input: resolve(__dirname, 'index.html'),
       // Proper code-splitting configuration  
@@ -72,7 +72,7 @@ export default defineConfig({
           }
           
           // Transformers.js and related ML libraries (loaded dynamically)
-          if (id.includes('@xenova/transformers') || id.includes('onnxruntime-web')) {
+          if (id.includes('@huggingface/transformers') || id.includes('onnxruntime-web')) {
             return 'vendor-transformers';
           }
           

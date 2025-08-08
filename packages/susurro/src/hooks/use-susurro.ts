@@ -19,40 +19,46 @@ import type {
 
 // —— Whisper thin wrapper (runtime download, 16k resample) ——
 const WHISPER_ENV = {
-  allowLocalModels: false,
   useBrowserCache: true,
   logLevel: 'error' as const,
 } as const;
 
 async function ensureASR(model: string, quantized: boolean, onProgress: (p: number) => void) {
   try {
-    // Import transformers.js with all its exports
-    const transformersModule = await import('@xenova/transformers');
+    // Import @huggingface/transformers v3
+    const transformersModule = await import('@huggingface/transformers');
 
     // Extract what we need
     const { pipeline, env } = transformersModule;
 
-    // Configure transformers environment safely
+    // Configure transformers v3 environment
     if (env) {
-      env.allowLocalModels = WHISPER_ENV.allowLocalModels;
       env.useBrowserCache = WHISPER_ENV.useBrowserCache;
-
-      // Skip onnx backend configuration to avoid the error
-      // The backend will be configured automatically when needed
+      // v3 uses allowRemoteModels (default true)
+      env.allowRemoteModels = true;
     }
 
-    // Create the ASR pipeline with the correct model path
+    // Use Xenova ONNX models that work with v3
     const modelName = `Xenova/${model}`;
     // eslint-disable-next-line no-console
     console.log('[ensureASR] Loading model:', modelName);
 
-    // Create pipeline with specific options for Whisper models
+    // Create pipeline with v3 API
     const asr = await pipeline('automatic-speech-recognition', modelName, {
-      quantized,
-      progress_callback: (p: { progress?: number }) => {
-        if (typeof p?.progress === 'number') {
+      // v3 uses dtype instead of quantized
+      dtype: quantized ? 'q8' : 'fp32',
+      // Optional: use WebGPU if available (requires COEP/COOP headers)
+      // device: 'webgpu',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      progress_callback: (p: any) => {
+        // v3 has different progress info structure
+        if (p?.progress !== undefined) {
           const percent = p.progress <= 1 ? Math.round(p.progress * 100) : Math.round(p.progress);
           onProgress(Math.min(100, Math.max(0, percent)));
+        } else if (p?.status) {
+          // Log status updates
+          // eslint-disable-next-line no-console
+          console.log('[ensureASR] Status:', p.status);
         }
       },
     });
@@ -221,14 +227,14 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const [whisperError, setWhisperError] = useState<Error | string | null>(null);
   const asrRef = useRef<CallableFunction | null>(null);
 
-  // Use the specific Xenova models that are known to work
+  // Use Xenova ONNX models compatible with v3
   const modelMap: Record<string, string> = {
-    tiny: 'whisper-tiny.en',
-    base: 'whisper-base.en',
-    small: 'whisper-small.en',
-    medium: 'whisper-medium.en',
+    tiny: 'whisper-tiny',
+    base: 'whisper-base',
+    small: 'whisper-small',
+    medium: 'whisper-medium',
   };
-  const whisperModel = modelMap[options.initialModel || 'tiny'] || 'whisper-tiny.en';
+  const whisperModel = modelMap[options.initialModel || 'tiny'] || 'whisper-tiny';
   const whisperLanguage = whisperConfig?.language || 'en';
   const whisperQuantized = true;
 

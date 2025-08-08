@@ -25,9 +25,8 @@ const WHISPER_ENV = {
 } as const;
 
 async function ensureASR(model: string, quantized: boolean, onProgress: (p: number) => void) {
-  // Dynamic import to enable code-splitting
-  const { loadTransformers } = await import('../lib/dynamic-loaders');
-  const transformers = await loadTransformers();
+  // Import transformers.js directly to avoid destructuring issues
+  const transformers = await import('@xenova/transformers');
   
   // Configure transformers environment safely
   if (transformers.env) {
@@ -40,7 +39,9 @@ async function ensureASR(model: string, quantized: boolean, onProgress: (p: numb
     }
   }
   
-  const asr = await transformers.pipeline('automatic-speech-recognition', `Xenova/${model}`, {
+  // Use pipeline directly from the module
+  const { pipeline } = transformers;
+  const asr = await pipeline('automatic-speech-recognition', `Xenova/${model}`, {
     quantized,
     progress_callback: (p: any) => {
       if (typeof p?.progress === 'number') {
@@ -206,6 +207,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     let cancelled = false;
     (async () => {
       try {
+        // Log initial state
+        console.log('[Whisper] Starting initialization with model:', whisperModel);
+        
         const asr = await ensureASR(whisperModel, whisperQuantized, (p) => {
           setWhisperProgress(p);
           if (onWhisperProgressLog) {
@@ -228,10 +232,13 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         if (!cancelled) {
           asrRef.current = asr;
           setWhisperReady(true);
+          console.log('[Whisper] Successfully initialized');
         }
       } catch (e: any) {
         if (!cancelled) {
           const errorMessage = e?.message ?? 'Failed to load Whisper';
+          console.error('[Whisper] Initialization error:', e);
+          console.error('[Whisper] Error stack:', e?.stack);
           setWhisperError(errorMessage);
           onWhisperProgressLog?.(`❌ Error al cargar Whisper: ${errorMessage}`, 'error');
         }

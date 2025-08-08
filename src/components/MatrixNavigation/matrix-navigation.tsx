@@ -87,7 +87,10 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
           key: 'F1',
         },
         processor: {
-          component: <AudioFragmentProcessor onBack={() => setCurrentView('terminal')} />,
+          component: <AudioFragmentProcessor 
+            onBack={() => setCurrentView('terminal')} 
+            onLog={addWhisperLog}
+          />,
           title: '[AUDIO_FRAGMENT_PROCESSOR]',
           key: 'F2',
         },
@@ -136,7 +139,7 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
           key: 'F6',
         },
       }) as const,
-    []
+    [addWhisperLog]
   );
 
   const handleViewChange = useCallback(

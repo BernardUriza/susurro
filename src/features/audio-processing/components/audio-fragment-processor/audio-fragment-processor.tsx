@@ -5,9 +5,10 @@ import type { CompleteAudioResult, StreamingSusurroChunk } from '@susurro/core';
 
 export interface AudioFragmentProcessorProps {
   onBack: () => void;
+  onLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
 }
 
-export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ onBack }) => {
+export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ onBack, onLog }) => {
   const {
     // Streaming recording
     startStreamingRecording,
@@ -92,18 +93,40 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
   const handleFileUpload = useCallback(
     async (file: File) => {
+      onLog?.(`📁 Archivo seleccionado: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`, 'info');
       setFileResult(null);
       setStatus('[PROCESSING_FILE]');
+      onLog?.('🔄 Procesando archivo con pipeline completo...', 'info');
+      onLog?.('🎯 Aplicando: Noise reduction + VAD analysis + Whisper transcription', 'info');
 
       try {
+        const startTime = performance.now();
         const result = await processAndTranscribeFile(file);
+        const processingTime = performance.now() - startTime;
+        
         setFileResult(result);
         setStatus('[FILE_COMPLETE]');
+        
+        onLog?.(`✅ Archivo procesado en ${processingTime.toFixed(0)}ms`, 'success');
+        onLog?.(`📊 VAD promedio: ${(result.vadAnalysis.averageVad * 100).toFixed(1)}%`, 'info');
+        onLog?.(`🎵 Duración: ${result.metadata.duration.toFixed(2)} segundos`, 'info');
+        onLog?.(`📡 Sample rate: ${result.metadata.sampleRate}Hz | Canales: ${result.metadata.channels}`, 'info');
+        
+        if (result.transcriptionText) {
+          const preview = result.transcriptionText.substring(0, 150);
+          onLog?.(`💬 Transcripción: "${preview}${result.transcriptionText.length > 150 ? '...' : ''}"`, 'success');
+        }
+        
+        if (result.vadAnalysis.voiceSegments.length > 0) {
+          onLog?.(`🎙️ Segmentos de voz detectados: ${result.vadAnalysis.voiceSegments.length}`, 'info');
+        }
       } catch (error) {
-        setStatus(`[ERROR] ${error}`);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        setStatus(`[ERROR] ${errorMsg}`);
+        onLog?.(`❌ Error procesando archivo: ${errorMsg}`, 'error');
       }
     },
-    [processAndTranscribeFile]
+    [processAndTranscribeFile, onLog]
   );
 
   return (

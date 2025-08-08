@@ -13,17 +13,23 @@ export default defineConfig({
       'events': 'events',
       'buffer': 'buffer',
       'util': 'util',
+      'process': 'process/browser',
     },
   },
   define: {
     // Required for proper Node.js polyfills
     global: 'globalThis',
+    'process.env': {},
+    'process.version': '"v16.0.0"',
+    'process.versions': '{}',
+    'process.platform': '"browser"',
+    'process.argv': '[]',
   },
   optimizeDeps: {
     // Force these to be excluded from pre-bundling to enable proper code-splitting
     exclude: ['@xenova/transformers', 'murmuraba'],
     // Include polyfills that murmuraba needs
-    include: ['stream-browserify', 'events', 'buffer', 'util'],
+    include: ['stream-browserify', 'events', 'buffer', 'util', 'process'],
   },
   build: {
     outDir: 'dist',

@@ -159,22 +159,47 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
   // Add initial system status log and preload dependencies
   useEffect(() => {
     addWhisperLog('👋 Bienvenido a Susurro Whisper AI', 'success');
-    addWhisperLog('🔄 Inicializando sistema de transcripción...', 'info');
+    addWhisperLog(`🔄 Inicializando sistema de transcripción con modelo: ${initialModel}`, 'info');
+    addWhisperLog(`📊 Versión: 2.0.0 | Modo: ${process.env.NODE_ENV || 'production'}`, 'info');
 
     // Add system info after a short delay
     setTimeout(() => {
-      addWhisperLog('🧠 Preparando modelo de IA para transcripción', 'info');
-      addWhisperLog('📡 Conectando con sistema de audio...', 'info');
+      addWhisperLog('🧠 Preparando motor de IA para transcripción en tiempo real', 'info');
+      addWhisperLog('📡 Conectando con sistema de captura de audio...', 'info');
+      addWhisperLog('🛡️ Verificando permisos del navegador...', 'info');
+
+      // Check browser capabilities
+      if (typeof AudioContext !== 'undefined') {
+        addWhisperLog('✅ AudioContext disponible - audio processing habilitado', 'success');
+      }
+      
+      if (typeof MediaRecorder !== 'undefined') {
+        addWhisperLog('✅ MediaRecorder disponible - grabación habilitada', 'success');
+      }
 
       // Preload heavy dependencies for better UX
       import('../../../packages/susurro/src/lib/dynamic-loaders').then(
         ({ preloadCriticalDependencies }) => {
           preloadCriticalDependencies();
-          addWhisperLog('📦 Pre-cargando dependencias en segundo plano...', 'info');
+          addWhisperLog('📦 Pre-cargando dependencias críticas en segundo plano...', 'info');
+          addWhisperLog('⚡ Optimizando rendimiento para procesamiento en tiempo real', 'info');
         }
-      );
+      ).catch((error) => {
+        addWhisperLog(`⚠️ Error pre-cargando dependencias: ${error.message}`, 'warning');
+      });
     }, 500);
-  }, [addWhisperLog]);
+
+    // Check Whisper status after a delay
+    setTimeout(() => {
+      if (whisperError) {
+        addWhisperLog(`❌ Error en modelo Whisper: ${whisperError}`, 'error');
+      } else if (whisperReady) {
+        addWhisperLog('✅ Modelo Whisper listo y operativo', 'success');
+      } else if (whisperProgress > 0) {
+        addWhisperLog(`⏳ Cargando modelo Whisper: ${whisperProgress}%`, 'info');
+      }
+    }, 1500);
+  }, [addWhisperLog, initialModel, whisperError, whisperReady, whisperProgress]);
 
   // Keyboard navigation
   useEffect(() => {

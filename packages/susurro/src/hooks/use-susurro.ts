@@ -200,8 +200,20 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         const asr = await ensureASR(whisperModel, whisperQuantized, (p) => {
           setWhisperProgress(p);
           if (onWhisperProgressLog) {
-            if (p === 100) onWhisperProgressLog('Whisper model ready', 'success');
-            else onWhisperProgressLog(`Loading Whisper model... ${p}%`, 'info');
+            if (p === 100) {
+              onWhisperProgressLog(`✅ Modelo Whisper ${whisperModel} cargado correctamente`, 'success');
+              onWhisperProgressLog('🎙️ Sistema de transcripción listo para usar', 'success');
+            } else if (p === 0) {
+              onWhisperProgressLog(`📥 Iniciando descarga del modelo ${whisperModel}...`, 'info');
+            } else if (p > 0 && p < 25) {
+              onWhisperProgressLog(`📥 Descargando modelo Whisper... ${p}%`, 'info');
+            } else if (p >= 25 && p < 50) {
+              onWhisperProgressLog(`⚙️ Procesando modelo de IA... ${p}%`, 'info');
+            } else if (p >= 50 && p < 75) {
+              onWhisperProgressLog(`🔧 Configurando neural network... ${p}%`, 'info');
+            } else if (p >= 75 && p < 100) {
+              onWhisperProgressLog(`🚀 Finalizando inicialización... ${p}%`, 'info');
+            }
           }
         });
         if (!cancelled) {
@@ -210,8 +222,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         }
       } catch (e: any) {
         if (!cancelled) {
-          setWhisperError(e?.message ?? 'Failed to load Whisper');
-          onWhisperProgressLog?.(String(whisperError), 'error');
+          const errorMessage = e?.message ?? 'Failed to load Whisper';
+          setWhisperError(errorMessage);
+          onWhisperProgressLog?.(`❌ Error al cargar Whisper: ${errorMessage}`, 'error');
         }
       }
     })();

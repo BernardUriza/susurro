@@ -921,7 +921,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
                   <div className="whisper-section">
                     {!whisperReady ? (
                       <div className="matrix-status" style={{ textAlign: 'center' }}>
-                        &gt; [WHISPER_MODEL_LOADING] {(whisperProgress * 100).toFixed(0)}%
+                        &gt; [WHISPER_MODEL_LOADING] {whisperProgress.toFixed(0)}%
                         <div
                           style={{
                             width: '100%',
@@ -935,7 +935,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
                         >
                           <div
                             style={{
-                              width: `${whisperProgress * 100}%`,
+                              width: `${whisperProgress}%`,
                               height: '100%',
                               background: '#00ff41',
                               transition: 'width 0.3s ease',

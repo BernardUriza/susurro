@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { pipeline, env } from '@xenova/transformers';
 
+// Configuración simple que FUNCIONA (basada en vanilla)
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+env.backends.onnx.logLevel = 'error';
+
 interface WhisperOptions {
-  model?: string; // e.g. 'whisper-tiny'
-  language?: string; // e.g. 'es'
+  model?: string;
+  language?: string;
   quantized?: boolean;
 }
 
@@ -24,114 +29,135 @@ export function useWhisper(options: WhisperOptions = {}): UseWhisperReturn {
   const {
     model = 'whisper-tiny',
     language = 'es',
-    quantized = true, // runtime-friendly
+    quantized = true,
   } = options;
-
-  // —— Remote models + browser cache (IndexedDB) ——
-  env.allowLocalModels = false; // queremos descarga remota
-  env.useBrowserCache = true; // cachea todo en IndexedDB
-  // Opcional: env.backends.onnx.wasm.numThreads = navigator.hardwareConcurrency ?? 4;
 
   const [isLoading, setIsLoading] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  
   const pipelineRef = useRef<any>(null);
-  const isInitializingRef = useRef(false);
-
-  const initializePipeline = useCallback(async () => {
-    if (isInitializingRef.current || isReady) return;
-
-    isInitializingRef.current = true;
-    setIsLoading(true);
-    setError(null);
-    setProgress(0);
-
-    try {
-      pipelineRef.current = await pipeline('automatic-speech-recognition', `Xenova/${model}`, {
-        quantized,
-        // Nada de local_files_only ni nombres forzados.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        progress_callback: (p: any) => {
-          if (typeof p.progress === 'number') setProgress(Math.round(p.progress * 100));
-        },
-      });
-
-      setIsReady(true);
-      setIsLoading(false);
-      setProgress(100);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to initialize pipeline');
-      setIsLoading(false);
-      setIsReady(false);
-    }
-    isInitializingRef.current = false;
-  }, [model, quantized, isReady]);
-
-  async function resampleTo16k(input: AudioBuffer): Promise<Float32Array> {
-    if (input.sampleRate === 16000) return input.getChannelData(0).slice();
-    const length = Math.ceil(input.duration * 16000);
-    const offline = new OfflineAudioContext(1, length, 16000);
-    const buf = offline.createBuffer(1, input.length, input.sampleRate);
-    buf.copyToChannel(input.getChannelData(0), 0);
-    const src = offline.createBufferSource();
-    src.buffer = buf;
-    src.connect(offline.destination);
-    src.start(0);
-    const rendered = await offline.startRendering();
-    return rendered.getChannelData(0).slice();
-  }
-
-  const transcribe = useCallback(
-    async (audio: Blob | Float32Array): Promise<TranscriptionResult | null> => {
-      if (!pipelineRef.current || !isReady) throw new Error('Whisper model not ready');
-
-      try {
-        let array: Float32Array;
-        const rate = 16000;
-
-        if (audio instanceof Blob) {
-          const ab = await audio.arrayBuffer();
-          const ctx = new AudioContext();
-          const decoded = await ctx.decodeAudioData(ab);
-          array = await resampleTo16k(decoded);
-          ctx.close();
-        } else {
-          array = audio; // asume ya 16k
-        }
-
-        const output = await pipelineRef.current(
-          { array, sampling_rate: rate },
-          {
-            language,
-            task: 'transcribe',
-            return_timestamps: true,
-            chunk_length_s: 30,
-            stride_length_s: 5,
-          }
-        );
-
-        return { text: output.text ?? '', chunks: output.chunks ?? [] };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (err: any) {
-        throw new Error(err?.message ?? 'Transcription failed');
-      }
-    },
-    [isReady, language]
-  );
+  const initStarted = useRef(false);
 
   useEffect(() => {
-    initializePipeline();
-    return () => {
-      pipelineRef.current = null;
-      setIsReady(false);
-      setIsLoading(false);
-      setProgress(0);
-    };
-  }, [initializePipeline]);
+    // Solo inicializar una vez
+    if (initStarted.current) return;
+    initStarted.current = true;
 
-  return { isLoading, isReady, progress, error, transcribe };
+    const initPipeline = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const modelName = `Xenova/${model}`;
+        
+        pipelineRef.current = await pipeline(
+          'automatic-speech-recognition',
+          modelName,
+          {
+            quantized,
+            progress_callback: (p: any) => {
+              if (p.progress) {
+                const percent = Math.round(p.progress * 100);
+                setProgress(percent);
+              }
+            }
+          }
+        );
+        
+        setIsReady(true);
+        setProgress(100);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load model');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initPipeline();
+  }, []); // Solo ejecutar una vez
+
+  const transcribe = useCallback(async (audio: Blob | Float32Array): Promise<TranscriptionResult | null> => {
+    if (!pipelineRef.current || !isReady) {
+      return null;
+    }
+
+    try {
+      let audioInput: string;
+      
+      if (audio instanceof Float32Array) {
+        // Convertir Float32Array a Blob WAV
+        const blob = float32ArrayToWav(audio, 16000);
+        audioInput = URL.createObjectURL(blob);
+      } else {
+        // Blob directo
+        audioInput = URL.createObjectURL(audio);
+      }
+      
+      const output = await pipelineRef.current(audioInput, {
+        language,
+        task: 'transcribe',
+        return_timestamps: true,
+        chunk_length_s: 30,
+        stride_length_s: 5,
+      });
+      
+      URL.revokeObjectURL(audioInput);
+      
+      return { 
+        text: output.text || '',
+        chunks: output.chunks || []
+      };
+      
+    } catch (err: any) {
+      setError(err.message || 'Transcription failed');
+      return null;
+    }
+  }, [isReady, language]);
+
+  return {
+    isLoading,
+    isReady,
+    progress,
+    error,
+    transcribe
+  };
+}
+
+// Función auxiliar para convertir Float32Array a WAV
+function float32ArrayToWav(float32Array: Float32Array, sampleRate: number): Blob {
+  const length = float32Array.length;
+  const buffer = new ArrayBuffer(44 + length * 2);
+  const view = new DataView(buffer);
+  
+  // WAV header
+  const writeString = (offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + length * 2, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, length * 2, true);
+  
+  // Convert float32 to int16
+  const offset = 44;
+  for (let i = 0; i < length; i++) {
+    const sample = Math.max(-1, Math.min(1, float32Array[i]));
+    view.setInt16(offset + i * 2, sample * 0x7FFF, true);
+  }
+  
+  return new Blob([buffer], { type: 'audio/wav' });
 }

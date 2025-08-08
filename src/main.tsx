@@ -1,6 +1,12 @@
+// Configure ONNX Runtime BEFORE any other imports
+// This suppresses the "Removing initializer" warnings
+if (typeof window !== 'undefined') {
+  (window as any).ort = { env: { logLevel: 'error', debug: false } };
+}
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './app';
+import App from './app'; // Restaurar app principal
 import './styles/reset.css';
 import './styles/tokens.css';
 import './styles/matrix-theme.css';

@@ -3,7 +3,6 @@ export { useSusurro } from './hooks/use-susurro';
 
 // Modular hooks for advanced users
 export { useAudioEngine } from './hooks/use-audio-engine';
-export { useVADAnalysis } from './hooks/use-vad-analysis';
 
 // All audio functionality consolidated into single useSusurro hook
 // useWhisperDirect is internal - accessed through useSusurro
@@ -22,9 +21,7 @@ export * from './lib/latency-monitor';
 // Hook-based cache management
 export { useModelCache } from './hooks/use-model-cache';
 
-// Modern Neural VAD - State-of-the-art voice activity detection
-export { getModernVAD, destroyModernVAD, ModernVADEngine } from './lib/modern-vad';
-export type { ModernVADConfig } from './lib/modern-vad';
+// VAD is now handled internally through murmuraba
 
 // Murmuraba VAD - Fallback voice activity detection
 export * from './lib/murmuraba-types';

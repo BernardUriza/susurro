@@ -11,10 +11,8 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // Include these dependencies for proper initialization
+    // Include dependencies but don't force optimization
     include: ['@xenova/transformers', 'onnxruntime-web'],
-    // Force optimization for better compatibility
-    force: true,
   },
   build: {
     outDir: 'dist',

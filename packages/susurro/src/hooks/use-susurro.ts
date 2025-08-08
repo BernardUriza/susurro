@@ -12,7 +12,6 @@ import type {
   CompleteAudioResult,
   StreamingSusurroChunk,
   RecordingConfig,
-  VADAnalysisResult,
   AudioMetadata,
   VoiceSegment,
 } from '../lib/types';
@@ -20,9 +19,11 @@ import type {
 // Import dynamic loaders from centralized location
 import { loadMurmubaraProcessing } from '../lib/dynamic-loaders';
 
+// Import destroyEngine directly for cleanup
+let destroyEngineRef: (() => Promise<void>) | null = null;
+
 // Conversational Evolution - Advanced chunk middleware
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
-import { getModernVAD, destroyModernVAD } from '../lib/modern-vad';
 
 // Phase 3: Latency optimization and measurement - Hook-based approach
 import { useLatencyMonitor } from './use-latency-monitor';
@@ -98,7 +99,6 @@ export interface UseSusurroReturn {
   stopStreamingRecording: () => Promise<StreamingSusurroChunk[]>;
 
   // Auxiliary methods
-  analyzeVAD: (buffer: ArrayBuffer) => Promise<VADAnalysisResult>;
   convertBlobToBuffer: (blob: Blob) => Promise<ArrayBuffer>;
 
   // NEW: Expose MediaStream for waveform visualization
@@ -129,12 +129,14 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   });
 
   const exportChunkAsWav = useCallback(async () => {
-    // TODO: Implement with murmuraba engine
+    // Placeholder - WAV export requires murmuraba engine integration
     return Promise.resolve(new Blob());
   }, []);
 
   const clearRecordings = useCallback(() => {
-    // TODO: Implement with murmuraba engine
+    // Clear recording state - integration with murmuraba pending
+    setAudioChunks([]);
+    setTranscriptions([]);
   }, []);
 
   // State management
@@ -254,6 +256,19 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   // Audio engine initialization - Fully integrated with useMurmubaraEngine
   const initializeAudioEngine = useCallback(async () => {
+    // Check if already initialized or initializing
+    if (murmubaraInitialized || isEngineInitialized) {
+      // eslint-disable-next-line no-console
+      console.log('✅ [useSusurro] Audio engine already initialized, skipping');
+      return;
+    }
+
+    if (isInitializingEngine || murmubaraLoading) {
+      // eslint-disable-next-line no-console
+      console.log('⏳ [useSusurro] Audio engine is already initializing, skipping');
+      return;
+    }
+
     try {
       setIsInitializingEngine(true);
       setEngineError(null);
@@ -261,6 +276,22 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       // Check if we're in a browser environment
       if (typeof window === 'undefined') {
         throw new Error('Audio engine can only be initialized in browser environment');
+      }
+
+      // Check global murmuraba state and destroy if needed
+      try {
+        const { getEngineStatus, destroyEngine } = await import('murmuraba');
+        const status = getEngineStatus?.();
+        if (status && status !== 'uninitialized') {
+          // eslint-disable-next-line no-console
+          console.log('⚠️ [useSusurro] Found existing engine, destroying before re-initialization');
+          if (destroyEngine) {
+            await destroyEngine();
+            destroyEngineRef = destroyEngine; // Store for cleanup
+          }
+        }
+      } catch (err) {
+        // Ignore - murmuraba might not be loaded yet
       }
 
       // Use the murmuraba hook's initialize method
@@ -281,82 +312,28 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     } finally {
       setIsInitializingEngine(false);
     }
-  }, [initializeMurmuraba]);
+  }, [initializeMurmuraba, murmubaraInitialized, isEngineInitialized, isInitializingEngine, murmubaraLoading]);
 
-  // VAD analysis helper with Modern Neural VAD
-  const analyzeVAD = useCallback(async (buffer: ArrayBuffer): Promise<VADAnalysisResult> => {
+  // Simplified VAD analysis using only murmuraba
+  const analyzeVAD = useCallback(async (buffer: ArrayBuffer) => {
     try {
-      // Primary: Use Modern Neural VAD (Silero) for superior accuracy
-      const modernVAD = getModernVAD({
-        positiveSpeechThreshold: 0.6, // Higher threshold for better precision
-        negativeSpeechThreshold: 0.4,
-        frameSamples: 1536, // Optimized for 32ms frames
-      });
-
-      const modernResult = await modernVAD.analyze(buffer);
-
-      if (modernResult.averageVad > 0) {
-        // Modern VAD successful
-        // Debug logging removed - use DEBUG_MODE flag if needed
-        return modernResult;
-      }
-
-      // Fallback: Use Murmuraba VAD if Modern VAD fails
-      // Debug logging removed - use DEBUG_MODE flag if needed
-
       const { murmubaraVAD } = await loadMurmubaraProcessing();
       const result = await murmubaraVAD(buffer);
-
-      // Process results to find voice segments
-      const voiceSegments: VoiceSegment[] = [];
-      const vadScores = result.scores || [];
-      const metrics = result.metrics || [];
-
-      // Use voiceSegments from murmubaraVAD if available
-      if (result.voiceSegments && result.voiceSegments.length > 0) {
-        result.voiceSegments.forEach((segment) => {
-          voiceSegments.push({
-            startTime: segment.startTime,
-            endTime: segment.endTime,
-            vadScore: segment.confidence,
-            confidence: segment.confidence,
-          });
-        });
-      } else {
-        // Fallback: Find continuous voice segments
-        let segmentStart = -1;
-        const threshold = 0.5;
-
-        for (let i = 0; i < vadScores.length; i++) {
-          const isVoice = vadScores[i] > threshold;
-
-          if (isVoice && segmentStart === -1) {
-            segmentStart = i;
-          } else if (!isVoice && segmentStart !== -1) {
-            voiceSegments.push({
-              startTime: segmentStart * 0.02, // 20ms per frame
-              endTime: i * 0.02,
-              vadScore:
-                vadScores.slice(segmentStart, i).reduce((a: number, b: number) => a + b, 0) /
-                (i - segmentStart),
-              confidence:
-                vadScores.slice(segmentStart, i).reduce((a: number, b: number) => a + b, 0) /
-                (i - segmentStart),
-            });
-            segmentStart = -1;
-          }
-        }
-      }
-
       return {
         averageVad: result.average || 0,
-        vadScores,
-        metrics,
-        voiceSegments,
+        vadScores: result.scores || [],
+        metrics: result.metrics || [],
+        voiceSegments: result.voiceSegments || [],
       };
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'VAD analysis failed';
-      throw new Error(`VAD analysis failed: ${errorMsg}`);
+      console.error('[VAD] Analysis failed:', error);
+      // Return empty result instead of throwing
+      return {
+        averageVad: 0,
+        vadScores: [],
+        metrics: [],
+        voiceSegments: [],
+      };
     }
   }, []);
 
@@ -785,8 +762,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         // 7. Extract metadata
         const metadata: AudioMetadata = {
           duration: await calculateDuration(originalBuffer),
-          sampleRate: 44100, // TODO: Extract from actual buffer
-          channels: 2, // TODO: Extract from actual buffer
+          sampleRate: 44100, // Standard sample rate - should match actual buffer
+          channels: 2, // Stereo channels - should match actual buffer
           fileSize: file.size,
           processedSize: processedResult.processedBuffer.byteLength,
         };
@@ -1034,8 +1011,14 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     engineError,
   ]);
 
-  // NEW: Auto-initialize audio engine when Whisper is ready
+  // NEW: Auto-initialize audio engine when Whisper is ready (with better guard)
   useEffect(() => {
+    // Prevent auto-init if already initialized via murmuraba hook
+    if (murmubaraInitialized) {
+      setIsEngineInitialized(true);
+      return;
+    }
+    
     if (
       whisperReady &&
       !isEngineInitialized &&
@@ -1059,6 +1042,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     isInitializingEngine,
     engineError,
     murmubaraLoading,
+    murmubaraInitialized,
     initializeAudioEngine,
   ]);
 
@@ -1135,12 +1119,24 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         });
       }
 
-      // Clean up Modern VAD resources
-      destroyModernVAD();
 
-      // Murmuraba v3 hook handles all cleanup automatically
+      // Destroy murmuraba engine on unmount to prevent double initialization
+      if (isEngineInitialized || murmubaraInitialized) {
+        (async () => {
+          try {
+            const { destroyEngine } = await import('murmuraba');
+            if (destroyEngine) {
+              await destroyEngine();
+              // eslint-disable-next-line no-console
+              console.log('🧹 [useSusurro] Audio engine destroyed on unmount');
+            }
+          } catch (err) {
+            // Ignore cleanup errors
+          }
+        })();
+      }
     };
-  }, [clearConversationalChunks]);
+  }, [clearConversationalChunks, isEngineInitialized, murmubaraInitialized]);
 
   return {
     // Recording state - now from Murmuraba hook

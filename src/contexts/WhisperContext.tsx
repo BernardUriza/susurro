@@ -19,6 +19,8 @@ export const WhisperProvider: React.FC<WhisperProviderProps> = ({
   initialModel = 'base',
   onWhisperProgressLog,
 }) => {
+  console.log('[WhisperProvider] Initializing with model:', initialModel);
+
   // SINGLE INSTANCE of useSusurro for the entire app
   const susurroInstance = useSusurro({
     chunkDurationMs: 8000,
@@ -26,13 +28,19 @@ export const WhisperProvider: React.FC<WhisperProviderProps> = ({
     onWhisperProgressLog,
   });
 
+  console.log('[WhisperProvider] susurroInstance created:', !!susurroInstance);
+
   return <WhisperContext.Provider value={susurroInstance}>{children}</WhisperContext.Provider>;
 };
 
 // Custom hook to use the Whisper context
 export const useWhisper = () => {
   const context = useContext(WhisperContext);
+  console.log('[useWhisper] Context value:', !!context);
   if (!context) {
+    console.error(
+      '[useWhisper] ERROR: Context is null! Make sure component is wrapped in WhisperProvider'
+    );
     throw new Error('useWhisper must be used within a WhisperProvider');
   }
   return context;

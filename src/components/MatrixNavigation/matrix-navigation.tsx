@@ -17,6 +17,7 @@ import type { MatrixNavigationProps as NavProps } from './types';
 import styles from './matrix-navigation.module.css';
 
 export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tiny' }: NavProps) => {
+  console.log('[MatrixNavigation] Rendering with model:', initialModel);
   const [currentView, setCurrentView] = useState(initialView);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -68,10 +69,16 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
   );
 
   // Get Whisper status from context (single instance)
+  console.log('[MatrixNavigation] Getting Whisper context...');
   const { whisperReady, whisperProgress, whisperError } = useWhisper();
+  console.log('[MatrixNavigation] Whisper status:', {
+    whisperReady,
+    whisperProgress,
+    whisperError,
+  });
 
   // Set up logging effect
-  React.useEffect(() => {
+  useEffect(() => {
     // Log Whisper progress to the UI
     if (whisperProgress > 0 && whisperProgress < 100) {
       addWhisperLog(`⏳ Cargando modelo Whisper: ${whisperProgress}%`, 'info');

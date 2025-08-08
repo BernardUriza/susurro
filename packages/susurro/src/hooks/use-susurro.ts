@@ -444,7 +444,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     try {
       const { loadMurmubaraProcessing } = await import('../lib/dynamic-loaders');
       const { extractAudioMetadata } = await loadMurmubaraProcessing();
-      const metadata = await extractAudioMetadata(buffer);
+      const metadata = extractAudioMetadata(buffer);
       return metadata.duration;
     } catch {
       const bytes = buffer.byteLength;
@@ -491,7 +491,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     setIsStreamingRecording(false);
     streamingCallbackRef.current = null;
     // devolvemos lo que haya en conversationalChunks como snapshot simple
-    const chunks = conversationalChunks.map<StreamingSusurroChunk>((c) => ({
+    const chunks = conversationalChunks.map<StreamingSusurroChunk>((c: any) => ({
       id: c.id,
       audioBlob: new Blob(), // not retaining blobs; stream consumers should handle in real time
       vadScore: c.vadScore ?? 0,
@@ -536,7 +536,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       }
 
       if (newOnes.length) {
-        setAudioChunks((prev) => [...prev, ...newOnes]);
+        setAudioChunks((prev: any[]) => [...prev, ...newOnes]);
       }
 
       // promedio de VAD del último
@@ -631,7 +631,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           });
         }
 
-        setConversationalChunks((prev) => [...prev, emitted]);
+        setConversationalChunks((prev: any[]) => [...prev, emitted]);
         conversational.onChunk(emitted);
         chunkProcessingTimes.current.delete(chunk.id);
       }
@@ -651,7 +651,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       });
 
       for (let i = 0; i < chunks.length; i++) {
-        setProcessingStatus((p) => ({ ...p, currentChunk: i + 1 }));
+        setProcessingStatus((p: any) => ({ ...p, currentChunk: i + 1 }));
         const id = chunks[i].id;
         const processedUrl = processedAudioUrls.current.get(id);
         if (!processedUrl) continue;
@@ -659,7 +659,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           const blob = await urlToBlob(processedUrl);
           const r = await transcribeWithWhisper(blob);
           if (r) {
-            setTranscriptions((prev) => [...prev, { ...r, chunkIndex: i, timestamp: Date.now() }]);
+            setTranscriptions((prev: any[]) => [...prev, { ...r, chunkIndex: i, timestamp: Date.now() }]);
             chunkTranscriptions.current.set(id, r.text);
             await tryEmitChunk(chunks[i]);
           }

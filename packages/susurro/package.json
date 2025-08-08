@@ -56,13 +56,13 @@
   },
   "peerDependencies": {
     "@ricky0123/vad-web": ">=0.0.7",
-    "murmuraba": ">=3.0.0",
+    "murmuraba": "^3.0.3",
     "react": ">=19.0.0"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.0.0",
-    "react": "^19.0.0",
+    "react": "^19.1.1",
     "tsup": "^8.0.0",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"

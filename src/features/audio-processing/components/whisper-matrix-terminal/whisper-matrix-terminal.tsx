@@ -1,8 +1,8 @@
 // React and external libraries
 import { useRef, useEffect, useCallback, useState } from 'react';
 
-// CONSOLIDATED IMPORT - Only useSusurro hook (no direct murmuraba imports)
-import { useSusurro } from '@susurro/core';
+// Use Whisper from context instead of creating new instance
+import { useWhisper } from '../../../../contexts/WhisperContext';
 import type { CompleteAudioResult } from '@susurro/core';
 
 // Relative imports - components
@@ -18,10 +18,10 @@ import '../../../../styles/improved-layout.css';
 type CubeFace = 'front' | 'right' | 'back' | 'left';
 
 export const WhisperMatrixTerminal = () => {
-  const [temporalSegmentDuration] = useState(15); // Default 15 seconds
+  // const [temporalSegmentDuration] = useState(15); // Not needed with context
   const [currentFace] = useState<CubeFace>('front');
 
-  // CONSOLIDATED useSusurro - All audio functionality in one hook
+  // Use Whisper from context (single instance for entire app)
   const {
     // Existing functionality
     isProcessing,
@@ -32,18 +32,13 @@ export const WhisperMatrixTerminal = () => {
     transcribeWithWhisper,
     transcriptions,
 
-    // NEW CONSOLIDATED METHODS - Everything through useSusurro
+    // Consolidated methods from context
     processAndTranscribeFile,
     initializeAudioEngine,
     isEngineInitialized,
     engineError,
     isInitializingEngine,
-  } = useSusurro({
-    chunkDurationMs: temporalSegmentDuration * 1000,
-    whisperConfig: {
-      language: 'en',
-    },
-  });
+  } = useWhisper();
 
   // SIMPLIFIED STATE - Much less state needed with consolidated useSusurro
   const [status, setStatus] = useState('');
@@ -394,7 +389,7 @@ export const WhisperMatrixTerminal = () => {
                   style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
                 >
                   {/* Audio Engine Status */}
-                  <div 
+                  <div
                     className="engine-indicator"
                     style={{
                       cursor: !isEngineInitialized && !isInitializingEngine ? 'pointer' : 'default',
@@ -433,7 +428,8 @@ export const WhisperMatrixTerminal = () => {
                           : isInitializingEngine
                             ? '#ffff41'
                             : '#ff0041',
-                        textDecoration: !isEngineInitialized && !isInitializingEngine ? 'underline' : 'none',
+                        textDecoration:
+                          !isEngineInitialized && !isInitializingEngine ? 'underline' : 'none',
                       }}
                     >
                       AUDIO_ENGINE:{' '}

@@ -27,7 +27,6 @@ export function App() {
           />
         ) : (
           <>
-            {console.log('[App] Rendering WhisperProvider with model:', selectedModel)}
             <WhisperProvider initialModel={selectedModel}>
               <MatrixRain density={50} speed={50} opacity={0.08} fontSize={16} color="#00ff41" />
               <MatrixNavigation initialModel={selectedModel} />

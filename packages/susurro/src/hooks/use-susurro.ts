@@ -171,6 +171,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // NEW: MediaStream state for waveform visualization
   const [currentMediaStream, setCurrentMediaStream] = useState<MediaStream | null>(null);
 
+  // Guard against multiple auto-initializations
+  const hasAutoInitializedRef = useRef(false);
+
   // Advanced middleware pipeline for chunk processing
   const [middlewarePipeline] = useState(
     () =>
@@ -1038,14 +1041,16 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       !isEngineInitialized &&
       !isInitializingEngine &&
       !engineError &&
-      !murmubaraLoading
+      !murmubaraLoading &&
+      !hasAutoInitializedRef.current
     ) {
+      hasAutoInitializedRef.current = true;
       // eslint-disable-next-line no-console
       console.log('🚀 [useSusurro] Auto-initializing audio engine after Whisper is ready');
       initializeAudioEngine().catch((error) => {
         // eslint-disable-next-line no-console
         console.error('❌ [useSusurro] Auto-initialization failed:', error.message);
-        // Don't throw - allow manual initialization
+        hasAutoInitializedRef.current = false; // Reset on failure to allow retry
       });
     }
   }, [
@@ -1117,6 +1122,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      // Reset auto-initialization flag on unmount
+      hasAutoInitializedRef.current = false;
+
       // Clean up conversational resources
       clearConversationalChunks();
 

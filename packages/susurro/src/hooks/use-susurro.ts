@@ -231,7 +231,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const modelMap: Record<string, string> = {
     tiny: 'whisper-tiny',
     base: 'whisper-base',
-    small: 'whisper-small',
     medium: 'whisper-medium',
   };
   const whisperModel = modelMap[options.initialModel || 'tiny'] || 'whisper-tiny';

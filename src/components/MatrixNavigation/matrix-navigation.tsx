@@ -161,9 +161,19 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
 
   // Add initial system status log and preload dependencies
   useEffect(() => {
-    addWhisperLog('👋 Bienvenido a Susurro Whisper AI', 'success');
-    addWhisperLog(`🔄 Inicializando sistema de transcripción con modelo: ${initialModel}`, 'info');
-    addWhisperLog(`📊 Versión: 2.0.0 | Modo: ${process.env.NODE_ENV || 'production'}`, 'info');
+    // Use a flag to prevent duplicate initialization in StrictMode
+    let initialized = false;
+    
+    const initializeLogs = () => {
+      if (initialized) return;
+      initialized = true;
+      
+      addWhisperLog('👋 Bienvenido a Susurro Whisper AI', 'success');
+      addWhisperLog(`🔄 Inicializando sistema de transcripción con modelo: ${initialModel}`, 'info');
+      addWhisperLog(`📊 Versión: 2.0.0 | Modo: ${process.env.NODE_ENV || 'production'}`, 'info');
+    };
+    
+    initializeLogs();
 
     // Add system info after a short delay
     setTimeout(() => {

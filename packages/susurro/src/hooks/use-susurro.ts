@@ -27,17 +27,26 @@ const WHISPER_ENV = {
 async function ensureASR(model: string, quantized: boolean, onProgress: (p: number) => void) {
   // Dynamic import to enable code-splitting
   const { loadTransformers } = await import('../lib/dynamic-loaders');
-  const { pipeline, env } = await loadTransformers();
+  const transformers = await loadTransformers();
   
-  // Configure transformers environment
-  env.allowLocalModels = WHISPER_ENV.allowLocalModels;
-  env.useBrowserCache = WHISPER_ENV.useBrowserCache;
-  env.backends.onnx.logLevel = WHISPER_ENV.logLevel;
+  // Configure transformers environment safely
+  if (transformers.env) {
+    transformers.env.allowLocalModels = WHISPER_ENV.allowLocalModels;
+    transformers.env.useBrowserCache = WHISPER_ENV.useBrowserCache;
+    
+    // Only set onnx logLevel if backends exists
+    if (transformers.env.backends?.onnx) {
+      transformers.env.backends.onnx.logLevel = WHISPER_ENV.logLevel;
+    }
+  }
   
-  const asr = await pipeline('automatic-speech-recognition', `Xenova/${model}`, {
+  const asr = await transformers.pipeline('automatic-speech-recognition', `Xenova/${model}`, {
     quantized,
     progress_callback: (p: any) => {
-      if (typeof p?.progress === 'number') onProgress(Math.round(p.progress * 100));
+      if (typeof p?.progress === 'number') {
+        const percent = p.progress <= 1 ? Math.round(p.progress * 100) : Math.round(p.progress);
+        onProgress(Math.min(100, Math.max(0, percent)));
+      }
     },
   });
   return asr;

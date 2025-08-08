@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+// Use main thread implementation to avoid CORS issues with workers
 import { useWhisper } from './use-whisper';
 import { useMurmubaraEngine } from 'murmuraba';
 import type {
@@ -198,14 +199,22 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     model: options.initialModel ? `whisper-${options.initialModel}` : 'whisper-tiny',
   });
 
-  // Log progress updates
+  // Log progress updates - track previous value to avoid duplicate logs
+  const previousProgressRef = useRef<number>(0);
   useEffect(() => {
-    if (onWhisperProgressLog && whisperProgress > 0) {
-      const message =
-        whisperProgress < 100
-          ? `Loading Whisper model... ${whisperProgress}%`
-          : 'Whisper model ready';
-      onWhisperProgressLog(message, whisperProgress < 100 ? 'info' : 'success');
+    if (
+      onWhisperProgressLog &&
+      whisperProgress > 0 &&
+      whisperProgress !== previousProgressRef.current
+    ) {
+      // Only log "ready" message once when transitioning to 100%
+      if (whisperProgress === 100 && previousProgressRef.current < 100) {
+        onWhisperProgressLog('Whisper model ready', 'success');
+      } else if (whisperProgress < 100) {
+        onWhisperProgressLog(`Loading Whisper model... ${whisperProgress}%`, 'info');
+      }
+
+      previousProgressRef.current = whisperProgress;
     }
   }, [whisperProgress, onWhisperProgressLog]);
 
@@ -257,9 +266,11 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       // Audio engine initialized successfully
       setIsEngineInitialized(true);
       setEngineError(null);
+      // eslint-disable-next-line no-console
       console.log('✅ [useSusurro] Audio engine initialized successfully');
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Engine initialization failed';
+      // eslint-disable-next-line no-console
       console.error('❌ [useSusurro] Engine initialization failed:', errorMsg, error);
       setEngineError(errorMsg);
       setIsEngineInitialized(false);
@@ -1004,10 +1015,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     if (murmubaraInitialized && !isEngineInitialized && !isInitializingEngine) {
       setIsEngineInitialized(true);
       setEngineError(null);
+      // eslint-disable-next-line no-console
       console.log('✅ [useSusurro] Murmuraba engine synchronized as initialized');
     } else if (murmubaraError && !engineError) {
       setEngineError(murmubaraError);
       setIsEngineInitialized(false);
+      // eslint-disable-next-line no-console
       console.error('❌ [useSusurro] Murmuraba error synchronized:', murmubaraError);
     }
   }, [
@@ -1027,8 +1040,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       !engineError &&
       !murmubaraLoading
     ) {
+      // eslint-disable-next-line no-console
       console.log('🚀 [useSusurro] Auto-initializing audio engine after Whisper is ready');
       initializeAudioEngine().catch((error) => {
+        // eslint-disable-next-line no-console
         console.error('❌ [useSusurro] Auto-initialization failed:', error.message);
         // Don't throw - allow manual initialization
       });

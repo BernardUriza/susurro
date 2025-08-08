@@ -11,10 +11,11 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // Include transformers for proper pre-bundling as per HF recommendations
+    // Include these dependencies for proper initialization
     include: ['@xenova/transformers', 'onnxruntime-web'],
+    // Force optimization for better compatibility
+    force: true,
   },
-  assetsInclude: ['**/*.wasm', '**/*.onnx'],
   build: {
     outDir: 'dist',
     rollupOptions: {
@@ -23,14 +24,6 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    headers: {
-      'Cross-Origin-Embedder-Policy': 'credentialless', // More permissive for model loading
-      'Cross-Origin-Opener-Policy': 'same-origin',
-    },
-    fs: {
-      allow: ['..'],
-    },
-    // Model files are served from public/models directory
+    // No COEP/COOP for now. Add only if you enable WASM multithreading.
   },
-  // Worker configuration removed - using direct execution instead
 });

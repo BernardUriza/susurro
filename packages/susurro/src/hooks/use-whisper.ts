@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { pipeline, env } from '@xenova/transformers';
 
 interface WhisperOptions {
-  model?: string;
-  language?: string;
+  model?: string; // e.g. 'whisper-tiny'
+  language?: string; // e.g. 'es'
+  quantized?: boolean;
 }
 
 interface TranscriptionResult {
   text: string;
-  chunks?: Array<{
-    text: string;
-    timestamp: [number, number];
-  }>;
+  chunks?: Array<{ text: string; timestamp: [number, number] }>;
 }
 
 interface UseWhisperReturn {
@@ -22,23 +21,28 @@ interface UseWhisperReturn {
 }
 
 export function useWhisper(options: WhisperOptions = {}): UseWhisperReturn {
-  const { model = 'whisper-tiny' } = options;
+  const {
+    model = 'whisper-tiny',
+    language = 'es',
+    quantized = true, // runtime-friendly
+  } = options;
 
-  // State
+  // —— Remote models + browser cache (IndexedDB) ——
+  env.allowLocalModels = false; // queremos descarga remota
+  env.useBrowserCache = true; // cachea todo en IndexedDB
+  // Opcional: env.backends.onnx.wasm.numThreads = navigator.hardwareConcurrency ?? 4;
+
   const [isLoading, setIsLoading] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // Worker ref
-  const workerRef = useRef<Worker | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pipelineRef = useRef<any>(null);
   const isInitializingRef = useRef(false);
 
-  // Initialize worker and load model
-  const initializeWorker = useCallback(async () => {
-    if (isInitializingRef.current || isReady) {
-      return;
-    }
+  const initializePipeline = useCallback(async () => {
+    if (isInitializingRef.current || isReady) return;
 
     isInitializingRef.current = true;
     setIsLoading(true);
@@ -46,129 +50,88 @@ export function useWhisper(options: WhisperOptions = {}): UseWhisperReturn {
     setProgress(0);
 
     try {
-      // Create worker
-      workerRef.current = new Worker(new URL('../workers/whisper.worker.js', import.meta.url), {
-        type: 'module',
+      pipelineRef.current = await pipeline('automatic-speech-recognition', `Xenova/${model}`, {
+        quantized,
+        // Nada de local_files_only ni nombres forzados.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        progress_callback: (p: any) => {
+          if (typeof p.progress === 'number') setProgress(Math.round(p.progress * 100));
+        },
       });
 
-      // Set up worker message handler
-      workerRef.current.onmessage = (event) => {
-        const { status, progress: workerProgress, error: workerError } = event.data;
-
-        if (status === 'ready') {
-          setIsReady(true);
-          setIsLoading(false);
-          setProgress(100);
-        } else if (status === 'error') {
-          setError(workerError || 'Worker error occurred');
-          setIsLoading(false);
-          setIsReady(false);
-        } else if (workerProgress !== undefined) {
-          setProgress(Math.round(workerProgress * 100));
-        }
-      };
-
-      workerRef.current.onerror = () => {
-        setError('Worker failed to load');
-        setIsLoading(false);
-        setIsReady(false);
-      };
-
-      // Start loading the model
-      workerRef.current.postMessage({
-        type: 'load',
-        model: model,
-      });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to initialize worker';
-      setError(errorMessage);
+      setIsReady(true);
+      setIsLoading(false);
+      setProgress(100);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to initialize pipeline');
       setIsLoading(false);
       setIsReady(false);
     }
-
     isInitializingRef.current = false;
-  }, [model, isReady]);
+  }, [model, quantized, isReady]);
 
-  // Transcribe function
+  async function resampleTo16k(input: AudioBuffer): Promise<Float32Array> {
+    if (input.sampleRate === 16000) return input.getChannelData(0).slice();
+    const length = Math.ceil(input.duration * 16000);
+    const offline = new OfflineAudioContext(1, length, 16000);
+    const buf = offline.createBuffer(1, input.length, input.sampleRate);
+    buf.copyToChannel(input.getChannelData(0), 0);
+    const src = offline.createBufferSource();
+    src.buffer = buf;
+    src.connect(offline.destination);
+    src.start(0);
+    const rendered = await offline.startRendering();
+    return rendered.getChannelData(0).slice();
+  }
+
   const transcribe = useCallback(
     async (audio: Blob | Float32Array): Promise<TranscriptionResult | null> => {
-      if (!workerRef.current || !isReady) {
-        throw new Error('Whisper model not ready');
-      }
+      if (!pipelineRef.current || !isReady) throw new Error('Whisper model not ready');
 
       try {
-        // Convert audio to the format expected by the worker
-        let audioData: Float32Array;
+        let array: Float32Array;
+        const rate = 16000;
 
         if (audio instanceof Blob) {
-          // Convert blob to Float32Array
-          const arrayBuffer = await audio.arrayBuffer();
-          const audioContext = new AudioContext();
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-          audioData = audioBuffer.getChannelData(0); // Get first channel
-          audioContext.close();
+          const ab = await audio.arrayBuffer();
+          const ctx = new AudioContext();
+          const decoded = await ctx.decodeAudioData(ab);
+          array = await resampleTo16k(decoded);
+          ctx.close();
         } else {
-          audioData = audio;
+          array = audio; // asume ya 16k
         }
 
-        return new Promise((resolve, reject) => {
-          if (!workerRef.current) {
-            reject(new Error('Worker not available'));
-            return;
+        const output = await pipelineRef.current(
+          { array, sampling_rate: rate },
+          {
+            language,
+            task: 'transcribe',
+            return_timestamps: true,
+            chunk_length_s: 30,
+            stride_length_s: 5,
           }
+        );
 
-          const messageHandler = (event: MessageEvent) => {
-            const { status, text, chunks, error: workerError } = event.data;
-
-            if (status === 'complete') {
-              workerRef.current?.removeEventListener('message', messageHandler);
-              resolve({
-                text: text || '',
-                chunks: chunks || [],
-              });
-            } else if (status === 'error') {
-              workerRef.current?.removeEventListener('message', messageHandler);
-              reject(new Error(workerError || 'Transcription failed'));
-            }
-          };
-
-          workerRef.current.addEventListener('message', messageHandler);
-
-          // Send transcription request
-          workerRef.current.postMessage({
-            type: 'transcribe',
-            audio: audioData,
-          });
-        });
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Transcription failed';
-        throw new Error(errorMessage);
+        return { text: output.text ?? '', chunks: output.chunks ?? [] };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (err: any) {
+        throw new Error(err?.message ?? 'Transcription failed');
       }
     },
-    [isReady]
+    [isReady, language]
   );
 
-  // Initialize on mount
   useEffect(() => {
-    initializeWorker();
-
-    // Cleanup on unmount
+    initializePipeline();
     return () => {
-      if (workerRef.current) {
-        workerRef.current.terminate();
-        workerRef.current = null;
-      }
+      pipelineRef.current = null;
       setIsReady(false);
       setIsLoading(false);
       setProgress(0);
     };
-  }, [initializeWorker]);
+  }, [initializePipeline]);
 
-  return {
-    isLoading,
-    isReady,
-    progress,
-    error,
-    transcribe,
-  };
+  return { isLoading, isReady, progress, error, transcribe };
 }

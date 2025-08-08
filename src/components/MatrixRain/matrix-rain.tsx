@@ -10,18 +10,19 @@ interface MatrixRainProps {
 }
 
 export const MatrixRain: React.FC<MatrixRainProps> = ({
-  density = 50,
-  speed = 50,
   opacity = 0.08,
   fontSize = 16,
   color = '#00ff41',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const dropsRef = useRef<{ pos: number; speed: number; brightness: number; trail: string[] }[]>([]);
-  const animationRef = useRef<number>();
+  const dropsRef = useRef<{ pos: number; speed: number; brightness: number; trail: string[] }[]>(
+    []
+  );
+  const animationRef = useRef<number>(0);
 
-  const matrixChars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const matrixChars =
+    'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const chars = matrixChars.split('');
 
   useEffect(() => {
@@ -49,24 +50,26 @@ export const MatrixRain: React.FC<MatrixRainProps> = ({
 
     const columnWidth = fontSize;
     const columns = Math.floor(dimensions.width / columnWidth);
-    
+
     // Initialize drops with enhanced properties
     if (dropsRef.current.length !== columns) {
       dropsRef.current = Array.from({ length: columns }, () => ({
-        pos: Math.floor(Math.random() * -dimensions.height / fontSize),
+        pos: Math.floor((Math.random() * -dimensions.height) / fontSize),
         speed: 0.5 + Math.random() * 1.5, // Variable speed between 0.5 and 2
         brightness: Math.random(),
-        trail: Array(5).fill('') // Store last 5 characters for trail effect
+        trail: Array(5).fill(''), // Store last 5 characters for trail effect
       }));
     }
 
     const hexToRgb = (hex: string) => {
       const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      return result ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-      } : { r: 0, g: 255, b: 65 };
+      return result
+        ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16),
+          }
+        : { r: 0, g: 255, b: 65 };
     };
 
     const rgb = hexToRgb(color);
@@ -84,10 +87,10 @@ export const MatrixRain: React.FC<MatrixRainProps> = ({
         const drop = dropsRef.current[i];
         const x = i * columnWidth;
         const y = drop.pos * fontSize;
-        
+
         // Generate new character
         const text = chars[Math.floor(Math.random() * chars.length)];
-        
+
         // Update trail
         drop.trail.shift();
         drop.trail.push(text);
@@ -150,13 +153,13 @@ export const MatrixRain: React.FC<MatrixRainProps> = ({
     };
 
     animate();
-    
+
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [dimensions, fontSize, color, opacity]);
+  }, [dimensions, fontSize, color, opacity, chars]);
 
   return (
     <div className={styles.matrixRainContainer}>

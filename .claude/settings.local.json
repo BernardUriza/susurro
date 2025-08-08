@@ -73,7 +73,9 @@
       "Bash(grep:*)",
       "Bash(git clone:*)",
       "Bash(npx tsup:*)",
-      "Bash(npx -w:*)"
+      "Bash(npx -w:*)",
+      "Bash(pkill:*)",
+      "Bash(true)"
     ],
     "deny": []
   }

@@ -8,7 +8,7 @@ export { useAudioEngine } from './hooks/use-audio-engine';
 // useWhisperDirect is internal - accessed through useSusurro
 export * from './lib/types';
 export * from './lib/ui-interfaces';
-export * from './lib/whisper-types';
+// whisper-types removed as part of dead code cleanup
 export * from './lib/murmuraba-types';
 // Advanced conversational evolution
 export { ChunkMiddlewarePipeline } from './lib/chunk-middleware';

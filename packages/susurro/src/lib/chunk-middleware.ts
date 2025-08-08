@@ -106,15 +106,8 @@ export class ChunkMiddlewarePipeline {
   private middlewares: ChunkMiddleware[] = [];
   // private context: MiddlewareContext; // Context stored for future middleware extensions
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  constructor(_context: Partial<MiddlewareContext> = {}) {
-    // Context not currently used but reserved for future middleware features
-    // this.context = {
-    //   startTime: Date.now(),
-    //   processingStage: 'pre-emit',
-    //   metadata: {},
-    //   ...context,
-    // };
+  constructor() {
+    // Ready for middleware registration
 
     // Register default middlewares
     this.register(qualityMiddleware);

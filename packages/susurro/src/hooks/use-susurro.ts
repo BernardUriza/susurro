@@ -1,43 +1,105 @@
+// useSusurro.ts — lean & mean: MediaRecorder 100% en murmuraba
+
 import { useCallback, useEffect, useRef, useState } from 'react';
-// Use main thread implementation to avoid CORS issues with workers
-import { useWhisper } from './use-whisper';
 import { useMurmubaraEngine } from 'murmuraba';
+import { pipeline, env } from '@xenova/transformers';
+import { loadMurmubaraProcessing } from '../lib/dynamic-loaders';
+import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
+import { useLatencyMonitor } from './use-latency-monitor';
+
 import type {
   AudioChunk,
   ProcessingStatus,
   TranscriptionResult,
   SusurroChunk,
   UseSusurroOptions as BaseUseSusurroOptions,
-  // NEW REFACTORED TYPES
   CompleteAudioResult,
   StreamingSusurroChunk,
   RecordingConfig,
   AudioMetadata,
 } from '../lib/types';
 
-// Import dynamic loaders from centralized location
-import { loadMurmubaraProcessing } from '../lib/dynamic-loaders';
+// —— Whisper thin wrapper (runtime download, 16k resample) ——
+const WHISPER_ENV = {
+  allowLocalModels: false,
+  useBrowserCache: true,
+  logLevel: 'error' as const,
+} as const;
 
-// Conversational Evolution - Advanced chunk middleware
-import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
+env.allowLocalModels = WHISPER_ENV.allowLocalModels;
+env.useBrowserCache = WHISPER_ENV.useBrowserCache;
+env.backends.onnx.logLevel = WHISPER_ENV.logLevel;
 
-// Phase 3: Latency optimization and measurement - Hook-based approach
-import { useLatencyMonitor } from './use-latency-monitor';
-import type { LatencyMetrics, LatencyReport } from '../lib/latency-monitor';
+async function ensureASR(model: string, quantized: boolean, onProgress: (p: number) => void) {
+  const asr = await pipeline('automatic-speech-recognition', `Xenova/${model}`, {
+    quantized,
+    progress_callback: (p: any) => {
+      if (typeof p?.progress === 'number') onProgress(Math.round(p.progress * 100));
+    },
+  });
+  return asr;
+}
 
-// Debug mode for development - removed unused variable
+async function resampleTo16k(buffer: AudioBuffer): Promise<Float32Array> {
+  if (buffer.sampleRate === 16000) return buffer.getChannelData(0).slice();
+  const length = Math.ceil(buffer.duration * 16000);
+  const offline = new OfflineAudioContext(1, length, 16000);
+  const mono = offline.createBuffer(1, buffer.length, buffer.sampleRate);
+  mono.copyToChannel(buffer.getChannelData(0), 0);
+  const src = offline.createBufferSource();
+  src.buffer = mono;
+  src.connect(offline.destination);
+  src.start(0);
+  const rendered = await offline.startRendering();
+  return rendered.getChannelData(0).slice();
+}
 
-// Helper function to convert URL to Blob - Used in chunk processing
-const urlToBlob = async (url: string): Promise<Blob> => {
-  try {
-    const response = await fetch(url);
-    return await response.blob();
-  } catch {
-    return new Blob();
-  }
-};
+async function transcribeBlobWith(asr: any, blob: Blob, language: string) {
+  const ab = await blob.arrayBuffer();
+  const ctx = new AudioContext();
+  const decoded = await ctx.decodeAudioData(ab);
+  const array = await resampleTo16k(decoded);
+  ctx.close();
 
-// Use the enhanced interface from types.ts
+  const out = await asr(
+    { array, sampling_rate: 16000 },
+    {
+      language,
+      task: 'transcribe',
+      return_timestamps: true,
+      chunk_length_s: 30,
+      stride_length_s: 5,
+    }
+  );
+
+  const result: TranscriptionResult = {
+    text: out?.text ?? '',
+    chunkIndex: 0,
+    timestamp: Date.now(),
+    segments:
+      out?.chunks?.map((c: any, index: number) => ({
+        id: index,
+        seek: c.timestamp?.[0] ?? 0,
+        start: c.timestamp?.[0] ?? 0,
+        end: c.timestamp?.[1] ?? 0,
+        text: c.text ?? '',
+        tokens: [],
+        temperature: 0,
+        avg_logprob: 0,
+        compression_ratio: 0,
+        no_speech_prob: 0,
+      })) ?? [],
+  };
+  return result;
+}
+
+async function urlToBlob(url?: string): Promise<Blob> {
+  if (!url) return new Blob();
+  const r = await fetch(url);
+  return r.blob();
+}
+
+// —— Public API ——
 export interface UseSusurroOptions extends BaseUseSusurroOptions {
   onWhisperProgressLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
   initialModel?: 'tiny' | 'base' | 'medium';
@@ -50,58 +112,48 @@ export interface UseSusurroReturn {
   audioChunks: AudioChunk[];
   processingStatus: ProcessingStatus;
   averageVad: number;
-  startRecording: () => Promise<void>;
+  startRecording: (config?: RecordingConfig) => Promise<void>;
   stopRecording: () => void;
   pauseRecording: () => void;
   resumeRecording: () => void;
   clearTranscriptions: () => void;
-  // REMOVED: processAudioFile deprecated in Murmuraba v3
-  // Whisper-related properties
+
   whisperReady: boolean;
   whisperProgress: number;
   whisperError: Error | string | null;
   transcribeWithWhisper: (blob: Blob) => Promise<TranscriptionResult | null>;
-  // Built-in export functions (Murmuraba v3)
+
   exportChunkAsWav: (chunkId: string) => Promise<Blob>;
-  // Conversational features
+
   conversationalChunks: SusurroChunk[];
   clearConversationalChunks: () => void;
-  // Advanced middleware control
-  middlewarePipeline: ChunkMiddlewarePipeline;
-  // Phase 3: Latency monitoring and optimization
-  latencyReport: LatencyReport;
-  latencyStatus: {
-    isHealthy: boolean;
-    currentLatency: number;
-    trend: 'improving' | 'degrading' | 'stable';
-  };
 
-  // NEW REFACTORED METHODS - useSusurro consolidation
-  // Audio engine management
+  middlewarePipeline: ChunkMiddlewarePipeline;
+
+  latencyReport: ReturnType<typeof useLatencyMonitor>['latencyReport'];
+  latencyStatus: ReturnType<typeof useLatencyMonitor>['latencyStatus'];
+
   initializeAudioEngine: () => Promise<void>;
   resetAudioEngine: () => Promise<void>;
   isEngineInitialized: boolean;
   engineError: string | null;
   isInitializingEngine: boolean;
 
-  // MAIN METHOD FOR FILES - Everything in one
   processAndTranscribeFile: (file: File) => Promise<CompleteAudioResult>;
 
-  // STREAMING RECORDING with callback pattern
   startStreamingRecording: (
     onChunk: (chunk: StreamingSusurroChunk) => void,
     config?: RecordingConfig
   ) => Promise<void>;
   stopStreamingRecording: () => Promise<StreamingSusurroChunk[]>;
 
-  // Auxiliary methods
+  analyzeVAD: (buffer: ArrayBuffer) => Promise<any>;
   convertBlobToBuffer: (blob: Blob) => Promise<ArrayBuffer>;
-  analyzeVAD: (buffer: ArrayBuffer) => Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  // NEW: Expose MediaStream for waveform visualization
-  currentStream: MediaStream | null;
+  currentStream: MediaStream | null; // exposed from murmuraba
 }
 
+// —— Hook ——
 export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const {
     chunkDurationMs = 8000,
@@ -110,9 +162,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     onWhisperProgressLog,
   } = options;
 
-  // Direct useMurmubaraEngine hook integration (Murmuraba v3 pattern)
+  // — Murmuraba: única fuente de verdad de MediaRecorder —
   const {
-    recordingState,
+    recordingState, // { isRecording, chunks[], stream? }
     startRecording: startMurmurabaRecording,
     stopRecording: stopMurmurabaRecording,
     pauseRecording: pauseMurmurabaRecording,
@@ -121,25 +173,55 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     initialize: initializeMurmuraba,
     error: murmubaraError,
     isLoading: murmubaraLoading,
+    currentStream,
+    // NOTE: murmuraba maneja internamente getUserMedia/MediaRecorder
   } = useMurmubaraEngine({
-    autoInitialize: false, // Manual initialization for better control
-    // chunkDuration is set when calling startMurmurabaRecording
+    autoInitialize: false,
   });
 
-  const exportChunkAsWav = useCallback(async () => {
-    // Placeholder - WAV export requires murmuraba engine integration
-    return Promise.resolve(new Blob());
-  }, []);
+  // — Whisper state —
+  const [whisperReady, setWhisperReady] = useState(false);
+  const [whisperProgress, setWhisperProgress] = useState(0);
+  const [whisperError, setWhisperError] = useState<Error | string | null>(null);
+  const asrRef = useRef<any>(null);
 
-  const clearRecordings = useCallback(() => {
-    // Clear recording state - integration with murmuraba pending
-    setAudioChunks([]);
-    setTranscriptions([]);
-  }, []);
+  const whisperModel = options.initialModel ? `whisper-${options.initialModel}` : 'whisper-tiny';
+  const whisperLanguage = whisperConfig?.language || 'es';
+  const whisperQuantized = true;
 
-  // State management
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const asr = await ensureASR(whisperModel, whisperQuantized, (p) => {
+          setWhisperProgress(p);
+          if (onWhisperProgressLog) {
+            if (p === 100) onWhisperProgressLog('Whisper model ready', 'success');
+            else onWhisperProgressLog(`Loading Whisper model... ${p}%`, 'info');
+          }
+        });
+        if (!cancelled) {
+          asrRef.current = asr;
+          setWhisperReady(true);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setWhisperError(e?.message ?? 'Failed to load Whisper');
+          onWhisperProgressLog?.(String(whisperError), 'error');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      asrRef.current = null;
+      setWhisperReady(false);
+      setWhisperProgress(0);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [whisperModel]);
+
+  // — App state —
   const [audioChunks, setAudioChunks] = useState<AudioChunk[]>([]);
-  const [averageVad, setAverageVad] = useState(0);
   const [transcriptions, setTranscriptions] = useState<TranscriptionResult[]>([]);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>({
     isProcessing: false,
@@ -147,34 +229,23 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     totalChunks: 0,
     stage: 'idle',
   });
+  const [averageVad, setAverageVad] = useState(0);
 
-  // Conversational state management
   const [conversationalChunks, setConversationalChunks] = useState<SusurroChunk[]>([]);
-  const [processedAudioUrls, setProcessedAudioUrls] = useState<Map<string, string>>(new Map());
-  const [chunkTranscriptions, setChunkTranscriptions] = useState<Map<string, string>>(new Map());
-  const [chunkProcessingTimes, setChunkProcessingTimes] = useState<Map<string, number>>(new Map());
+  const processedAudioUrls = useRef(new Map<string, string>());
+  const chunkTranscriptions = useRef(new Map<string, string>());
+  const chunkProcessingTimes = useRef(new Map<string, number>());
 
-  // NEW REFACTORED STATE - Audio engine and file processing
   const [isEngineInitialized, setIsEngineInitialized] = useState(false);
   const [engineError, setEngineError] = useState<string | null>(null);
   const [isInitializingEngine, setIsInitializingEngine] = useState(false);
-  const [currentStreamingChunks, setCurrentStreamingChunks] = useState<StreamingSusurroChunk[]>([]);
   const [isStreamingRecording, setIsStreamingRecording] = useState(false);
+  const streamingCallbackRef = useRef<((c: StreamingSusurroChunk) => void) | null>(null);
+  const streamingSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
+  const lastProcessedChunkIndexRef = useRef(0);
 
-  // Phase 3: Latency monitoring - Modern hook-based approach
-  const {
-    latencyReport,
-    latencyStatus,
-    recordMetrics: recordLatencyMetrics,
-  } = useLatencyMonitor(300); // 300ms target
+  const { latencyReport, latencyStatus, recordMetrics } = useLatencyMonitor(300);
 
-  // NEW: MediaStream state for waveform visualization
-  const [currentMediaStream, setCurrentMediaStream] = useState<MediaStream | null>(null);
-
-  // Guard against multiple auto-initializations
-  const hasAutoInitializedRef = useRef(false);
-
-  // Advanced middleware pipeline for chunk processing
   const [middlewarePipeline] = useState(
     () =>
       new ChunkMiddlewarePipeline({
@@ -183,125 +254,19 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       })
   );
 
-  // Refs - Minimal refs for conversational features only
-  const startTimeRef = useRef<number>(0);
-  const chunkEmissionTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
-
-  // NEW REFS for streaming recording
-  const streamingCallbackRef = useRef<((chunk: StreamingSusurroChunk) => void) | null>(null);
-  const streamingSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
-  const lastProcessedChunkIndexRef = useRef<number>(0);
-
-  // Using simple Whisper implementation following HuggingFace tutorial
-  const {
-    isReady: whisperReady,
-    progress: whisperProgress,
-    error: whisperError,
-    transcribe: transcribeWhisperDirect,
-  } = useWhisper({
-    language: whisperConfig?.language || 'es',
-    model: options.initialModel ? `whisper-${options.initialModel}` : 'whisper-tiny',
-  });
-
-  // Log progress updates - track previous value to avoid duplicate logs
-  const previousProgressRef = useRef<number>(0);
-  useEffect(() => {
-    if (
-      onWhisperProgressLog &&
-      whisperProgress > 0 &&
-      whisperProgress !== previousProgressRef.current
-    ) {
-      // Only log "ready" message once when transitioning to 100%
-      if (whisperProgress === 100 && previousProgressRef.current < 100) {
-        onWhisperProgressLog('Whisper model ready', 'success');
-      } else if (whisperProgress < 100) {
-        onWhisperProgressLog(`Loading Whisper model... ${whisperProgress}%`, 'info');
-      }
-
-      previousProgressRef.current = whisperProgress;
-    }
-  }, [whisperProgress, onWhisperProgressLog]);
-
-  // Log errors
-  useEffect(() => {
-    if (onWhisperProgressLog && whisperError) {
-      onWhisperProgressLog(
-        typeof whisperError === 'string'
-          ? whisperError
-          : (whisperError as Error)?.message || 'Unknown error',
-        'error'
-      );
-    }
-  }, [whisperError, onWhisperProgressLog]);
-
-  // Track transcription state separately (for compatibility)
-  const [isTranscribing, setIsTranscribing] = useState(false);
-
-  // Wrap transcribe method to set state
-  const transcribeWhisper = useCallback(
-    async (audioData: Float32Array | Blob) => {
-      setIsTranscribing(true);
-      try {
-        const result = await transcribeWhisperDirect(audioData);
-        return result;
-      } finally {
-        setIsTranscribing(false);
-      }
-    },
-    [transcribeWhisperDirect]
-  );
-
-  // NEW REFACTORED METHODS - Core functionality
-
-  // Audio engine initialization - Fully integrated with useMurmubaraEngine
+  // — Engine init/reset —
   const initializeAudioEngine = useCallback(async () => {
-    // Check if already initialized or initializing
-    if (murmubaraInitialized || isEngineInitialized) {
-      // eslint-disable-next-line no-console
+    if (murmubaraInitialized || isEngineInitialized || isInitializingEngine || murmubaraLoading)
       return;
-    }
-
-    if (isInitializingEngine || murmubaraLoading) {
-      // eslint-disable-next-line no-console
-      return;
-    }
-
     try {
       setIsInitializingEngine(true);
       setEngineError(null);
-
-      // Check if we're in a browser environment
-      if (typeof window === 'undefined') {
-        throw new Error('Audio engine can only be initialized in browser environment');
-      }
-
-      // Check global murmuraba state and destroy if needed
-      try {
-        const { getEngineStatus, destroyEngine } = await import('murmuraba');
-        const status = getEngineStatus?.();
-        if (status && status !== 'uninitialized') {
-          // eslint-disable-next-line no-console
-          if (destroyEngine) {
-            await destroyEngine();
-          }
-        }
-      } catch (err) {
-        // Ignore - murmuraba might not be loaded yet
-      }
-
-      // Use the murmuraba hook's initialize method
       await initializeMurmuraba();
-
-      // Audio engine initialized successfully
       setIsEngineInitialized(true);
-      setEngineError(null);
-      // eslint-disable-next-line no-console
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Engine initialization failed';
-      // eslint-disable-next-line no-console
-      setEngineError(errorMsg);
+    } catch (e: any) {
+      setEngineError(e?.message ?? 'Engine initialization failed');
       setIsEngineInitialized(false);
-      throw error;
+      throw e;
     } finally {
       setIsInitializingEngine(false);
     }
@@ -313,116 +278,159 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     murmubaraLoading,
   ]);
 
-  // Simplified VAD analysis using only murmuraba
+  const resetAudioEngine = useCallback(async () => {
+    if (recordingState.isRecording) stopMurmurabaRecording();
+    if (streamingSessionRef.current) {
+      await streamingSessionRef.current.stop();
+      streamingSessionRef.current = null;
+    }
+    setIsStreamingRecording(false);
+    streamingCallbackRef.current = null;
+
+    setAudioChunks([]);
+    setTranscriptions([]);
+    clearConversationalChunks();
+
+    // Re-init
+    try {
+      await initializeAudioEngine();
+    } catch {
+      /* noop */
+    }
+  }, [recordingState.isRecording, stopMurmurabaRecording, initializeAudioEngine]);
+
+  useEffect(() => {
+    if (murmubaraInitialized && !isEngineInitialized && !isInitializingEngine) {
+      setIsEngineInitialized(true);
+      setEngineError(null);
+    } else if (murmubaraError && !engineError) {
+      setEngineError(murmubaraError);
+      setIsEngineInitialized(false);
+    }
+  }, [
+    murmubaraInitialized,
+    murmubaraError,
+    isEngineInitialized,
+    isInitializingEngine,
+    engineError,
+  ]);
+
+  // — Recording controls (delegados) —
+  const startRecording = useCallback(
+    async (config?: RecordingConfig) => {
+      await initializeAudioEngine();
+      const seconds = (config?.chunkDuration ?? chunkDurationMs / 1000) | 0;
+      await startMurmurabaRecording(seconds);
+      // murmuraba maneja el MediaRecorder internamente
+    },
+    [initializeAudioEngine, startMurmurabaRecording, chunkDurationMs]
+  );
+
+  const stopRecording = useCallback(() => {
+    stopMurmurabaRecording();
+  }, [stopMurmurabaRecording]);
+
+  const pauseRecording = useCallback(() => {
+    pauseMurmurabaRecording();
+  }, [pauseMurmurabaRecording]);
+
+  const resumeRecording = useCallback(() => {
+    resumeMurmurabaRecording();
+  }, [resumeMurmurabaRecording]);
+
+  const clearTranscriptions = useCallback(() => {
+    setTranscriptions([]);
+    setAudioChunks([]);
+    chunkTranscriptions.current.clear();
+    processedAudioUrls.current.clear();
+    chunkProcessingTimes.current.clear();
+    setConversationalChunks([]);
+  }, []);
+
+  // — Whisper call —
+  const transcribeWithWhisper = useCallback(
+    async (blob: Blob): Promise<TranscriptionResult | null> => {
+      if (!asrRef.current || !whisperReady) return null;
+      const t0 = performance.now();
+      const out = await transcribeBlobWith(asrRef.current, blob, whisperLanguage);
+      // latency metrics (best-effort)
+      recordMetrics({
+        chunkId: 'file',
+        audioToEmitLatency: performance.now() - t0,
+        audioProcessingLatency: 0,
+        transcriptionLatency: performance.now() - t0,
+        middlewareLatency: 0,
+        vadScore: 0,
+        audioSize: blob.size,
+      });
+      return out;
+    },
+    [whisperReady, whisperLanguage, recordMetrics]
+  );
+
+  // — VAD / metadata vía murmuraba processing helpers —
   const analyzeVAD = useCallback(async (buffer: ArrayBuffer) => {
     try {
       const { murmubaraVAD } = await loadMurmubaraProcessing();
-      const result = await murmubaraVAD(buffer);
+      const r = await murmubaraVAD(buffer);
       return {
-        averageVad: result.average || 0,
-        vadScores: result.scores || [],
-        metrics: result.metrics || [],
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        voiceSegments: (result.voiceSegments || []).map((segment: any) => ({
-          startTime: segment.startTime || 0,
-          endTime: segment.endTime || 0,
-          vadScore: segment.vadScore || 0,
-          confidence: segment.confidence || 0,
+        averageVad: r.average || 0,
+        vadScores: r.scores || [],
+        metrics: r.metrics || [],
+        voiceSegments: (r.voiceSegments || []).map((s: any) => ({
+          startTime: s.startTime || 0,
+          endTime: s.endTime || 0,
+          vadScore: s.vadScore || 0,
+          confidence: s.confidence || 0,
         })),
       };
-    } catch (error) {
-      // Return empty result instead of throwing
-      return {
-        averageVad: 0,
-        vadScores: [],
-        metrics: [],
-        voiceSegments: [],
-      };
+    } catch {
+      return { averageVad: 0, vadScores: [], metrics: [], voiceSegments: [] };
     }
   }, []);
 
-  // Convert blob to ArrayBuffer
-  const convertBlobToBuffer = useCallback(async (blob: Blob): Promise<ArrayBuffer> => {
-    return await blob.arrayBuffer();
-  }, []);
+  const convertBlobToBuffer = useCallback((blob: Blob) => blob.arrayBuffer(), []);
 
-  // processAndTranscribeFile method will be defined after transcribeWithWhisper
-
-  // Helper function to calculate audio duration using real metadata extraction
   const calculateDuration = useCallback(async (buffer: ArrayBuffer): Promise<number> => {
     try {
       const { extractAudioMetadata } = await loadMurmubaraProcessing();
       const metadata = await extractAudioMetadata(buffer);
       return metadata.duration;
-    } catch (error) {
-      // Fallback to estimation if metadata extraction fails
+    } catch {
       const bytes = buffer.byteLength;
-      const estimatedDuration = bytes / (44100 * 2 * 2); // 44.1kHz, 2 channels, 16-bit
-      return Math.max(0.1, estimatedDuration);
+      return Math.max(0.1, bytes / (44100 * 2 * 2));
     }
   }, []);
 
-  // STREAMING RECORDING with callback pattern - Modern React 19 approach
+  // — Streaming API (callback por chunk) —
   const startStreamingRecording = useCallback(
-    async (
-      onChunk: (chunk: StreamingSusurroChunk) => void,
-      config?: RecordingConfig
-    ): Promise<void> => {
-      if (isStreamingRecording) {
-        throw new Error('Already recording. Stop current recording first.');
-      }
-
-      // Don't initialize here - let useMurmubaraEngine handle it
-      // The murmuraba hook will initialize when startRecording is called
+    async (onChunk: (chunk: StreamingSusurroChunk) => void, config?: RecordingConfig) => {
+      if (isStreamingRecording) throw new Error('Already recording. Stop first.');
+      await initializeAudioEngine();
 
       setIsStreamingRecording(true);
-      setCurrentStreamingChunks([]);
       streamingCallbackRef.current = onChunk;
+      lastProcessedChunkIndexRef.current = recordingState.chunks?.length ?? 0;
 
-      // Configuration with defaults
-      const recordingConfig = {
-        chunkDuration: config?.chunkDuration || chunkDurationMs / 1000, // Use config or default (8s)
-        vadThreshold: config?.vadThreshold || 0.5,
-        enableRealTimeTranscription: config?.enableRealTimeTranscription ?? true,
-        enableNoiseReduction: config?.enableNoiseReduction ?? true,
+      const seconds = (config?.chunkDuration ?? chunkDurationMs / 1000) | 0;
+      await startMurmurabaRecording(seconds);
+
+      streamingSessionRef.current = {
+        stop: async () => {
+          stopMurmurabaRecording();
+          setIsStreamingRecording(false);
+          streamingCallbackRef.current = null;
+        },
       };
-
-      try {
-        // Ensure audio engine is initialized
-        if (!murmubaraInitialized && !isEngineInitialized) {
-          await initializeAudioEngine();
-        }
-        
-        // Reset the last processed chunk index
-        lastProcessedChunkIndexRef.current = recordingState.chunks.length;
-        
-        // Start recording with Murmuraba (with configured chunk duration)
-        // Murmuraba handles the media stream internally
-        await startMurmurabaRecording(recordingConfig.chunkDuration);
-
-        // Store session with proper cleanup
-        const streamingSession = {
-          stop: async () => {
-
-            // Stop Murmuraba recording
-            stopMurmurabaRecording();
-
-            setIsStreamingRecording(false);
-            streamingCallbackRef.current = null;
-          },
-        };
-
-        // Store session reference
-        streamingSessionRef.current = streamingSession;
-      } catch (error) {
-        setIsStreamingRecording(false);
-        streamingCallbackRef.current = null;
-        const errorMsg =
-          error instanceof Error ? error.message : 'Failed to start streaming recording';
-        throw new Error(`Streaming recording failed: ${errorMsg}`);
-      }
     },
-    [isStreamingRecording, startMurmurabaRecording, stopMurmurabaRecording, recordingState.chunks, chunkDurationMs, murmubaraInitialized, isEngineInitialized, initializeAudioEngine]
+    [
+      isStreamingRecording,
+      initializeAudioEngine,
+      recordingState.chunks,
+      startMurmurabaRecording,
+      stopMurmurabaRecording,
+      chunkDurationMs,
+    ]
   );
 
   const stopStreamingRecording = useCallback(async (): Promise<StreamingSusurroChunk[]> => {
@@ -430,458 +438,153 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       await streamingSessionRef.current.stop();
       streamingSessionRef.current = null;
     }
-
     setIsStreamingRecording(false);
     streamingCallbackRef.current = null;
+    // devolvemos lo que haya en conversationalChunks como snapshot simple
+    const chunks = conversationalChunks.map<StreamingSusurroChunk>((c) => ({
+      id: c.id,
+      audioBlob: new Blob(), // not retaining blobs; stream consumers should handle in real time
+      vadScore: c.vadScore ?? 0,
+      timestamp: Date.now(),
+      transcriptionText: c.transcript ?? '',
+      duration: Math.max(0, (c.endTime ?? 0) - (c.startTime ?? 0)),
+      isVoiceActive: (c.vadScore ?? 0) > 0.3,
+    }));
+    return chunks;
+  }, [conversationalChunks]);
 
-    // Return all chunks processed during this session
-    return currentStreamingChunks;
-  }, [currentStreamingChunks]);
+  // — Observa y consume chunks de murmuraba (nada de MediaRecorder manual) —
+  useEffect(() => {
+    const chunks = recordingState.chunks || [];
+    // nuevos
+    const newOnes: AudioChunk[] = [];
+    for (let i = audioChunks.length; i < chunks.length; i++) {
+      const src = chunks[i];
 
-  // Helper functions - moved before usage
+      // Murmuraba v3 debería proveer processedAudioUrl y averageVad
+      const id = src.id || `chunk-${Date.now()}-${i}`;
+      const startTime = src.startTime ?? i * chunkDurationMs;
+      const endTime = src.endTime ?? (i + 1) * chunkDurationMs;
+      const vadScore = src.averageVad ?? 0;
 
+      newOnes.push({
+        id,
+        blob: undefined as any, // lo traemos on-demand al transcribir
+        startTime,
+        endTime,
+        vadScore,
+        duration: src.duration ?? chunkDurationMs,
+      });
+
+      if (src.processedAudioUrl) {
+        processedAudioUrls.current.set(id, src.processedAudioUrl);
+      }
+    }
+
+    if (newOnes.length) {
+      setAudioChunks((prev) => [...prev, ...newOnes]);
+    }
+
+    // promedio de VAD del último
+    const last = chunks[chunks.length - 1];
+    if (last?.averageVad != null) setAverageVad(last.averageVad);
+
+    // STREAMING: emite sólo el último chunk disponible
+    if (isStreamingRecording && streamingCallbackRef.current && chunks.length > 0) {
+      if (chunks.length > lastProcessedChunkIndexRef.current) {
+        const latest = chunks[chunks.length - 1];
+        (async () => {
+          const audioBlob = await urlToBlob(latest.processedAudioUrl);
+          const vadScore = latest.averageVad ?? 0;
+          const isVoiceActive = vadScore > 0.3;
+
+          let transcriptionText = '';
+          if (whisperReady && isVoiceActive && audioBlob.size > 0) {
+            try {
+              const r = await transcribeWithWhisper(audioBlob);
+              transcriptionText = r?.text ?? '';
+            } catch {
+              /* ignore */
+            }
+          }
+
+          const streamingChunk: StreamingSusurroChunk = {
+            id: latest.id || `chunk-${Date.now()}`,
+            audioBlob,
+            vadScore,
+            timestamp: Date.now(),
+            transcriptionText,
+            duration: latest.duration ?? chunkDurationMs,
+            isVoiceActive,
+          };
+
+          streamingCallbackRef.current?.(streamingChunk);
+          lastProcessedChunkIndexRef.current = chunks.length;
+        })();
+      }
+    }
+  }, [
+    recordingState.chunks,
+    audioChunks.length,
+    chunkDurationMs,
+    isStreamingRecording,
+    whisperReady,
+    transcribeWithWhisper,
+  ]);
+
+  // — Conversational emit: cuando audio + transcripción están listos —
   const tryEmitChunk = useCallback(
     async (chunk: AudioChunk, forceEmit = false) => {
       if (!conversational?.onChunk) return;
 
-      const audioUrl = processedAudioUrls.get(chunk.id);
-      const transcript = chunkTranscriptions.get(chunk.id);
-      const processingStartTime = chunkProcessingTimes.get(chunk.id);
+      const audioUrl = processedAudioUrls.current.get(chunk.id);
+      const transcript = chunkTranscriptions.current.get(chunk.id);
+      const t0 = chunkProcessingTimes.current.get(chunk.id);
 
-      // Only emit when both audio and transcript are ready
-      if (audioUrl && transcript) {
-        const processingLatency = processingStartTime
-          ? Date.now() - processingStartTime
-          : undefined;
-
-        let susurroChunk: SusurroChunk = {
+      if (audioUrl && (transcript || forceEmit)) {
+        let emitted: SusurroChunk = {
           id: chunk.id,
           audioUrl,
-          transcript,
+          transcript: transcript ?? '',
           startTime: chunk.startTime,
           endTime: chunk.endTime,
-          vadScore: chunk.vadScore || 0,
-          isComplete: true,
-          processingLatency,
+          vadScore: chunk.vadScore ?? 0,
+          isComplete: Boolean(transcript),
+          processingLatency: t0 ? Date.now() - t0 : undefined,
         };
 
-        // Process chunk through middleware pipeline for enhancement
-        const middlewareStartTime = performance.now();
+        const t1 = performance.now();
         try {
-          susurroChunk = await middlewarePipeline.process(susurroChunk);
-        } catch (error) {
-          // Log middleware processing failure
-          // Middleware processing failed
+          emitted = await middlewarePipeline.process(emitted);
+        } catch {
+          /* ignore middleware errors */
         }
-        const middlewareLatency = performance.now() - middlewareStartTime;
+        const middlewareLatency = performance.now() - t1;
 
-        // Phase 3: Record comprehensive latency metrics
-        if (processingLatency) {
-          const latencyMetrics: Omit<LatencyMetrics, 'timestamp'> = {
+        if (emitted.processingLatency != null) {
+          recordMetrics({
             chunkId: chunk.id,
-            audioToEmitLatency: processingLatency,
-            audioProcessingLatency: Math.max(0, processingLatency - middlewareLatency - 50), // Estimate
-            transcriptionLatency: 50, // Placeholder - should be measured from transcription hook
+            audioToEmitLatency: emitted.processingLatency,
+            audioProcessingLatency: Math.max(0, emitted.processingLatency - middlewareLatency),
+            transcriptionLatency: 0,
             middlewareLatency,
             vadScore: chunk.vadScore,
-            audioSize: chunk.blob?.size,
-          };
-
-          recordLatencyMetrics(latencyMetrics);
-
-          // Real-time status is automatically updated by the hook
+            audioSize: 0,
+          });
         }
 
-        // Add to conversational chunks state
-        setConversationalChunks((prev) => [...prev, susurroChunk]);
-
-        // Emit via callback
-        conversational.onChunk(susurroChunk);
-
-        // Clear timeout if it exists
-        const timeout = chunkEmissionTimeoutRef.current.get(chunk.id);
-        if (timeout) {
-          clearTimeout(timeout);
-          chunkEmissionTimeoutRef.current.delete(chunk.id);
-        }
-
-        // Clean up tracking data
-        chunkProcessingTimes.delete(chunk.id);
-      } else if (forceEmit && conversational.chunkTimeout) {
-        // Handle timeout case - emit incomplete chunk if timeout is reached
-        const susurroChunk: SusurroChunk = {
-          id: chunk.id,
-          audioUrl: audioUrl || '',
-          transcript: transcript || '',
-          startTime: chunk.startTime,
-          endTime: chunk.endTime,
-          vadScore: chunk.vadScore || 0,
-          isComplete: false,
-          processingLatency: processingStartTime ? Date.now() - processingStartTime : undefined,
-        };
-
-        setConversationalChunks((prev) => [...prev, susurroChunk]);
-        conversational.onChunk(susurroChunk);
+        setConversationalChunks((prev) => [...prev, emitted]);
+        conversational.onChunk(emitted);
+        chunkProcessingTimes.current.delete(chunk.id);
       }
     },
-    [
-      conversational,
-      processedAudioUrls,
-      chunkTranscriptions,
-      chunkProcessingTimes,
-      middlewarePipeline,
-      recordLatencyMetrics,
-    ]
+    [conversational, middlewarePipeline, recordMetrics]
   );
 
-  const clearConversationalChunks = useCallback(() => {
-    // Clear URL objects to prevent memory leaks
-    setConversationalChunks((prevChunks) => {
-      prevChunks.forEach((chunk) => {
-        if (chunk.audioUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(chunk.audioUrl);
-        }
-      });
-      return [];
-    });
-
-    setProcessedAudioUrls(new Map());
-    setChunkTranscriptions(new Map());
-    setChunkProcessingTimes(new Map());
-
-    // Clear any pending timeouts
-    chunkEmissionTimeoutRef.current.forEach((timeout) => clearTimeout(timeout));
-    chunkEmissionTimeoutRef.current.clear();
-  }, []);
-
-  // Reset - just cleanup state since useMurmubaraEngine manages the engine
-  const resetAudioEngine = useCallback(async () => {
-    // Stop any ongoing recordings
-    if (recordingState.isRecording) {
-      stopMurmurabaRecording();
-    }
-
-    // Stop streaming if active
-    if (streamingSessionRef.current) {
-      await streamingSessionRef.current.stop();
-      streamingSessionRef.current = null;
-    }
-
-    // Clean up media stream
-    if (currentMediaStream) {
-      currentMediaStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
-      setCurrentMediaStream(null);
-    }
-
-    // Clear all state
-    setIsStreamingRecording(false);
-    setCurrentStreamingChunks([]);
-    streamingCallbackRef.current = null;
-
-    // Clear audio chunks and transcriptions
-    setAudioChunks([]);
-    setTranscriptions([]);
-    clearConversationalChunks();
-
-    // Optionally reinitialize after a short delay
-    setTimeout(async () => {
-      try {
-        await initializeAudioEngine();
-      } catch (error) {
-        // Failed to reinitialize after reset
-      }
-    }, 100);
-  }, [
-    recordingState.isRecording,
-    stopMurmurabaRecording,
-    currentMediaStream,
-    clearConversationalChunks,
-    initializeAudioEngine,
-  ]);
-
-  // Removed blobToFloat32Array - not needed with new simple hook
-
-  // Simplified transcription handler
-  const transcribeWithWhisper = useCallback(
-    async (blob: Blob): Promise<TranscriptionResult | null> => {
-      try {
-        const result = await transcribeWhisper(blob);
-        if (result) {
-          // Create TranscriptionResult format expected by the app
-          const transcriptionResult: TranscriptionResult = {
-            text: result.text,
-            chunkIndex: 0,
-            timestamp: Date.now(),
-            segments: result.chunks?.map((chunk, index) => ({
-              id: index,
-              seek: chunk.timestamp[0],
-              start: chunk.timestamp[0],
-              end: chunk.timestamp[1],
-              text: chunk.text,
-              tokens: [],
-              temperature: 0,
-              avg_logprob: 0,
-              compression_ratio: 0,
-              no_speech_prob: 0,
-            })),
-          };
-
-          // Add to main transcriptions
-          setTranscriptions((prev) => [...prev, transcriptionResult]);
-
-          // Handle conversational mode transcription
-          if (conversational?.onChunk && transcriptionResult.chunkIndex !== undefined) {
-            const chunk = audioChunks[transcriptionResult.chunkIndex];
-            if (chunk) {
-              // Store transcription for this chunk
-              setChunkTranscriptions((prev) =>
-                new Map(prev).set(chunk.id, transcriptionResult.text)
-              );
-
-              // Try to emit chunk if audio is also ready
-              tryEmitChunk(chunk);
-            }
-          }
-
-          return transcriptionResult;
-        }
-        return null;
-      } catch (error) {
-        // Transcription failed
-        return null;
-      }
-    },
-    [transcribeWhisper, conversational, audioChunks, tryEmitChunk]
-  );
-
-  // MAIN METHOD FOR FILES - Everything in one (defined after transcribeWithWhisper)
-  const processAndTranscribeFile = useCallback(
-    async (file: File): Promise<CompleteAudioResult> => {
-      const startTime = performance.now();
-
-      try {
-        // Ensure engines are ready
-        if (!whisperReady) {
-          throw new Error('Whisper model not ready. Please wait for model to load.');
-        }
-        if (!isEngineInitialized) {
-          await initializeAudioEngine();
-        }
-
-        // 1. Convert file to ArrayBuffer
-        const originalBuffer = await file.arrayBuffer();
-
-        // 2. Create URL for original audio
-        const originalAudioUrl = URL.createObjectURL(file);
-
-        // 3. Process with Murmuraba (noise reduction + VAD)
-        const {
-          processFileWithMetrics,
-          getEngineStatus,
-          initializeAudioEngine: murmubaraInit,
-        } = await loadMurmubaraProcessing();
-
-        // Type cast to ensure TypeScript knows the correct return type
-        type ProcessFileWithMetricsResult = {
-          processedBuffer: ArrayBuffer;
-          metrics: unknown[];
-          averageVad: number;
-        };
-
-        // Check if engine is initialized, if not initialize it
-        try {
-          const engineStatus = getEngineStatus ? getEngineStatus() : 'uninitialized';
-          if (engineStatus === 'uninitialized') {
-            // Engine not initialized, initializing now
-            if (murmubaraInit) {
-              await murmubaraInit({
-                noiseReductionLevel: 'medium',
-                bufferSize: 1024,
-                algorithm: 'rnnoise',
-                logLevel: 'info',
-                autoCleanup: true,
-                useAudioWorklet: true,
-              });
-            }
-          }
-        } catch (initError) {
-          // Engine status check failed, proceeding anyway
-        }
-
-        const processedResult = (await processFileWithMetrics(originalBuffer, () => {
-          // Callback for real-time metrics if needed
-        })) as ProcessFileWithMetricsResult;
-
-        // 4. Create URL for processed audio
-        const processedBlob = new Blob([processedResult.processedBuffer], { type: 'audio/wav' });
-        const processedAudioUrl = URL.createObjectURL(processedBlob);
-
-        // 5. Analyze VAD first
-        const vadAnalysis = await analyzeVAD(originalBuffer);
-
-        // 6. Transcribe with Whisper
-        const transcriptionResult = await transcribeWithWhisper(processedBlob);
-        if (!transcriptionResult) {
-          throw new Error('Transcription failed - no result returned');
-        }
-
-        // 7. Extract metadata
-        const metadata: AudioMetadata = {
-          duration: await calculateDuration(originalBuffer),
-          sampleRate: 44100, // Standard sample rate - should match actual buffer
-          channels: 2, // Stereo channels - should match actual buffer
-          fileSize: file.size,
-          processedSize: processedResult.processedBuffer.byteLength,
-        };
-
-        // 8. Compile complete result
-        const result: CompleteAudioResult = {
-          originalAudioUrl,
-          processedAudioUrl,
-          transcriptionText: transcriptionResult.text,
-          transcriptionSegments: transcriptionResult.segments,
-          vadAnalysis,
-          metadata,
-          processingTime: performance.now() - startTime,
-        };
-
-        return result;
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Audio processing failed';
-        throw new Error(`File processing failed: ${errorMessage}`);
-      }
-    },
-    [
-      whisperReady,
-      isEngineInitialized,
-      initializeAudioEngine,
-      transcribeWithWhisper,
-      analyzeVAD,
-      calculateDuration,
-    ]
-  );
-
-  // Process streaming chunks in real-time when in streaming mode
-  useEffect(() => {
-    if (!isStreamingRecording || !streamingCallbackRef.current) {
-      return;
-    }
-
-    const processNewStreamingChunk = async () => {
-      const chunks = recordingState.chunks || [];
-      const lastProcessedIndex = lastProcessedChunkIndexRef.current;
-      
-      // Check if there are new chunks
-      if (chunks.length > lastProcessedIndex) {
-        const newChunk = chunks[chunks.length - 1]; // Get the latest chunk
-        
-        if (newChunk && newChunk.processedAudioUrl) {
-          
-          // Convert URL to blob
-          const audioBlob = await urlToBlob(newChunk.processedAudioUrl);
-          
-          // Get VAD score from Murmuraba
-          const vadScore = newChunk.averageVad || 0;
-          const isVoiceActive = vadScore > 0.3; // Use a reasonable threshold
-          
-          // Transcribe if Whisper is ready and voice is active
-          let transcriptionText = '';
-          if (whisperReady && isVoiceActive) {
-            try {
-              const transcriptionResult = await transcribeWhisper(audioBlob);
-              transcriptionText = transcriptionResult?.text || '';
-            } catch (error) {
-              // Transcription failed, continue without it
-            }
-          }
-          
-          // Create streaming chunk
-          const streamingChunk: StreamingSusurroChunk = {
-            id: newChunk.id || `chunk-${Date.now()}`,
-            audioBlob: audioBlob,
-            vadScore: vadScore,
-            timestamp: Date.now(),
-            transcriptionText: transcriptionText,
-            duration: newChunk.duration || 8000,
-            isVoiceActive: isVoiceActive,
-          };
-          
-          // Store and emit chunk
-          setCurrentStreamingChunks((prev) => [...prev, streamingChunk]);
-          if (streamingCallbackRef.current) {
-            streamingCallbackRef.current(streamingChunk);
-          }
-          
-          // Update last processed index
-          lastProcessedChunkIndexRef.current = chunks.length;
-        }
-      }
-    };
-    
-    processNewStreamingChunk();
-  }, [recordingState.chunks.length, isStreamingRecording, whisperReady, transcribeWhisper]);
-
-  // Real-time chunk processing with hook pattern (Murmuraba v3 integration)
-  useEffect(() => {
-    const processNewChunks = async () => {
-      const newChunks: AudioChunk[] = [];
-
-      // Get chunks from murmuraba engine if available
-      const chunks = recordingState.chunks || [];
-
-      for (let index = audioChunks.length; index < chunks.length; index++) {
-        const chunk = chunks[index];
-
-        // Convert Murmuraba chunk to internal format with real VAD metrics
-        const audioChunk: AudioChunk = {
-          id: chunk.id || `chunk-${Date.now()}-${index}`,
-          blob: await urlToBlob(chunk.processedAudioUrl || ''), // Real Murmuraba v3 integration
-          startTime: chunk.startTime || index * chunkDurationMs,
-          endTime: chunk.endTime || (index + 1) * chunkDurationMs,
-          vadScore: chunk.averageVad || 0, // Real VAD from neural processing
-          duration: chunk.duration || chunkDurationMs,
-        };
-
-        newChunks.push(audioChunk);
-
-        // Store processed audio URL for conversational mode
-        if (conversational?.onChunk && chunk.processedAudioUrl) {
-          if (chunk.processedAudioUrl) {
-            setProcessedAudioUrls((prev) =>
-              new Map(prev).set(audioChunk.id, chunk.processedAudioUrl as string)
-            );
-          }
-
-          // Set timeout for chunk emission if configured
-          if (conversational.chunkTimeout) {
-            const timeout = setTimeout(() => {
-              tryEmitChunk(audioChunk, true); // Force emit on timeout
-            }, conversational.chunkTimeout);
-            chunkEmissionTimeoutRef.current.set(audioChunk.id, timeout);
-          }
-        }
-      }
-
-      if (newChunks.length > 0) {
-        setAudioChunks((prev) => [...prev, ...newChunks]);
-      }
-    };
-
-    processNewChunks();
-
-    // Update VAD from latest chunk with enhanced metrics
-    const chunks = recordingState.chunks || [];
-    const latestChunk = chunks[chunks.length - 1];
-    if (latestChunk) {
-      setAverageVad(latestChunk.averageVad || 0);
-    }
-  }, [recordingState.chunks, audioChunks.length, chunkDurationMs, conversational, tryEmitChunk]);
-
-  // REMOVED: processAudioFile deprecated in Murmuraba v3 - use startRecording() instead
-
-  // Process chunks for transcription
+  // — Auto-procesa al terminar la grabación (batch) —
   const processChunks = useCallback(
     async (chunks: AudioChunk[]) => {
+      if (!chunks.length) return;
       setProcessingStatus({
         isProcessing: true,
         currentChunk: 0,
@@ -889,27 +592,24 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         stage: 'processing',
       });
 
-      // Process each chunk with Whisper
       for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        setProcessingStatus((prev) => ({
-          ...prev,
-          currentChunk: i + 1,
-        }));
-
+        setProcessingStatus((p) => ({ ...p, currentChunk: i + 1 }));
+        const id = chunks[i].id;
+        const processedUrl = processedAudioUrls.current.get(id);
+        if (!processedUrl) continue;
         try {
-          const result = await transcribeWithWhisper(chunk.blob);
-          if (result) {
-            // Enhanced result with chunk information
-            const enhancedResult: TranscriptionResult = {
-              ...result,
-              chunkIndex: i,
-              timestamp: Date.now(),
-            };
-            setTranscriptions((prev) => [...prev, enhancedResult]);
+          const blob = await urlToBlob(processedUrl);
+          const r = await transcribeWithWhisper(blob);
+          if (r) {
+            setTranscriptions((prev) => [
+              ...prev,
+              { ...r, chunkIndex: i, timestamp: Date.now() } as any,
+            ]);
+            chunkTranscriptions.current.set(id, r.text);
+            await tryEmitChunk(chunks[i]);
           }
-        } catch (error) {
-          // Transcription failed for chunk
+        } catch {
+          /* ignore chunk fail */
         }
       }
 
@@ -920,295 +620,149 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         stage: 'complete',
       });
     },
-    [transcribeWithWhisper]
+    [transcribeWithWhisper, tryEmitChunk]
   );
 
-  // Recording functions - Direct hook integration
-  const startRecording = useCallback(async () => {
-    startTimeRef.current = Date.now();
-    setAudioChunks([]);
-    setTranscriptions([]);
-
-    // NEW: Get MediaStream for visualization
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      setCurrentMediaStream(stream);
-    } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        // Failed to get MediaStream for visualization
-      }
-    }
-
-    // Hook handles all audio setup and initialization
-    await startMurmurabaRecording();
-  }, [startMurmurabaRecording]);
-
-  const stopRecording = useCallback(() => {
-    // Clean up MediaStream
-    if (currentMediaStream) {
-      currentMediaStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
-      setCurrentMediaStream(null);
-    }
-
-    // Hook handles all cleanup automatically
-    stopMurmurabaRecording();
-  }, [stopMurmurabaRecording, currentMediaStream]);
-
-  const pauseRecording = useCallback(() => {
-    // Built-in pause functionality
-    pauseMurmurabaRecording();
-  }, [pauseMurmurabaRecording]);
-
-  const resumeRecording = useCallback(() => {
-    // Built-in resume functionality
-    resumeMurmurabaRecording();
-  }, [resumeMurmurabaRecording]);
-
-  const clearTranscriptions = useCallback(() => {
-    setTranscriptions([]);
-    clearRecordings(); // Also clear Murmuraba recordings
-
-    // Also clear conversational transcriptions if in conversational mode
-    if (conversational?.onChunk) {
-      setChunkTranscriptions(new Map());
-    }
-  }, [conversational, clearRecordings]);
-
-  // Optimize memory by cleaning up old URL objects
-  const cleanupOldChunks = useCallback(
-    (maxChunks = 50) => {
-      if (conversationalChunks.length > maxChunks) {
-        const chunksToRemove = conversationalChunks.slice(
-          0,
-          conversationalChunks.length - maxChunks
-        );
-
-        // Revoke old URL objects
-        chunksToRemove.forEach((chunk) => {
-          if (chunk.audioUrl.startsWith('blob:')) {
-            URL.revokeObjectURL(chunk.audioUrl);
-          }
-        });
-
-        // Keep only recent chunks
-        setConversationalChunks((prev) => prev.slice(-maxChunks));
-      }
-    },
-    [conversationalChunks]
-  );
-
-  // Debounced cleanup to prevent memory bloat
   useEffect(() => {
-    if (conversational?.onChunk && conversationalChunks.length > 0) {
-      const cleanup = setTimeout(() => {
-        cleanupOldChunks();
-      }, 5000); // Clean up every 5 seconds
-
-      return () => clearTimeout(cleanup);
-    }
-  }, [conversational, conversationalChunks.length, cleanupOldChunks]);
-
-  // Phase 3: Latency reports are now handled automatically by the useLatencyMonitor hook
-
-  // Sync engine state with murmuraba hook state
-  useEffect(() => {
-    if (murmubaraInitialized && !isEngineInitialized && !isInitializingEngine) {
-      setIsEngineInitialized(true);
-      setEngineError(null);
-      // eslint-disable-next-line no-console
-    } else if (murmubaraError && !engineError) {
-      setEngineError(murmubaraError);
-      setIsEngineInitialized(false);
-      // eslint-disable-next-line no-console
-    }
-  }, [
-    murmubaraInitialized,
-    murmubaraError,
-    isEngineInitialized,
-    isInitializingEngine,
-    engineError,
-  ]);
-
-  // NEW: Auto-initialize audio engine when Whisper is ready (with better guard)
-  useEffect(() => {
-    // Prevent auto-init if already initialized via murmuraba hook
-    if (murmubaraInitialized) {
-      setIsEngineInitialized(true);
-      return;
-    }
-
-    if (
-      whisperReady &&
-      !isEngineInitialized &&
-      !isInitializingEngine &&
-      !engineError &&
-      !murmubaraLoading &&
-      !hasAutoInitializedRef.current
-    ) {
-      hasAutoInitializedRef.current = true;
-      // eslint-disable-next-line no-console
-      initializeAudioEngine().catch(() => {
-        // eslint-disable-next-line no-console
-        hasAutoInitializedRef.current = false; // Reset on failure to allow retry
-      });
-    }
-  }, [
-    whisperReady,
-    isEngineInitialized,
-    isInitializingEngine,
-    engineError,
-    murmubaraLoading,
-    murmubaraInitialized,
-    initializeAudioEngine,
-  ]);
-
-  // Auto-process chunks when ready
-  useEffect(() => {
-    const isRecording = recordingState.isRecording;
-    if (audioChunks.length > 0 && !isRecording && whisperReady) {
-      // Add delay to ensure Murmuraba processing is complete
+    // si hay chunks y no estamos grabando → procesar batch
+    if (audioChunks.length > 0 && !recordingState.isRecording && whisperReady) {
       setTimeout(() => {
-        // Only auto-process if not in conversational mode or instant transcription is enabled
-        if (!conversational?.onChunk || conversational?.enableInstantTranscription) {
+        if (!conversational?.onChunk || conversational.enableInstantTranscription) {
           processChunks(audioChunks);
         }
-      }, 100);
+      }, 50);
     }
   }, [audioChunks, recordingState.isRecording, whisperReady, processChunks, conversational]);
 
-  // Conversational mode: Process chunks individually for real-time emission
-  useEffect(() => {
-    if (
-      conversational?.onChunk &&
-      conversational?.enableInstantTranscription &&
-      audioChunks.length > 0
-    ) {
-      // Find chunks that haven't been transcribed yet
-      const untranscribedChunks = audioChunks.filter(
-        (chunk) => !chunkTranscriptions.has(chunk.id) && processedAudioUrls.has(chunk.id)
-      );
+  // — Limpieza —
+  const clearConversationalChunks = useCallback(() => {
+    setConversationalChunks([]);
+    processedAudioUrls.current.clear();
+    chunkTranscriptions.current.clear();
+    chunkProcessingTimes.current.clear();
+  }, []);
 
-      // Process each untranscribed chunk immediately
-      untranscribedChunks.forEach(async (chunk) => {
-        try {
-          const result = await transcribeWithWhisper(chunk.blob);
-          if (result) {
-            // Store transcription
-            setChunkTranscriptions((prev) => new Map(prev).set(chunk.id, result.text));
-
-            // Try to emit chunk now that transcript is ready
-            tryEmitChunk(chunk);
-          }
-        } catch (error) {
-          // Transcription failed for chunk
-
-          // Still try to emit with empty transcript if audio is ready
-          if (processedAudioUrls.has(chunk.id)) {
-            tryEmitChunk(chunk, true);
-          }
-        }
-      });
-    }
-  }, [
-    audioChunks,
-    conversational,
-    chunkTranscriptions,
-    processedAudioUrls,
-    transcribeWhisper,
-    tryEmitChunk,
-    transcribeWithWhisper,
-  ]);
-
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Reset auto-initialization flag on unmount
-      hasAutoInitializedRef.current = false;
-
-      // Clean up conversational resources
       clearConversationalChunks();
-
-      // Clean up streaming recording if active
       if (streamingSessionRef.current) {
-        streamingSessionRef.current.stop().catch(() => {
-          // Error stopping streaming session on unmount
-        });
-      }
-
-      // Destroy murmuraba engine on unmount to prevent double initialization
-      if (isEngineInitialized || murmubaraInitialized) {
-        (async () => {
-          try {
-            const { destroyEngine } = await import('murmuraba');
-            if (destroyEngine) {
-              await destroyEngine();
-              // eslint-disable-next-line no-console
-            }
-          } catch (err) {
-            // Ignore cleanup errors
-          }
-        })();
+        streamingSessionRef.current.stop().catch(() => {});
       }
     };
-  }, [clearConversationalChunks, isEngineInitialized, murmubaraInitialized]);
+  }, [clearConversationalChunks]);
+
+  // — Export stub (murmuraba puede ofrecer export real si lo expone) —
+  const exportChunkAsWav = useCallback(async (_chunkId: string) => {
+    // delegable a murmuraba si publica API; placeholder para compatibilidad
+    return new Blob();
+  }, []);
+
+  // — File pipeline end-to-end —
+  const processAndTranscribeFile = useCallback(
+    async (file: File): Promise<CompleteAudioResult> => {
+      const t0 = performance.now();
+      if (!whisperReady) throw new Error('Whisper model not ready');
+
+      await initializeAudioEngine();
+
+      const originalBuffer = await file.arrayBuffer();
+      const originalAudioUrl = URL.createObjectURL(file);
+
+      const {
+        processFileWithMetrics,
+        getEngineStatus,
+        initializeAudioEngine: initProc,
+      } = await loadMurmubaraProcessing();
+
+      try {
+        const status = getEngineStatus?.() ?? 'uninitialized';
+        if (status === 'uninitialized' && initProc) {
+          await initProc({
+            noiseReductionLevel: 'medium',
+            bufferSize: 1024,
+            algorithm: 'rnnoise',
+            logLevel: 'info',
+            autoCleanup: true,
+            useAudioWorklet: true,
+          });
+        }
+      } catch {
+        /* ignore */
+      }
+
+      const processed = await processFileWithMetrics(originalBuffer, () => {});
+      const processedBlob = new Blob([processed.processedBuffer], { type: 'audio/wav' });
+      const processedAudioUrl = URL.createObjectURL(processedBlob);
+
+      const vadAnalysis = await analyzeVAD(originalBuffer);
+      const tr = await transcribeWithWhisper(processedBlob);
+      if (!tr) throw new Error('Transcription failed');
+
+      const metadata: AudioMetadata = {
+        duration: await calculateDuration(originalBuffer),
+        sampleRate: 44100,
+        channels: 2,
+        fileSize: file.size,
+        processedSize: processed.processedBuffer.byteLength,
+      };
+
+      return {
+        originalAudioUrl,
+        processedAudioUrl,
+        transcriptionText: tr.text,
+        transcriptionSegments: tr.segments,
+        vadAnalysis,
+        metadata,
+        processingTime: performance.now() - t0,
+      };
+    },
+    [whisperReady, initializeAudioEngine, analyzeVAD, transcribeWithWhisper, calculateDuration]
+  );
 
   return {
-    // Recording state - now from Murmuraba hook
+    // Recording (puro murmuraba)
     isRecording: recordingState.isRecording,
-    isProcessing: processingStatus.isProcessing || isTranscribing,
+    isProcessing: processingStatus.isProcessing,
     transcriptions,
     audioChunks,
     processingStatus,
     averageVad,
-    // Simplified recording functions
+
     startRecording,
     stopRecording,
     pauseRecording,
     resumeRecording,
     clearTranscriptions,
-    // REMOVED: processAudioFile deprecated in v3
-    // Built-in export functions from hook - wrapped for compatibility
-    exportChunkAsWav: () => exportChunkAsWav(),
-    // Whisper-related properties
+
+    exportChunkAsWav,
+
     whisperReady,
     whisperProgress,
     whisperError,
     transcribeWithWhisper,
-    // Conversational features
+
     conversationalChunks,
     clearConversationalChunks,
-    // Advanced middleware control
+
     middlewarePipeline,
-    // Phase 3: Latency monitoring and optimization
+
     latencyReport,
     latencyStatus,
 
-    // NEW REFACTORED METHODS - useSusurro consolidation
-    // Audio engine management
     initializeAudioEngine,
     resetAudioEngine,
     isEngineInitialized,
     engineError,
     isInitializingEngine,
 
-    // MAIN METHOD FOR FILES - Everything in one
     processAndTranscribeFile,
 
-    // STREAMING RECORDING with callback pattern
     startStreamingRecording,
     stopStreamingRecording,
 
-    // Auxiliary methods
     analyzeVAD,
     convertBlobToBuffer,
 
-    // NEW: Expose MediaStream for waveform visualization
-    currentStream: currentMediaStream,
+    currentStream, // provisto por murmuraba
   };
 }

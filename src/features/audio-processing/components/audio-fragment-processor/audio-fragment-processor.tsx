@@ -129,6 +129,9 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
       {/* SimpleWaveformAnalyzer - The entire visualization solution */}
       <div style={{ marginBottom: '20px' }}>
+        <div>
+          {isRecording ? 'Recording...' : 'Not Recording'}
+        </div>
         <SimpleWaveformAnalyzer
           stream={currentStream || undefined}
           isActive={isRecording}

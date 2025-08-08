@@ -22,19 +22,7 @@ vi.mock('murmuraba', () => ({
   }),
 }));
 
-// Mock the whisper hook
-vi.mock('../src/hooks/use-whisper', () => ({
-  useWhisper: () => ({
-    isLoading: false,
-    isReady: true,
-    progress: 100,
-    error: null,
-    transcribe: vi.fn().mockResolvedValue({
-      text: 'Test transcription',
-      chunks: [],
-    }),
-  }),
-}));
+// useWhisper hook mock removed - dead code eliminated
 
 describe('useSusurro', () => {
   beforeEach(() => {

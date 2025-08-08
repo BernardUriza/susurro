@@ -394,7 +394,24 @@ export const WhisperMatrixTerminal = () => {
                   style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
                 >
                   {/* Audio Engine Status */}
-                  <div className="engine-indicator">
+                  <div 
+                    className="engine-indicator"
+                    style={{
+                      cursor: !isEngineInitialized && !isInitializingEngine ? 'pointer' : 'default',
+                    }}
+                    onClick={async () => {
+                      if (!isEngineInitialized && !isInitializingEngine) {
+                        setStatus('[SYSTEM] Initializing audio engine...');
+                        try {
+                          await initializeAudioEngine();
+                          setStatus('[SYSTEM] Audio neural processor ready');
+                        } catch (error) {
+                          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                          setStatus(`[ERROR] Audio engine initialization failed: ${errorMsg}`);
+                        }
+                      }
+                    }}
+                  >
                     <div
                       style={{
                         width: 8,
@@ -416,6 +433,7 @@ export const WhisperMatrixTerminal = () => {
                           : isInitializingEngine
                             ? '#ffff41'
                             : '#ff0041',
+                        textDecoration: !isEngineInitialized && !isInitializingEngine ? 'underline' : 'none',
                       }}
                     >
                       AUDIO_ENGINE:{' '}

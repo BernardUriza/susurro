@@ -1,7 +1,7 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import { useSusurro } from '@susurro/core';
 import { SimpleWaveformAnalyzer } from 'murmuraba';
-import type { CompleteAudioResult } from '@susurro/core';
+import type { CompleteAudioResult, StreamingSusurroChunk } from '@susurro/core';
 
 export interface AudioFragmentProcessorProps {
   onBack: () => void;
@@ -31,6 +31,15 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
   const [status, setStatus] = useState('');
   const [fileResult, setFileResult] = useState<CompleteAudioResult | null>(null);
   const [chunksProcessed, setChunksProcessed] = useState(0);
+  const [transcriptions, setTranscriptions] = useState<string[]>([]);
+  const consoleRef = useRef<HTMLDivElement>(null);
+  
+  // Auto-scroll console to bottom when new transcriptions arrive
+  useEffect(() => {
+    if (consoleRef.current) {
+      consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
+    }
+  }, [transcriptions]);
 
   const handleStartRecording = useCallback(async () => {
     // Allow recording even without Whisper (just won't have transcription)
@@ -40,9 +49,17 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
     setIsRecording(true);
     setStatus(whisperReady ? '[RECORDING_ACTIVE]' : '[RECORDING_NO_TRANSCRIPTION]');
     setChunksProcessed(0);
+    setTranscriptions([]); // Clear previous transcriptions
 
-    const onChunkProcessed = () => {
+    const onChunkProcessed = (chunk: StreamingSusurroChunk) => {
       setChunksProcessed((prev) => prev + 1);
+      
+      // Add transcription to console
+      if (chunk.transcriptionText) {
+        const timestamp = new Date(chunk.timestamp).toLocaleTimeString();
+        const message = `[${timestamp}] Chunk ${chunk.id.substring(0, 8)} - VAD: ${chunk.vadScore.toFixed(2)} - ${chunk.isVoiceActive ? '🔊' : '🔇'}\n${chunk.transcriptionText}`;
+        setTranscriptions(prev => [...prev, message]);
+      }
     };
 
     try {
@@ -63,6 +80,10 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
       const chunks = await stopStreamingRecording();
       setIsRecording(false);
       setStatus(`[COMPLETE] Processed ${chunks.length} chunks`);
+      
+      // Add summary to console
+      const summary = `\n========== RECORDING SUMMARY ==========\nTotal chunks: ${chunks.length}\nTotal transcriptions: ${chunks.filter(c => c.transcriptionText).length}\n=======================================\n`;
+      setTranscriptions(prev => [...prev, summary]);
     } catch (error) {
       setIsRecording(false);
       setStatus(`[ERROR] ${error instanceof Error ? error.message : String(error)}`);
@@ -133,7 +154,55 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
       {!whisperReady && <div>Loading Whisper: {(whisperProgress * 100).toFixed(0)}%</div>}
 
-      {chunksProcessed > 0 && <div>Chunks: {chunksProcessed}</div>}
+      {chunksProcessed > 0 && <div>Chunks Processed: {chunksProcessed}</div>}
+
+      {/* Transcription Console */}
+      <div style={{ marginTop: '20px', marginBottom: '20px' }}>
+        <h3 style={{ color: '#00ff41', marginBottom: '10px' }}>📝 TRANSCRIPTION CONSOLE</h3>
+        <div 
+          ref={consoleRef}
+          style={{
+            background: '#000',
+            border: '2px solid #00ff41',
+            borderRadius: '4px',
+            padding: '15px',
+            height: '300px',
+            overflowY: 'auto',
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            color: '#00ff41',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word'
+          }}
+        >
+          {transcriptions.length === 0 ? (
+            <div style={{ color: '#666' }}>
+              [Waiting for transcriptions... Start recording to see live transcriptions here]
+            </div>
+          ) : (
+            transcriptions.map((text, index) => (
+              <div key={index} style={{ marginBottom: '10px', borderBottom: '1px solid #003311', paddingBottom: '10px' }}>
+                {text}
+              </div>
+            ))
+          )}
+        </div>
+        {transcriptions.length > 0 && (
+          <button 
+            onClick={() => setTranscriptions([])}
+            style={{
+              marginTop: '10px',
+              padding: '5px 15px',
+              background: '#ff0041',
+              border: 'none',
+              color: '#fff',
+              cursor: 'pointer'
+            }}
+          >
+            Clear Console
+          </button>
+        )}
+      </div>
 
       <input
         type="file"

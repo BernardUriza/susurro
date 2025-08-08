@@ -189,6 +189,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // NEW REFS for streaming recording
   const streamingCallbackRef = useRef<((chunk: StreamingSusurroChunk) => void) | null>(null);
   const streamingSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   // Using simple Whisper implementation following HuggingFace tutorial
   const {
@@ -402,37 +403,86 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         // Start recording with Murmuraba
         await startMurmurabaRecording();
 
-        // Set up chunk processing interval
+        // Set up MediaRecorder for real audio capture
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: 'audio/webm',
+        });
+        
         let chunkIndex = 0;
+        const audioChunks: Blob[] = [];
+        
+        mediaRecorder.ondataavailable = async (event) => {
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
+          }
+        };
+        
+        // Process chunks at regular intervals
         const chunkInterval = setInterval(async () => {
-          if (!streamingCallbackRef.current) {
-            clearInterval(chunkInterval);
+          if (!streamingCallbackRef.current || audioChunks.length === 0) {
             return;
           }
-
-          // Create a streaming chunk
+          
+          // Create audio blob from accumulated chunks
+          const audioBlob = new Blob(audioChunks.slice(), { type: 'audio/webm' });
+          audioChunks.length = 0; // Clear for next interval
+          
+          // Analyze VAD
+          let vadScore = 0.5;
+          let isVoiceActive = false;
+          try {
+            const arrayBuffer = await audioBlob.arrayBuffer();
+            const vadResult = await analyzeVAD(arrayBuffer);
+            vadScore = vadResult.averageVad;
+            isVoiceActive = vadScore > recordingConfig.vadThreshold;
+          } catch (error) {
+            // VAD analysis failed, use defaults
+          }
+          
+          // Transcribe if Whisper is ready
+          let transcriptionText = '';
+          if (whisperReady && isVoiceActive) {
+            try {
+              const transcriptionResult = await transcribeWithWhisper(audioBlob);
+              transcriptionText = transcriptionResult?.text || '';
+            } catch (error) {
+              // Transcription failed, continue without it
+            }
+          }
+          
+          // Create a streaming chunk with real data
           const chunk: StreamingSusurroChunk = {
             id: `streaming-chunk-${Date.now()}-${chunkIndex}`,
-            audioBlob: new Blob(), // This would come from actual audio processing
-            vadScore: Math.random(), // Placeholder VAD score
+            audioBlob: audioBlob,
+            vadScore: vadScore,
             timestamp: Date.now(),
-            transcriptionText: '', // Will be filled by Whisper
-            duration: recordingConfig.chunkDuration * 1000, // Convert to ms
-            isVoiceActive: Math.random() > 0.5, // Placeholder voice detection
+            transcriptionText: transcriptionText,
+            duration: recordingConfig.chunkDuration * 1000,
+            isVoiceActive: isVoiceActive,
           };
-
+          
           // Store chunk
           setCurrentStreamingChunks((prev) => [...prev, chunk]);
-
+          
           // Call the callback
           streamingCallbackRef.current(chunk);
           chunkIndex++;
         }, recordingConfig.chunkDuration * 1000);
+        
+        // Start recording
+        mediaRecorder.start(100); // Capture data every 100ms
+        mediaRecorderRef.current = mediaRecorder;
 
         // Store session with proper cleanup
         const streamingSession = {
           stop: async () => {
             clearInterval(chunkInterval);
+            
+            // Stop MediaRecorder
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+              mediaRecorderRef.current.stop();
+              mediaRecorderRef.current = null;
+            }
 
             // Stop media stream - use the stream we just created
             if (stream) {
@@ -458,7 +508,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         throw new Error(`Streaming recording failed: ${errorMsg}`);
       }
     },
-    [isStreamingRecording, startMurmurabaRecording, stopMurmurabaRecording]
+    [isStreamingRecording, startMurmurabaRecording, stopMurmurabaRecording, whisperReady, transcribeWithWhisper, analyzeVAD]
   );
 
   const stopStreamingRecording = useCallback(async (): Promise<StreamingSusurroChunk[]> => {

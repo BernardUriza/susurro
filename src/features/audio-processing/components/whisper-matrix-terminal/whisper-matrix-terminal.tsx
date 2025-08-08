@@ -1,7 +1,7 @@
 'use client';
 
 // React and external libraries
-import React from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 
 // CONSOLIDATED IMPORT - Only useSusurro hook (no direct murmuraba imports)
 import { useSusurro } from '@susurro/core';
@@ -63,9 +63,11 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
   // Component lifecycle logging
   React.useEffect(() => {
+    // eslint-disable-next-line no-console
     console.log('[WhisperMatrixTerminal] Component mounted');
 
     return () => {
+      // eslint-disable-next-line no-console
       console.log('[WhisperMatrixTerminal] Component unmounting');
       // Any cleanup if needed
     };
@@ -88,6 +90,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
   React.useEffect(() => {
     silentThreadProcessorRef.current = new SilentThreadProcessor((message, type) => {
       // Silent thread processor now logs to console instead of UI
+      // eslint-disable-next-line no-console
       console.log(`[SilentThread] [${type}] ${message}`);
     });
   }, []);
@@ -107,51 +110,86 @@ export const WhisperMatrixTerminal: React.FC = () => {
     };
   }, [completeResult]);
 
+  // Store pending file for auto-processing when model is ready
+  const pendingFileRef = useRef<File | null>(null);
+
   // SIMPLIFIED FILE PROCESSING - One method does everything
-  const handleFileProcess = async (file: File) => {
-    try {
-      // Check if engines are ready (useSusurro handles initialization)
-      if (!isEngineInitialized) {
-        setStatus('[ERROR] Audio engine not initialized. Please wait or refresh the page.');
+  const handleFileProcess = useCallback(
+    async (file: File) => {
+      try {
+        // Check if both engines are ready
+        if (!isEngineInitialized) {
+          setStatus('[ERROR] Audio engine not initialized. Please wait or refresh the page.');
+          return false;
+        }
+
+        if (!whisperReady) {
+          setStatus(
+            `[WAITING] Whisper model loading... ${whisperProgress}%. File will be processed automatically when ready.`
+          );
+          pendingFileRef.current = file; // Store file for auto-processing
+          return false;
+        }
+
+        setStatus('[PROCESSING_WITH_CONSOLIDATED_PIPELINE...]');
+        clearTranscriptions();
+        setCompleteResult(null); // Clear previous result
+
+        // ONE METHOD CALL - Everything included: processing + transcription + VAD
+        const result = await processAndTranscribeFile(file);
+
+        // Store complete result
+        setCompleteResult(result);
+
+        // Update status and logs
+        const vadPercentage = (result.vadAnalysis.averageVad * 100).toFixed(1);
+        setStatus(
+          `[PROCESSING_COMPLETE] VAD: ${vadPercentage}% | Duration: ${result.metadata.duration.toFixed(2)}s`
+        );
+
+        // eslint-disable-next-line no-console
+        console.log(`File processed successfully - VAD: ${vadPercentage}%`);
+        // eslint-disable-next-line no-console
+        console.log(`Processing time: ${result.processingTime.toFixed(0)}ms`);
+        // eslint-disable-next-line no-console
+        console.log(`Audio duration: ${result.metadata.duration.toFixed(2)}s`);
+        // eslint-disable-next-line no-console
+        console.log('Complete pipeline: Murmuraba + Whisper + VAD');
+
+        // Set transcription if available
+        if (result.transcriptionText) {
+          setWhisperTranscriptions([result.transcriptionText]);
+          // eslint-disable-next-line no-console
+          console.log('Transcription completed via consolidated pipeline');
+        }
+
+        return true;
+      } catch (err) {
+        setStatus(`[ERROR] ${err instanceof Error ? err.message : 'Unknown error'}`);
+        // eslint-disable-next-line no-console
+        console.error(
+          `File processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+        );
         return false;
       }
+    },
+    [
+      isEngineInitialized,
+      whisperReady,
+      whisperProgress,
+      processAndTranscribeFile,
+      clearTranscriptions,
+    ]
+  );
 
-      setStatus('[PROCESSING_WITH_CONSOLIDATED_PIPELINE...]');
-      clearTranscriptions();
-      setCompleteResult(null); // Clear previous result
-
-      // ONE METHOD CALL - Everything included: processing + transcription + VAD
-      const result = await processAndTranscribeFile(file);
-
-      // Store complete result
-      setCompleteResult(result);
-
-      // Update status and logs
-      const vadPercentage = (result.vadAnalysis.averageVad * 100).toFixed(1);
-      setStatus(
-        `[PROCESSING_COMPLETE] VAD: ${vadPercentage}% | Duration: ${result.metadata.duration.toFixed(2)}s`
-      );
-
-      console.log(`File processed successfully - VAD: ${vadPercentage}%`);
-      console.log(`Processing time: ${result.processingTime.toFixed(0)}ms`);
-      console.log(`Audio duration: ${result.metadata.duration.toFixed(2)}s`);
-      console.log('Complete pipeline: Murmuraba + Whisper + VAD');
-
-      // Set transcription if available
-      if (result.transcriptionText) {
-        setWhisperTranscriptions([result.transcriptionText]);
-        console.log('Transcription completed via consolidated pipeline');
-      }
-
-      return true;
-    } catch (err) {
-      setStatus(`[ERROR] ${err instanceof Error ? err.message : 'Unknown error'}`);
-      console.error(
-        `File processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`
-      );
-      return false;
+  // Auto-process pending file when Whisper becomes ready
+  useEffect(() => {
+    if (whisperReady && pendingFileRef.current) {
+      const file = pendingFileRef.current;
+      pendingFileRef.current = null;
+      handleFileProcess(file);
     }
-  };
+  }, [whisperReady, handleFileProcess]);
 
   const loadExampleAudio = async () => {
     try {
@@ -352,8 +390,12 @@ export const WhisperMatrixTerminal: React.FC = () => {
               <div className="status-section">
                 <p style={{ marginBottom: 10, opacity: 0.8 }}>&gt; {status || 'SYSTEM READY'}</p>
 
-                {/* Engine Status Indicator - Now from useSusurro */}
-                <div className="engine-status">
+                {/* Dual Engine Status Indicators */}
+                <div
+                  className="engine-status"
+                  style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                >
+                  {/* Audio Engine Status */}
                   <div className="engine-indicator">
                     <div
                       style={{
@@ -369,13 +411,56 @@ export const WhisperMatrixTerminal: React.FC = () => {
                         animation: isInitializingEngine ? 'pulse 1s infinite' : 'none',
                       }}
                     />
-                    <span style={{ color: isEngineInitialized ? '#00ff41' : isInitializingEngine ? '#ffff41' : '#ff0041' }}>
+                    <span
+                      style={{
+                        color: isEngineInitialized
+                          ? '#00ff41'
+                          : isInitializingEngine
+                            ? '#ffff41'
+                            : '#ff0041',
+                      }}
+                    >
                       AUDIO_ENGINE:{' '}
                       {isInitializingEngine
                         ? 'INITIALIZING MURMURABA ENGINE...'
                         : isEngineInitialized
                           ? 'ONLINE ✓'
                           : 'OFFLINE - CLICK TO INITIALIZE'}
+                    </span>
+                  </div>
+
+                  {/* Whisper Model Status */}
+                  <div className="engine-indicator">
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: whisperReady
+                          ? '#00ff41'
+                          : whisperProgress > 0
+                            ? '#ffff00'
+                            : '#ff0041',
+                        boxShadow: whisperReady ? '0 0 10px #00ff41' : '0 0 10px #ff0041',
+                        animation:
+                          whisperProgress > 0 && !whisperReady ? 'pulse 1s infinite' : 'none',
+                      }}
+                    />
+                    <span
+                      style={{
+                        color: whisperReady
+                          ? '#00ff41'
+                          : whisperProgress > 0
+                            ? '#ffff41'
+                            : '#ff0041',
+                      }}
+                    >
+                      WHISPER_MODEL:{' '}
+                      {whisperReady
+                        ? 'READY ✓'
+                        : whisperProgress > 0
+                          ? `LOADING... ${whisperProgress}%`
+                          : 'OFFLINE'}
                     </span>
                   </div>
                 </div>
@@ -390,11 +475,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
                       onClick={async () => {
                         setStatus('[SYSTEM] Retrying audio engine initialization...');
                         try {
-                          await initializeAudioEngine({
-                            enableNoiseSuppression: true,
-                            enableEchoCancellation: true,
-                            vadThreshold: 0.5,
-                          });
+                          await initializeAudioEngine();
 
                           setStatus('[SYSTEM] Audio neural processor ready');
                           console.log('Audio engine initialized successfully on retry');
@@ -878,17 +959,20 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
                             // SIMPLIFIED: processAndTranscribeFile already handled transcription
                             // This button is now mainly for re-transcription if needed
+                            // eslint-disable-next-line no-console
                             console.log(
                               'Transcription already completed via consolidated pipeline'
                             );
 
                             if (completeResult.transcriptionText) {
                               setWhisperTranscriptions([completeResult.transcriptionText]);
+                              // eslint-disable-next-line no-console
                               console.log('Using existing transcription from complete result');
                               setIsTranscribing(false);
                               setStatus('[TRANSCRIPTION_ALREADY_AVAILABLE]');
                             } else {
                               // Fallback: re-transcribe the processed audio
+                              // eslint-disable-next-line no-console
                               console.log('Re-transcribing processed audio');
 
                               fetch(completeResult.processedAudioUrl)
@@ -898,6 +982,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
                                     blob,
                                     transcribeWithWhisper,
                                     (progress) => {
+                                      // eslint-disable-next-line no-console
                                       console.log(`Re-transcription: ${progress}% complete`);
                                     }
                                   );
@@ -905,12 +990,14 @@ export const WhisperMatrixTerminal: React.FC = () => {
                                 .then((text) => {
                                   if (text) {
                                     setWhisperTranscriptions([text]);
+                                    // eslint-disable-next-line no-console
                                     console.log('Re-transcription completed');
                                   }
                                   setIsTranscribing(false);
                                   setStatus('[WHISPER_BACKGROUND_COMPLETE]');
                                 })
                                 .catch((error) => {
+                                  // eslint-disable-next-line no-console
                                   console.error(`Re-transcription failed: ${error}`);
                                   setIsTranscribing(false);
                                 });
@@ -954,7 +1041,8 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
                     {whisperError && (
                       <div className="matrix-status error" style={{ marginTop: 10 }}>
-                        &gt; [WHISPER_ERROR] {whisperError.message}
+                        &gt; [WHISPER_ERROR]{' '}
+                        {typeof whisperError === 'string' ? whisperError : whisperError.message}
                       </div>
                     )}
                   </div>

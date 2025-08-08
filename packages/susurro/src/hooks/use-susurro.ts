@@ -246,13 +246,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   const { latencyReport, latencyStatus, recordMetrics } = useLatencyMonitor(300);
 
-  const [middlewarePipeline] = useState(
-    () =>
-      new ChunkMiddlewarePipeline({
-        processingStage: 'pre-emit',
-        metadata: { sessionId: `session-${Date.now()}` },
-      })
-  );
+  const [middlewarePipeline] = useState(() => new ChunkMiddlewarePipeline());
 
   // — Engine init/reset —
   const initializeAudioEngine = useCallback(async () => {

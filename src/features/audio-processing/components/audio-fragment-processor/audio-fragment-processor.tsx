@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useRef, useEffect } from 'react';
-import { useSusurro } from '@susurro/core';
+import { useWhisper } from '../../../../contexts/WhisperContext';
 import { SimpleWaveformAnalyzer } from 'murmuraba';
 import type { CompleteAudioResult, StreamingSusurroChunk } from '@susurro/core';
 
@@ -26,9 +26,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
 
     // MediaStream for visualization
     currentStream,
-  } = useSusurro({
-    chunkDurationMs: 8000, // 8-second chunks as per plan
-  });
+  } = useWhisper();
 
   // Minimal state - only essentials
   const [isRecording, setIsRecording] = useState(false);

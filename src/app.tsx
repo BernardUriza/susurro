@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 // Absolute imports (using aliases)
 import { MatrixNavigation, MatrixRain, ModelSelector } from './components';
+import { WhisperProvider } from './contexts/WhisperContext';
 
 export function App() {
   const [selectedModel, setSelectedModel] = useState<'tiny' | 'base' | 'medium' | null>(null);
@@ -21,10 +22,10 @@ export function App() {
           }}
         />
       ) : (
-        <>
+        <WhisperProvider initialModel={selectedModel}>
           <MatrixRain density={50} speed={50} opacity={0.08} fontSize={16} color="#00ff41" />
           <MatrixNavigation initialModel={selectedModel} />
-        </>
+        </WhisperProvider>
       )}
     </div>
   );

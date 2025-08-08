@@ -8,7 +8,7 @@ import {
   AudioFragmentProcessor,
 } from '../../features/audio-processing/components';
 import { WhisperEchoLogs } from '../../features/visualization/components/whisper-echo-logs';
-import { useSusurro } from '@susurro/core';
+import { useWhisper } from '../../contexts/WhisperContext';
 
 // Type imports
 import type { MatrixNavigationProps as NavProps } from './types';
@@ -67,11 +67,18 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
     []
   );
 
-  // Get Whisper status from useSusurro with selected model
-  const { whisperReady, whisperProgress, whisperError } = useSusurro({
-    onWhisperProgressLog: addWhisperLog,
-    initialModel: initialModel,
-  });
+  // Get Whisper status from context (single instance)
+  const { whisperReady, whisperProgress, whisperError } = useWhisper();
+
+  // Set up logging effect
+  React.useEffect(() => {
+    // Log Whisper progress to the UI
+    if (whisperProgress > 0 && whisperProgress < 100) {
+      addWhisperLog(`⏳ Cargando modelo Whisper: ${whisperProgress}%`, 'info');
+    } else if (whisperProgress === 100 && whisperReady) {
+      addWhisperLog('✅ Modelo Whisper listo y operativo', 'success');
+    }
+  }, [whisperProgress, whisperReady, addWhisperLog]);
 
   // Suppress unused variable warnings - these are used by the logging system
   void whisperReady;
@@ -87,10 +94,12 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
           key: 'F1',
         },
         processor: {
-          component: <AudioFragmentProcessor 
-            onBack={() => setCurrentView('terminal')} 
-            onLog={addWhisperLog}
-          />,
+          component: (
+            <AudioFragmentProcessor
+              onBack={() => setCurrentView('terminal')}
+              onLog={addWhisperLog}
+            />
+          ),
           title: '[AUDIO_FRAGMENT_PROCESSOR]',
           key: 'F2',
         },
@@ -163,16 +172,19 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
   useEffect(() => {
     // Use a flag to prevent duplicate initialization in StrictMode
     let initialized = false;
-    
+
     const initializeLogs = () => {
       if (initialized) return;
       initialized = true;
-      
+
       addWhisperLog('👋 Bienvenido a Susurro Whisper AI', 'success');
-      addWhisperLog(`🔄 Inicializando sistema de transcripción con modelo: ${initialModel}`, 'info');
+      addWhisperLog(
+        `🔄 Inicializando sistema de transcripción con modelo: ${initialModel}`,
+        'info'
+      );
       addWhisperLog(`📊 Versión: 2.0.0 | Modo: ${process.env.NODE_ENV || 'production'}`, 'info');
     };
-    
+
     initializeLogs();
 
     // Add system info after a short delay
@@ -185,21 +197,21 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
       if (typeof AudioContext !== 'undefined') {
         addWhisperLog('✅ AudioContext disponible - audio processing habilitado', 'success');
       }
-      
+
       if (typeof MediaRecorder !== 'undefined') {
         addWhisperLog('✅ MediaRecorder disponible - grabación habilitada', 'success');
       }
 
       // Preload heavy dependencies for better UX
-      import('../../../packages/susurro/src/lib/dynamic-loaders').then(
-        ({ preloadCriticalDependencies }) => {
+      import('../../../packages/susurro/src/lib/dynamic-loaders')
+        .then(({ preloadCriticalDependencies }) => {
           preloadCriticalDependencies();
           addWhisperLog('📦 Pre-cargando dependencias críticas en segundo plano...', 'info');
           addWhisperLog('⚡ Optimizando rendimiento para procesamiento en tiempo real', 'info');
-        }
-      ).catch((error) => {
-        addWhisperLog(`⚠️ Error pre-cargando dependencias: ${error.message}`, 'warning');
-      });
+        })
+        .catch((error) => {
+          addWhisperLog(`⚠️ Error pre-cargando dependencias: ${error.message}`, 'warning');
+        });
     }, 500);
 
     // Check Whisper status after a delay

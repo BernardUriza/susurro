@@ -143,47 +143,7 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
     onChatStart,
   ]);
 
-  // 🛑 STOP RECORDING HANDLER
-  const handleStopRecording = useCallback(async () => {
-    const allChunks = await stopStreamingRecording();
-    setIsRecording(false);
-
-    // Create final user message
-    if (currentMessage.trim()) {
-      const userMessage: ChatConversation = {
-        id: `user-${Date.now()}`,
-        type: 'user',
-        content: currentMessage.trim(),
-        timestamp: Date.now(),
-        vadScore:
-          recordingChunks.reduce((acc, chunk) => acc + chunk.vadScore, 0) / recordingChunks.length,
-        processingTime: recordingChunks.reduce((acc, chunk) => acc + chunk.duration, 0),
-      };
-
-      setConversations((prev) => [...prev, userMessage]);
-      setCurrentMessage('');
-
-      // Simulate AI response
-      setTimeout(() => {
-        generateAIResponse(userMessage.content);
-      }, 500);
-
-      onChatEnd?.(allChunks);
-    } else {
-      // No speech detected
-      setConversations((prev) => [
-        ...prev,
-        {
-          id: `no-speech-${Date.now()}`,
-          type: 'system',
-          content: '[NO_SPEECH_DETECTED] Try speaking closer to the microphone.',
-          timestamp: Date.now(),
-        },
-      ]);
-    }
-  }, [stopStreamingRecording, currentMessage, recordingChunks, onChatEnd, generateAIResponse]);
-
-  // 🤖 AI RESPONSE GENERATOR
+  // 🤖 AI RESPONSE GENERATOR - moved up to avoid hoisting issues
   const generateAIResponse = useCallback(async (userText: string) => {
     setIsTyping(true);
 
@@ -229,6 +189,46 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
 
     setIsTyping(false);
   }, []);
+
+  // 🛑 STOP RECORDING HANDLER
+  const handleStopRecording = useCallback(async () => {
+    const allChunks = await stopStreamingRecording();
+    setIsRecording(false);
+
+    // Create final user message
+    if (currentMessage.trim()) {
+      const userMessage: ChatConversation = {
+        id: `user-${Date.now()}`,
+        type: 'user',
+        content: currentMessage.trim(),
+        timestamp: Date.now(),
+        vadScore:
+          recordingChunks.reduce((acc, chunk) => acc + chunk.vadScore, 0) / recordingChunks.length,
+        processingTime: recordingChunks.reduce((acc, chunk) => acc + chunk.duration, 0),
+      };
+
+      setConversations((prev) => [...prev, userMessage]);
+      setCurrentMessage('');
+
+      // Simulate AI response
+      setTimeout(() => {
+        generateAIResponse(userMessage.content);
+      }, 500);
+
+      onChatEnd?.(allChunks);
+    } else {
+      // No speech detected
+      setConversations((prev) => [
+        ...prev,
+        {
+          id: `no-speech-${Date.now()}`,
+          type: 'system',
+          content: '[NO_SPEECH_DETECTED] Try speaking closer to the microphone.',
+          timestamp: Date.now(),
+        },
+      ]);
+    }
+  }, [stopStreamingRecording, currentMessage, recordingChunks, onChatEnd, generateAIResponse]);
 
   // Clear conversation
   const handleClearChat = useCallback(() => {

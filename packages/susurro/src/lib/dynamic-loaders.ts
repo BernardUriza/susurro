@@ -6,17 +6,11 @@
  * Reduces initial bundle size by ~45MB
  */
 export const loadTransformers = async () => {
-  console.log('🎯 Loading Transformers.js dynamically...');
-  const startTime = performance.now();
-
   const transformers = await import(
     /* webpackChunkName: "transformers-core" */
     /* webpackPreload: true */
     '@xenova/transformers'
   );
-
-  const loadTime = performance.now() - startTime;
-  console.log(`✅ Transformers.js loaded in ${loadTime.toFixed(2)}ms`);
 
   return transformers;
 };
@@ -26,17 +20,11 @@ export const loadTransformers = async () => {
  * Reduces initial bundle size and improves First Contentful Paint
  */
 export const loadMurmubaraEngine = async () => {
-  console.log('🎯 Loading Murmuraba engine dynamically...');
-  const startTime = performance.now();
-
   const { useMurmubaraEngine } = await import(
     /* webpackChunkName: "murmuraba-engine" */
     /* webpackPreload: true */
     'murmuraba'
   );
-
-  const loadTime = performance.now() - startTime;
-  console.log(`✅ Murmuraba engine loaded in ${loadTime.toFixed(2)}ms`);
 
   return useMurmubaraEngine;
 };
@@ -46,22 +34,17 @@ export const loadMurmubaraEngine = async () => {
  * Separates heavy processing logic from core engine
  */
 export const loadMurmubaraProcessing = async () => {
-  console.log('🎯 Loading Murmuraba processing functions...');
-  const startTime = performance.now();
-
   const module = await import(
     /* webpackChunkName: "murmuraba-processing" */
     /* webpackPreload: true */
     'murmuraba'
   );
 
-  const loadTime = performance.now() - startTime;
-  console.log(`✅ Murmuraba processing loaded in ${loadTime.toFixed(2)}ms`);
-
   return {
-    processFileWithMetrics: module.processFileWithMetrics || module.processFile, // Use processFileWithMetrics first, fallback to processFile 
+    processFileWithMetrics: module.processFileWithMetrics || module.processFile, // Use processFileWithMetrics first, fallback to processFile
     murmubaraVAD: module.murmubaraVAD || module.getDiagnostics, // Fallback function
-    extractAudioMetadata: module.extractAudioMetadata || (() => ({ duration: 1.0, sampleRate: 44100, channels: 2 })), // Fallback metadata
+    extractAudioMetadata:
+      module.extractAudioMetadata || (() => ({ duration: 1.0, sampleRate: 44100, channels: 2 })), // Fallback metadata
     // Add engine status check to ensure initialization
     getEngineStatus: module.getEngineStatus,
     initializeAudioEngine: module.initializeAudioEngine,

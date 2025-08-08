@@ -9,13 +9,10 @@ interface WhisperServerProcessorProps {
 }
 
 // Server-side audio preprocessing component
-export async function WhisperServerProcessor({
-  audioFile,
-  children,
-}: WhisperServerProcessorProps) {
+export async function WhisperServerProcessor({ audioFile, children }: WhisperServerProcessorProps) {
   // Server-side audio metadata extraction (placeholder)
   // In a real implementation, this would process the audio file server-side
-  
+
   return (
     <div className="whisper-server-processed">
       {/* Server-rendered audio metadata */}

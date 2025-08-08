@@ -71,7 +71,6 @@
     "packages/*"
   ],
   "dependencies": {
-    "@ricky0123/vad-web": "^0.0.21",
     "@susurro/core": "file:./packages/susurro",
     "eslint-config-prettier": "^10.1.8",
     "framer-motion": "^12.23.12",
@@ -80,7 +79,6 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.9",
-    "@types/puppeteer": "^7.0.4",
     "@types/react": "^19.1.9",
     "@types/react-dom": "^19.1.7",
     "@typescript-eslint/eslint-plugin": "^7.18.0",

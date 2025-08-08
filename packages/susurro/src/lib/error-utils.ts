@@ -65,8 +65,6 @@ export const logAudioError = (
 
   if (logger) {
     logger(logMessage, 'error');
-  } else {
-    console.error(logMessage);
   }
 };
 

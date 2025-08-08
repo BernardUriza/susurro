@@ -13,8 +13,8 @@ interface UseLatencyMonitorReturn {
   exportMetrics: (format?: 'json' | 'csv') => string;
   clear: () => void;
   getMetricsCount: () => number;
-  onOptimization: (listener: (data: any) => void) => void;
-  offOptimization: (listener: (data: any) => void) => void;
+  onOptimization: (listener: (data: unknown) => void) => void;
+  offOptimization: (listener: (data: unknown) => void) => void;
 }
 
 /**
@@ -78,13 +78,13 @@ export function useLatencyMonitor(targetLatency = 300): UseLatencyMonitorReturn 
   }, []);
 
   // Optimization event listeners
-  const onOptimization = useCallback((listener: (data: any) => void) => {
+  const onOptimization = useCallback((listener: (data: unknown) => void) => {
     if (monitorRef.current) {
       monitorRef.current.on('optimization-trigger', listener);
     }
   }, []);
 
-  const offOptimization = useCallback((listener: (data: any) => void) => {
+  const offOptimization = useCallback((listener: (data: unknown) => void) => {
     if (monitorRef.current) {
       monitorRef.current.off('optimization-trigger', listener);
     }

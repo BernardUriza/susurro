@@ -1,7 +1,5 @@
-'use client';
-
 // React and external libraries
-import React, { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 
 // CONSOLIDATED IMPORT - Only useSusurro hook (no direct murmuraba imports)
 import { useSusurro } from '@susurro/core';
@@ -19,9 +17,9 @@ import '../../../../styles/improved-layout.css';
 
 type CubeFace = 'front' | 'right' | 'back' | 'left';
 
-export const WhisperMatrixTerminal: React.FC = () => {
-  const [temporalSegmentDuration] = React.useState(15); // Default 15 seconds
-  const [currentFace] = React.useState<CubeFace>('front');
+export const WhisperMatrixTerminal = () => {
+  const [temporalSegmentDuration] = useState(15); // Default 15 seconds
+  const [currentFace] = useState<CubeFace>('front');
 
   // CONSOLIDATED useSusurro - All audio functionality in one hook
   const {
@@ -48,21 +46,21 @@ export const WhisperMatrixTerminal: React.FC = () => {
   });
 
   // SIMPLIFIED STATE - Much less state needed with consolidated useSusurro
-  const [status, setStatus] = React.useState('');
-  const [chunkDuration, setChunkDuration] = React.useState(15);
-  const [whisperTranscriptions, setWhisperTranscriptions] = React.useState<string[]>([]);
-  const [isTranscribing, setIsTranscribing] = React.useState(false);
+  const [status, setStatus] = useState('');
+  const [chunkDuration, setChunkDuration] = useState(15);
+  const [whisperTranscriptions, setWhisperTranscriptions] = useState<string[]>([]);
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   // Complete audio result from processAndTranscribeFile
-  const [completeResult, setCompleteResult] = React.useState<CompleteAudioResult | null>(null);
+  const [completeResult, setCompleteResult] = useState<CompleteAudioResult | null>(null);
 
   // Direct values from useSusurro - no abstraction needed
 
   // Silent thread processor for non-blocking transcription
-  const silentThreadProcessorRef = React.useRef<SilentThreadProcessor | null>(null);
+  const silentThreadProcessorRef = useRef<SilentThreadProcessor | null>(null);
 
   // Component lifecycle logging
-  React.useEffect(() => {
+  useEffect(() => {
     // eslint-disable-next-line no-console
     console.log('[WhisperMatrixTerminal] Component mounted');
 
@@ -76,7 +74,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
   // REMOVED: Manual engine initialization - useSusurro handles this automatically
   // Auto-initialization happens when Whisper model is ready
-  React.useEffect(() => {
+  useEffect(() => {
     if (isEngineInitialized) {
       setStatus('[SYSTEM] Audio neural processor ready');
     } else if (engineError) {
@@ -87,7 +85,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEngineInitialized, engineError, isInitializingEngine]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     silentThreadProcessorRef.current = new SilentThreadProcessor((message, type) => {
       // Silent thread processor now logs to console instead of UI
       // eslint-disable-next-line no-console
@@ -97,7 +95,7 @@ export const WhisperMatrixTerminal: React.FC = () => {
 
   // SIMPLIFIED: URLs are now managed by completeResult
   // Cleanup URLs when completeResult changes
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (completeResult) {
         if (completeResult.originalAudioUrl.startsWith('blob:')) {

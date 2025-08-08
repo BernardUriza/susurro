@@ -34,10 +34,6 @@ export function useAudioEngine(): UseAudioEngineReturn {
       // We just mark it as initialized for our state tracking
       setIsInitialized(true);
       setError(null);
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[useAudioEngine] Audio engine initialized');
-      }
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);

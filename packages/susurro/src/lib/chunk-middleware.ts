@@ -104,15 +104,17 @@ export const qualityMiddleware: ChunkMiddleware = {
 // Middleware Pipeline Manager
 export class ChunkMiddlewarePipeline {
   private middlewares: ChunkMiddleware[] = [];
-  private context: MiddlewareContext; // Used to store middleware execution context
+  // private context: MiddlewareContext; // Context stored for future middleware extensions
 
-  constructor(context: Partial<MiddlewareContext> = {}) {
-    this.context = {
-      startTime: Date.now(),
-      processingStage: 'pre-emit',
-      metadata: {},
-      ...context,
-    };
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  constructor(_context: Partial<MiddlewareContext> = {}) {
+    // Context not currently used but reserved for future middleware features
+    // this.context = {
+    //   startTime: Date.now(),
+    //   processingStage: 'pre-emit',
+    //   metadata: {},
+    //   ...context,
+    // };
 
     // Register default middlewares
     this.register(qualityMiddleware);
@@ -158,13 +160,7 @@ export class ChunkMiddlewarePipeline {
 
         const latency = performance.now() - startTime;
         processingLatencies[middleware.name] = latency;
-
-        // Latency warning for debugging
-        if (latency > 50) {
-          console.warn(`Middleware "${middleware.name}" took ${latency.toFixed(2)}ms`);
-        }
       } catch (error) {
-        console.error(`Middleware "${middleware.name}" failed:`, error);
         // Continue processing with other middlewares
       }
     }
@@ -238,4 +234,3 @@ function analyzeAudioQuality(chunk: SusurroChunk): {
     applied: ['neural_denoising', 'voice_enhancement'],
   };
 }
-

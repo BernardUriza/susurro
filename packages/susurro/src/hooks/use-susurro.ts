@@ -18,7 +18,6 @@ import type {
 // Import dynamic loaders from centralized location
 import { loadMurmubaraProcessing } from '../lib/dynamic-loaders';
 
-
 // Conversational Evolution - Advanced chunk middleware
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
 
@@ -97,6 +96,7 @@ export interface UseSusurroReturn {
 
   // Auxiliary methods
   convertBlobToBuffer: (blob: Blob) => Promise<ArrayBuffer>;
+  analyzeVAD: (buffer: ArrayBuffer) => Promise<any>;
 
   // NEW: Expose MediaStream for waveform visualization
   currentStream: MediaStream | null;
@@ -256,13 +256,11 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     // Check if already initialized or initializing
     if (murmubaraInitialized || isEngineInitialized) {
       // eslint-disable-next-line no-console
-      console.log('✅ [useSusurro] Audio engine already initialized, skipping');
       return;
     }
 
     if (isInitializingEngine || murmubaraLoading) {
       // eslint-disable-next-line no-console
-      console.log('⏳ [useSusurro] Audio engine is already initializing, skipping');
       return;
     }
 
@@ -281,10 +279,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         const status = getEngineStatus?.();
         if (status && status !== 'uninitialized') {
           // eslint-disable-next-line no-console
-          console.log('⚠️ [useSusurro] Found existing engine, destroying before re-initialization');
           if (destroyEngine) {
             await destroyEngine();
-            destroyEngineRef = destroyEngine; // Store for cleanup
           }
         }
       } catch (err) {
@@ -298,18 +294,22 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       setIsEngineInitialized(true);
       setEngineError(null);
       // eslint-disable-next-line no-console
-      console.log('✅ [useSusurro] Audio engine initialized successfully');
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Engine initialization failed';
       // eslint-disable-next-line no-console
-      console.error('❌ [useSusurro] Engine initialization failed:', errorMsg, error);
       setEngineError(errorMsg);
       setIsEngineInitialized(false);
       throw error;
     } finally {
       setIsInitializingEngine(false);
     }
-  }, [initializeMurmuraba, murmubaraInitialized, isEngineInitialized, isInitializingEngine, murmubaraLoading]);
+  }, [
+    initializeMurmuraba,
+    murmubaraInitialized,
+    isEngineInitialized,
+    isInitializingEngine,
+    murmubaraLoading,
+  ]);
 
   // Simplified VAD analysis using only murmuraba
   const analyzeVAD = useCallback(async (buffer: ArrayBuffer) => {
@@ -320,10 +320,14 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         averageVad: result.average || 0,
         vadScores: result.scores || [],
         metrics: result.metrics || [],
-        voiceSegments: result.voiceSegments || [],
+        voiceSegments: (result.voiceSegments || []).map((segment: any) => ({
+          startTime: segment.startTime || 0,
+          endTime: segment.endTime || 0,
+          vadScore: segment.vadScore || 0,
+          confidence: segment.confidence || 0,
+        })),
       };
     } catch (error) {
-      console.error('[VAD] Analysis failed:', error);
       // Return empty result instead of throwing
       return {
         averageVad: 0,
@@ -993,12 +997,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       setIsEngineInitialized(true);
       setEngineError(null);
       // eslint-disable-next-line no-console
-      console.log('✅ [useSusurro] Murmuraba engine synchronized as initialized');
     } else if (murmubaraError && !engineError) {
       setEngineError(murmubaraError);
       setIsEngineInitialized(false);
       // eslint-disable-next-line no-console
-      console.error('❌ [useSusurro] Murmuraba error synchronized:', murmubaraError);
     }
   }, [
     murmubaraInitialized,
@@ -1015,7 +1017,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       setIsEngineInitialized(true);
       return;
     }
-    
+
     if (
       whisperReady &&
       !isEngineInitialized &&
@@ -1026,10 +1028,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     ) {
       hasAutoInitializedRef.current = true;
       // eslint-disable-next-line no-console
-      console.log('🚀 [useSusurro] Auto-initializing audio engine after Whisper is ready');
-      initializeAudioEngine().catch((error) => {
+      initializeAudioEngine().catch(() => {
         // eslint-disable-next-line no-console
-        console.error('❌ [useSusurro] Auto-initialization failed:', error.message);
         hasAutoInitializedRef.current = false; // Reset on failure to allow retry
       });
     }
@@ -1116,7 +1116,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         });
       }
 
-
       // Destroy murmuraba engine on unmount to prevent double initialization
       if (isEngineInitialized || murmubaraInitialized) {
         (async () => {
@@ -1125,7 +1124,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
             if (destroyEngine) {
               await destroyEngine();
               // eslint-disable-next-line no-console
-              console.log('🧹 [useSusurro] Audio engine destroyed on unmount');
             }
           } catch (err) {
             // Ignore cleanup errors

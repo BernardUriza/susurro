@@ -23,7 +23,7 @@ interface UseModelCacheReturn {
  */
 export function useModelCache(): UseModelCacheReturn {
   const [cacheStatus, setCacheStatus] = useState<CacheStatus>({ hasCache: false });
-  
+
   const dbName = 'whisper-models-cache';
   const storeName = 'models';
   const cacheVersion = 1;
@@ -46,61 +46,69 @@ export function useModelCache(): UseModelCacheReturn {
   }, [dbName, storeName, cacheVersion]);
 
   // Store model data in IndexedDB
-  const storeModel = useCallback(async (modelId: string, data: ArrayBuffer): Promise<void> => {
-    const db = await initDB();
-    const transaction = db.transaction([storeName], 'readwrite');
-    const store = transaction.objectStore(storeName);
-
-    return new Promise((resolve, reject) => {
-      const request = store.put({
-        id: modelId,
-        data: data,
-        timestamp: Date.now(),
-        size: data.byteLength,
-      });
-
-      request.onsuccess = () => {
-        resolve();
-        // Refresh cache status after storing
-        refreshCacheStatus();
-      };
-      request.onerror = () => reject(request.error);
-    });
-  }, [initDB, storeName]);
-
-  // Retrieve model from IndexedDB
-  const getModel = useCallback(async (modelId: string): Promise<ArrayBuffer | null> => {
-    try {
+  const storeModel = useCallback(
+    async (modelId: string, data: ArrayBuffer): Promise<void> => {
       const db = await initDB();
-      const transaction = db.transaction([storeName], 'readonly');
+      const transaction = db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);
 
-      return new Promise((resolve) => {
-        const request = store.get(modelId);
+      return new Promise((resolve, reject) => {
+        const request = store.put({
+          id: modelId,
+          data: data,
+          timestamp: Date.now(),
+          size: data.byteLength,
+        });
+
         request.onsuccess = () => {
-          const result = request.result;
-          if (result && result.data) {
-            resolve(result.data);
-          } else {
-            resolve(null);
-          }
+          resolve();
+          // Refresh cache status after storing
+          refreshCacheStatus();
         };
-        request.onerror = () => resolve(null);
+        request.onerror = () => reject(request.error);
       });
-    } catch (error) {
-      return null;
-    }
-  }, [initDB, storeName]);
+    },
+    [initDB, storeName]
+  );
+
+  // Retrieve model from IndexedDB
+  const getModel = useCallback(
+    async (modelId: string): Promise<ArrayBuffer | null> => {
+      try {
+        const db = await initDB();
+        const transaction = db.transaction([storeName], 'readonly');
+        const store = transaction.objectStore(storeName);
+
+        return new Promise((resolve) => {
+          const request = store.get(modelId);
+          request.onsuccess = () => {
+            const result = request.result;
+            if (result && result.data) {
+              resolve(result.data);
+            } else {
+              resolve(null);
+            }
+          };
+          request.onerror = () => resolve(null);
+        });
+      } catch (error) {
+        return null;
+      }
+    },
+    [initDB, storeName]
+  );
 
   // Check if model exists in cache
-  const hasModel = useCallback(async (modelId: string): Promise<boolean> => {
-    const model = await getModel(modelId);
-    return model !== null;
-  }, [getModel]);
+  const hasModel = useCallback(
+    async (modelId: string): Promise<boolean> => {
+      const model = await getModel(modelId);
+      return model !== null;
+    },
+    [getModel]
+  );
 
   // Get cache status
   const refreshCacheStatus = useCallback(async (): Promise<void> => {
-    console.log('[CACHE HOOK] Getting cache status...');
     try {
       const db = await initDB();
       const transaction = db.transaction([storeName], 'readonly');
@@ -110,22 +118,10 @@ export function useModelCache(): UseModelCacheReturn {
         const request = store.getAll();
         request.onsuccess = () => {
           const models = request.result;
-          console.log('[CACHE HOOK] Found', models.length, 'cached models');
-          
+
           if (models.length > 0) {
             const totalSize = models.reduce((sum, model) => sum + (model.size || 0), 0);
             const lastUpdated = new Date(Math.max(...models.map((m) => m.timestamp || 0)));
-
-            console.log('[CACHE HOOK] Cache details:', {
-              modelCount: models.length,
-              totalSize: `${(totalSize / 1048576).toFixed(2)} MB`,
-              lastUpdated: lastUpdated.toISOString(),
-              models: models.map(m => ({
-                id: m.id,
-                size: `${((m.size || 0) / 1048576).toFixed(2)} MB`,
-                timestamp: new Date(m.timestamp || 0).toISOString()
-              }))
-            });
 
             setCacheStatus({
               hasCache: true,
@@ -133,19 +129,16 @@ export function useModelCache(): UseModelCacheReturn {
               lastUpdated: lastUpdated,
             });
           } else {
-            console.log('[CACHE HOOK] No cached models found');
             setCacheStatus({ hasCache: false });
           }
           resolve();
         };
         request.onerror = () => {
-          console.error('[CACHE HOOK] Error reading cache:', request.error);
           setCacheStatus({ hasCache: false });
           resolve();
         };
       });
     } catch (error) {
-      console.error('[CACHE HOOK] Failed to get cache status:', error);
       setCacheStatus({ hasCache: false });
     }
   }, [initDB, storeName]);
@@ -189,41 +182,29 @@ export function useModelCache(): UseModelCacheReturn {
 
   // Request persistent storage
   const requestPersistentStorage = useCallback(async (): Promise<boolean> => {
-    console.log('[CACHE HOOK] Requesting persistent storage...');
-    
     if ('storage' in navigator && 'persist' in navigator.storage) {
       try {
         // Check current persistence status
         const currentlyPersisted = await navigator.storage.persisted();
-        console.log('[CACHE HOOK] Current persistence status:', currentlyPersisted);
-        
+
         if (currentlyPersisted) {
-          console.log('[CACHE HOOK] Storage is already persistent');
           return true;
         }
-        
+
         // Request persistence
         const isPersisted = await navigator.storage.persist();
-        console.log('[CACHE HOOK] Persistence request result:', isPersisted);
-        
+
         // Get storage estimate after persistence request
         if ('estimate' in navigator.storage) {
-          const estimate = await navigator.storage.estimate();
-          console.log('[CACHE HOOK] Storage estimate after persistence:', {
-            usage: `${((estimate.usage || 0) / 1048576).toFixed(2)} MB`,
-            quota: `${((estimate.quota || 0) / 1048576).toFixed(2)} MB`,
-            percentUsed: `${(((estimate.usage || 0) / (estimate.quota || 1)) * 100).toFixed(2)}%`
-          });
+          await navigator.storage.estimate();
         }
-        
+
         return isPersisted;
       } catch (error) {
-        console.error('[CACHE HOOK] Failed to request persistent storage:', error);
         return false;
       }
     }
-    
-    console.warn('[CACHE HOOK] Persistent storage API not available');
+
     return false;
   }, []);
 

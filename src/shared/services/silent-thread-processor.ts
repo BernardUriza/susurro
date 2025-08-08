@@ -1,5 +1,5 @@
 export class SilentThreadProcessor {
-  private taskQueue: Array<() => Promise<any>> = [];
+  private taskQueue: Array<() => Promise<unknown>> = [];
   private isProcessing = false;
   private onLog?: (message: string, type: 'info' | 'warning' | 'error' | 'success') => void;
 
@@ -7,7 +7,7 @@ export class SilentThreadProcessor {
     this.onLog = onLog;
   }
 
-  async addTask(task: () => Promise<any>) {
+  async addTask(task: () => Promise<unknown>) {
     this.taskQueue.push(task);
     if (!this.isProcessing) {
       this.processQueue();
@@ -29,7 +29,7 @@ export class SilentThreadProcessor {
     this.isProcessing = false;
   }
 
-  private processInBackground(task: () => Promise<any>): Promise<void> {
+  private processInBackground(task: () => Promise<unknown>): Promise<void> {
     return new Promise((resolve) => {
       // Use requestIdleCallback to run when browser is idle
       if ('requestIdleCallback' in window) {
@@ -72,7 +72,7 @@ export class SilentThreadProcessor {
   // Process transcription in chunks
   async processTranscriptionAsync(
     blob: Blob,
-    transcribe: (blob: Blob) => Promise<any>,
+    transcribe: (blob: Blob) => Promise<unknown>,
     onProgress: (progress: number) => void
   ): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -93,7 +93,7 @@ export class SilentThreadProcessor {
           onProgress(100);
 
           this.onLog?.('Transcription complete', 'success');
-          resolve(result?.text || '');
+          resolve((result as any)?.text || '');
         } catch (error) {
           this.onLog?.(`Transcription failed: ${error}`, 'error');
           reject(error);

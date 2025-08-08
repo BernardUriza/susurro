@@ -1,1 +1,0 @@
-// Only keep active hooks - removed unused scroll and animation hooks

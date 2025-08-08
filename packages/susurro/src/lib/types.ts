@@ -105,25 +105,25 @@ export interface AudioEngineConfig {
 // Complete Audio Result - ALL-IN-ONE for file processing
 export interface CompleteAudioResult {
   // Audio URLs for download/playback
-  originalAudioUrl: string;        // URL del archivo original
-  processedAudioUrl: string;       // URL del audio procesado (con noise reduction)
-  
+  originalAudioUrl: string; // URL del archivo original
+  processedAudioUrl: string; // URL del audio procesado (con noise reduction)
+
   // Transcription
-  transcriptionText: string;       // Texto transcrito por Whisper
+  transcriptionText: string; // Texto transcrito por Whisper
   transcriptionSegments?: TranscriptionSegment[];
-  
+
   // Metrics and analysis
-  vadAnalysis: VADAnalysisResult;  // Análisis completo de VAD
-  
+  vadAnalysis: VADAnalysisResult; // Análisis completo de VAD
+
   // Metadata
   metadata: AudioMetadata;
-  processingTime: number;          // Tiempo total de procesamiento (ms)
+  processingTime: number; // Tiempo total de procesamiento (ms)
 }
 
 // Recording Configuration
 export interface RecordingConfig {
-  chunkDuration?: number;          // Duración de chunks (segundos)
-  vadThreshold?: number;           // Umbral VAD
+  chunkDuration?: number; // Duración de chunks (segundos)
+  vadThreshold?: number; // Umbral VAD
   enableRealTimeTranscription?: boolean;
   enableNoiseReduction?: boolean;
 }
@@ -131,12 +131,12 @@ export interface RecordingConfig {
 // Susurro Chunk for streaming (different from legacy SusurroChunk)
 export interface StreamingSusurroChunk {
   id: string;
-  audioBlob: Blob;                 // Audio chunk procesado
-  transcriptionText: string;       // Transcripción del chunk
-  vadScore: number;                // Score VAD del chunk
-  timestamp: number;               // Timestamp del chunk
-  duration: number;                // Duración del chunk (ms)
-  isVoiceActive: boolean;          // Si contiene voz activa
+  audioBlob: Blob; // Audio chunk procesado
+  transcriptionText: string; // Transcripción del chunk
+  vadScore: number; // Score VAD del chunk
+  timestamp: number; // Timestamp del chunk
+  duration: number; // Duración del chunk (ms)
+  isVoiceActive: boolean; // Si contiene voz activa
 }
 
 // VAD Analysis Result
@@ -144,7 +144,7 @@ export interface VADAnalysisResult {
   averageVad: number;
   vadScores: number[];
   metrics: ProcessingMetrics[];
-  voiceSegments: VoiceSegment[];   // Segmentos con voz detectada
+  voiceSegments: VoiceSegment[]; // Segmentos con voz detectada
 }
 
 // Voice Segment
@@ -157,11 +157,11 @@ export interface VoiceSegment {
 
 // Audio Metadata
 export interface AudioMetadata {
-  duration: number;                // Duración total (segundos)
+  duration: number; // Duración total (segundos)
   sampleRate: number;
   channels: number;
-  fileSize: number;                // Tamaño original (bytes)
-  processedSize: number;           // Tamaño procesado (bytes)
+  fileSize: number; // Tamaño original (bytes)
+  processedSize: number; // Tamaño procesado (bytes)
 }
 
 // Processing Metrics (from Murmuraba)

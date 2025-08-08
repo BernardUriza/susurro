@@ -180,8 +180,7 @@ export class LatencyMonitor {
 
     for (const optimization of this.optimizations) {
       if (optimization.condition(metrics)) {
-        console.warn(`Latency optimization triggered: ${optimization.name}`);
-        optimization.apply().catch(console.error);
+        optimization.apply().catch(() => {});
         break; // Apply only one optimization at a time
       }
     }
@@ -220,7 +219,7 @@ export class LatencyMonitor {
   }
 
   // Simple event emitter for optimization triggers
-  private listeners: { [event: string]: Function[] } = {};
+  private listeners: { [event: string]: ((data: unknown) => void)[] } = {};
 
   private emit(event: string, data: unknown): void {
     if (this.listeners[event]) {
@@ -228,14 +227,14 @@ export class LatencyMonitor {
     }
   }
 
-  on(event: string, listener: Function): void {
+  on(event: string, listener: (data: unknown) => void): void {
     if (!this.listeners[event]) {
       this.listeners[event] = [];
     }
     this.listeners[event].push(listener);
   }
 
-  off(event: string, listener: Function): void {
+  off(event: string, listener: (data: unknown) => void): void {
     if (this.listeners[event]) {
       this.listeners[event] = this.listeners[event].filter((l) => l !== listener);
     }
@@ -289,7 +288,7 @@ export class LatencyMonitor {
  * @deprecated This singleton instance has been replaced with hook-based architecture.
  * Use useLatencyMonitor hook instead of this global instance.
  * This export will be removed in a future version.
- * 
+ *
  * Migration: Replace latencyMonitor usage with useLatencyMonitor hook.
  */
 export const latencyMonitor = new LatencyMonitor();

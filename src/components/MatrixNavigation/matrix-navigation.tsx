@@ -1,19 +1,19 @@
-// 1. React and external libraries
+// React and external libraries
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
-// 2. Absolute imports (internal modules)
+// Absolute imports (using aliases)
 import { MatrixScrollArea } from '../MatrixScrollArea';
 import {
   WhisperMatrixTerminal,
   AudioFragmentProcessor,
 } from '../../features/audio-processing/components';
 import { WhisperEchoLogs } from '../../features/visualization/components/whisper-echo-logs';
-import { useSusurro } from '../../../packages/susurro/src/hooks/use-susurro';
+import { useSusurro } from '@susurro/core';
 
-// 3. Type imports
+// Type imports
 import type { MatrixNavigationProps as NavProps } from './types';
 
-// 4. Style imports
+// Style imports
 import styles from './matrix-navigation.module.css';
 
 export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tiny' }: NavProps) => {
@@ -32,40 +32,40 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
 
   // Track recent messages to avoid duplicates
   const recentMessagesRef = useRef<Set<string>>(new Set());
-  
+
   // REFACTOR: Stable callback to survive re-renders and StrictMode cycles
-  const addWhisperLog = useCallback((
-    message: string,
-    type: 'info' | 'warning' | 'error' | 'success' = 'info'
-  ) => {
-    // Create a key for duplicate detection (message + type + timestamp within 500ms)
-    const now = Date.now();
-    const messageKey = `${message}-${type}`;
-    
-    // Only block exact duplicates within 500ms (much shorter window)
-    // This prevents StrictMode duplicates but allows legitimate progress updates
-    const isDuplicateStrictMode = recentMessagesRef.current.has(messageKey);
-    
-    if (isDuplicateStrictMode) {
-      return; // Skip StrictMode duplicate
-    }
-    
-    // Add to recent messages with shorter cleanup window
-    recentMessagesRef.current.add(messageKey);
-    setTimeout(() => {
-      recentMessagesRef.current.delete(messageKey);
-    }, 500); // Reduced from 1000ms to 500ms
-    
-    setWhisperLogs((prev) => [
-      ...prev,
-      {
-        id: `log-${now}-${Math.random()}`,
-        timestamp: new Date(),
-        message,
-        type,
-      },
-    ]);
-  }, []);
+  const addWhisperLog = useCallback(
+    (message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
+      // Create a key for duplicate detection (message + type + timestamp within 500ms)
+      const now = Date.now();
+      const messageKey = `${message}-${type}`;
+
+      // Only block exact duplicates within 500ms (much shorter window)
+      // This prevents StrictMode duplicates but allows legitimate progress updates
+      const isDuplicateStrictMode = recentMessagesRef.current.has(messageKey);
+
+      if (isDuplicateStrictMode) {
+        return; // Skip StrictMode duplicate
+      }
+
+      // Add to recent messages with shorter cleanup window
+      recentMessagesRef.current.add(messageKey);
+      setTimeout(() => {
+        recentMessagesRef.current.delete(messageKey);
+      }, 500); // Reduced from 1000ms to 500ms
+
+      setWhisperLogs((prev) => [
+        ...prev,
+        {
+          id: `log-${now}-${Math.random()}`,
+          timestamp: new Date(),
+          message,
+          type,
+        },
+      ]);
+    },
+    []
+  );
 
   // Get Whisper status from useSusurro with selected model
   const { whisperReady, whisperProgress, whisperError } = useSusurro({
@@ -78,76 +78,83 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
   void whisperProgress;
   void whisperError;
 
-  const views = useMemo(() => ({
-    terminal: {
-      component: <WhisperMatrixTerminal />,
-      title: '[WHISPER_MATRIX_TERMINAL]',
-      key: 'F1',
-    },
-    processor: {
-      component: <AudioFragmentProcessor onBack={() => setCurrentView('terminal')} />,
-      title: '[AUDIO_FRAGMENT_PROCESSOR]',
-      key: 'F2',
-    },
-    analytics: {
-      component: (
-        <div className={styles.placeholder}>
-          <h2>[ANALYTICS_MODULE]</h2>
-          <p>COMING SOON</p>
-          <div className={styles.icon}>📊</div>
-        </div>
-      ),
-      title: '[ANALYTICS]',
-      key: 'F3',
-    },
-    settings: {
-      component: (
-        <div className={styles.placeholder}>
-          <h2>[SETTINGS_PANEL]</h2>
-          <p>CONFIGURATION</p>
-          <div className={styles.icon}>⚙️</div>
-        </div>
-      ),
-      title: '[SETTINGS]',
-      key: 'F4',
-    },
-    export: {
-      component: (
-        <div className={styles.placeholder}>
-          <h2>[EXPORT_CENTER]</h2>
-          <p>EXPORT OPTIONS</p>
-          <div className={styles.icon}>💾</div>
-        </div>
-      ),
-      title: '[EXPORT]',
-      key: 'F5',
-    },
-    history: {
-      component: (
-        <div className={styles.placeholder}>
-          <h2>[HISTORY_LOG]</h2>
-          <p>TRANSCRIPTION HISTORY</p>
-          <div className={styles.icon}>📜</div>
-        </div>
-      ),
-      title: '[HISTORY]',
-      key: 'F6',
-    },
-  } as const), []);
+  const views = useMemo(
+    () =>
+      ({
+        terminal: {
+          component: <WhisperMatrixTerminal />,
+          title: '[WHISPER_MATRIX_TERMINAL]',
+          key: 'F1',
+        },
+        processor: {
+          component: <AudioFragmentProcessor onBack={() => setCurrentView('terminal')} />,
+          title: '[AUDIO_FRAGMENT_PROCESSOR]',
+          key: 'F2',
+        },
+        analytics: {
+          component: (
+            <div className={styles.placeholder}>
+              <h2>[ANALYTICS_MODULE]</h2>
+              <p>COMING SOON</p>
+              <div className={styles.icon}>📊</div>
+            </div>
+          ),
+          title: '[ANALYTICS]',
+          key: 'F3',
+        },
+        settings: {
+          component: (
+            <div className={styles.placeholder}>
+              <h2>[SETTINGS_PANEL]</h2>
+              <p>CONFIGURATION</p>
+              <div className={styles.icon}>⚙️</div>
+            </div>
+          ),
+          title: '[SETTINGS]',
+          key: 'F4',
+        },
+        export: {
+          component: (
+            <div className={styles.placeholder}>
+              <h2>[EXPORT_CENTER]</h2>
+              <p>EXPORT OPTIONS</p>
+              <div className={styles.icon}>💾</div>
+            </div>
+          ),
+          title: '[EXPORT]',
+          key: 'F5',
+        },
+        history: {
+          component: (
+            <div className={styles.placeholder}>
+              <h2>[HISTORY_LOG]</h2>
+              <p>TRANSCRIPTION HISTORY</p>
+              <div className={styles.icon}>📜</div>
+            </div>
+          ),
+          title: '[HISTORY]',
+          key: 'F6',
+        },
+      }) as const,
+    []
+  );
 
-  const handleViewChange = useCallback((viewKey: keyof typeof views) => {
-    if (isTransitioning || viewKey === currentView) return;
+  const handleViewChange = useCallback(
+    (viewKey: keyof typeof views) => {
+      if (isTransitioning || viewKey === currentView) return;
 
-    setIsTransitioning(true);
-    setCurrentView(viewKey);
+      setIsTransitioning(true);
+      setCurrentView(viewKey);
 
-    // Log view change
-    const viewName = views[viewKey].title;
-    addWhisperLog(`🔀 Navegando a ${viewName}`, 'info');
+      // Log view change
+      const viewName = views[viewKey].title;
+      addWhisperLog(`🔀 Navegando a ${viewName}`, 'info');
 
-    // Simple transition timing
-    setTimeout(() => setIsTransitioning(false), 200);
-  }, [isTransitioning, currentView, addWhisperLog]);
+      // Simple transition timing
+      setTimeout(() => setIsTransitioning(false), 200);
+    },
+    [isTransitioning, currentView, addWhisperLog, views]
+  );
 
   // Add initial system status log and preload dependencies
   useEffect(() => {

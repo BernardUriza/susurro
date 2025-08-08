@@ -1,12 +1,10 @@
 // React and external libraries
 import { useState } from 'react';
 
-// Relative imports - components
-import { MatrixNavigation } from './components/MatrixNavigation';
-import { MatrixRain } from './components/MatrixRain';
-import { ModelSelector } from './components/ModelSelector';
+// Absolute imports (using aliases)
+import { MatrixNavigation, MatrixRain, ModelSelector } from './components';
 
-function App() {
+export function App() {
   const [selectedModel, setSelectedModel] = useState<'tiny' | 'base' | 'medium' | null>(null);
 
   // eslint-disable-next-line no-console
@@ -31,5 +29,3 @@ function App() {
     </div>
   );
 }
-
-export default App;

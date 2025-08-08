@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMurmubaraEngine } from 'murmuraba';
-import { loadTransformers, loadMurmubaraProcessing } from '../lib/dynamic-loaders';
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
 import { useLatencyMonitor } from './use-latency-monitor';
 
@@ -26,6 +25,8 @@ const WHISPER_ENV = {
 } as const;
 
 async function ensureASR(model: string, quantized: boolean, onProgress: (p: number) => void) {
+  // Dynamic import to enable code-splitting
+  const { loadTransformers } = await import('../lib/dynamic-loaders');
   const { pipeline, env } = await loadTransformers();
   
   // Configure transformers environment
@@ -368,6 +369,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // — VAD / metadata vía murmuraba processing helpers —
   const analyzeVAD = useCallback(async (buffer: ArrayBuffer) => {
     try {
+      const { loadMurmubaraProcessing } = await import('../lib/dynamic-loaders');
       const { murmubaraVAD } = await loadMurmubaraProcessing();
       const r = await murmubaraVAD(buffer);
       return {
@@ -390,6 +392,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   const calculateDuration = useCallback(async (buffer: ArrayBuffer): Promise<number> => {
     try {
+      const { loadMurmubaraProcessing } = await import('../lib/dynamic-loaders');
       const { extractAudioMetadata } = await loadMurmubaraProcessing();
       const metadata = await extractAudioMetadata(buffer);
       return metadata.duration;
@@ -665,6 +668,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       const originalBuffer = await file.arrayBuffer();
       const originalAudioUrl = URL.createObjectURL(file);
 
+      const { loadMurmubaraProcessing } = await import('../lib/dynamic-loaders');
       const {
         processFileWithMetrics,
         getEngineStatus,

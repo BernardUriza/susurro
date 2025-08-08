@@ -40,7 +40,6 @@ export const useSusurro = createUseSusurroEnforcer();
 
 // Re-export types that components need
 export type {
-  UseSusurroReturn,
   AudioChunk,
   ProcessingStatus,
   TranscriptionResult,
@@ -50,3 +49,6 @@ export type {
   RecordingConfig,
   AudioMetadata,
 } from '../lib/types';
+
+// Export UseSusurroReturn from use-susurro
+export type { UseSusurroReturn } from './use-susurro';

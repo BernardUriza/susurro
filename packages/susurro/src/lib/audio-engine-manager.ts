@@ -36,7 +36,8 @@ type EngineEventListener = (event: { type: EngineEventType; data: unknown }) => 
 export class AudioEngineManager {
   private static instance: AudioEngineManager | null = null;
   private state: EngineState = 'uninitialized';
-  private murmurabaEngine: unknown = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private murmurabaEngine: any = null;
   private config: AudioEngineConfig;
   private healthMetrics: EngineHealthMetrics;
   private listeners: Set<EngineEventListener> = new Set();
@@ -180,8 +181,6 @@ export class AudioEngineManager {
     this.healthMetrics.consecutiveFailures++;
     this.healthMetrics.isHealthy = false;
 
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
     this.emitEvent('error', { error, context: 'initialization' });
 
     // Auto-recovery logic
@@ -191,7 +190,7 @@ export class AudioEngineManager {
     ) {
       setTimeout(
         () => {
-          this.initialize().catch((err) => {});
+          this.initialize().catch(() => {});
         },
         this.config.retryDelayMs * Math.pow(2, this.healthMetrics.consecutiveFailures - 1)
       ); // Exponential backoff
@@ -222,12 +221,12 @@ export class AudioEngineManager {
 
     try {
       // Stop any ongoing recording
-      if (this.murmurabaEngine.recordingState?.isRecording) {
-        this.murmurabaEngine.stopRecording?.();
+      if (this.murmurabaEngine?.recordingState?.isRecording) {
+        this.murmurabaEngine?.stopRecording?.();
       }
 
       // Use Murmuraba's destroy method if available
-      if (typeof this.murmurabaEngine.destroy === 'function') {
+      if (typeof this.murmurabaEngine?.destroy === 'function') {
         await this.murmurabaEngine.destroy();
       } else {
         // Fallback to dynamic import destroy
@@ -236,7 +235,8 @@ export class AudioEngineManager {
           await destroyEngine();
         }
       }
-    } catch (error) {
+    } catch {
+      // Silently ignore errors during cleanup
     } finally {
       this.murmurabaEngine = null;
     }
@@ -296,7 +296,9 @@ export class AudioEngineManager {
     this.listeners.forEach((listener) => {
       try {
         listener(event);
-      } catch (error) {}
+      } catch {
+        // Silently ignore listener errors
+      }
     });
   }
 
@@ -319,7 +321,9 @@ export class AudioEngineManager {
     if (this.state === 'ready' && this.murmurabaEngine) {
       try {
         // Basic health check - ensure engine is still initialized
-        isCurrentlyHealthy = Boolean(this.murmurabaEngine.isInitialized);
+        isCurrentlyHealthy = Boolean(
+          (this.murmurabaEngine as Record<string, unknown>)?.isInitialized
+        );
       } catch {
         isCurrentlyHealthy = false;
       }
@@ -333,7 +337,7 @@ export class AudioEngineManager {
 
       // Trigger recovery if unhealthy
       if (!isCurrentlyHealthy && this.config.autoRecover) {
-        this.initialize().catch((error) => {});
+        this.initialize().catch(() => {});
       }
     }
   }

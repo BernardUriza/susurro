@@ -1,9 +1,7 @@
 // useSusurro.ts — lean & mean: MediaRecorder 100% en murmuraba
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useMurmubaraEngine } from 'murmuraba';
-import { pipeline, env } from '@xenova/transformers';
-import { loadMurmubaraProcessing } from '../lib/dynamic-loaders';
+import { loadMurmubaraEngine, loadTransformers, loadMurmubaraProcessing } from '../lib/dynamic-loaders';
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
 import { useLatencyMonitor } from './use-latency-monitor';
 
@@ -26,11 +24,14 @@ const WHISPER_ENV = {
   logLevel: 'error' as const,
 } as const;
 
-env.allowLocalModels = WHISPER_ENV.allowLocalModels;
-env.useBrowserCache = WHISPER_ENV.useBrowserCache;
-env.backends.onnx.logLevel = WHISPER_ENV.logLevel;
-
 async function ensureASR(model: string, quantized: boolean, onProgress: (p: number) => void) {
+  const { pipeline, env } = await loadTransformers();
+  
+  // Configure transformers environment
+  env.allowLocalModels = WHISPER_ENV.allowLocalModels;
+  env.useBrowserCache = WHISPER_ENV.useBrowserCache;
+  env.backends.onnx.logLevel = WHISPER_ENV.logLevel;
+  
   const asr = await pipeline('automatic-speech-recognition', `Xenova/${model}`, {
     quantized,
     progress_callback: (p: any) => {
@@ -162,9 +163,40 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     onWhisperProgressLog,
   } = options;
 
-  // — Murmuraba: única fuente de verdad de MediaRecorder —
+  // — Murmuraba engine (loaded lazily) —
+  const [murmubaraEngine, setMurmubaraEngine] = useState<any>(null);
+  
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const useMurmubaraEngine = await loadMurmubaraEngine();
+        if (!cancelled) {
+          setMurmubaraEngine(() => useMurmubaraEngine);
+        }
+      } catch (error) {
+        console.error('Failed to load murmuraba engine:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Use the dynamically loaded hook or provide fallback
+  const murmubaraHookResult = murmubaraEngine ? murmubaraEngine({ autoInitialize: false }) : {
+    recordingState: { isRecording: false, chunks: [] },
+    startRecording: async () => {},
+    stopRecording: () => {},
+    pauseRecording: () => {},
+    resumeRecording: () => {},
+    isInitialized: false,
+    initialize: async () => {},
+    error: null,
+    isLoading: true,
+    currentStream: null,
+  };
+
   const {
-    recordingState, // { isRecording, chunks[], stream? }
+    recordingState,
     startRecording: startMurmurabaRecording,
     stopRecording: stopMurmurabaRecording,
     pauseRecording: pauseMurmurabaRecording,
@@ -174,10 +206,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     error: murmubaraError,
     isLoading: murmubaraLoading,
     currentStream,
-    // NOTE: murmuraba maneja internamente getUserMedia/MediaRecorder
-  } = useMurmubaraEngine({
-    autoInitialize: false,
-  });
+  } = murmubaraHookResult;
 
   // — Whisper state —
   const [whisperReady, setWhisperReady] = useState(false);

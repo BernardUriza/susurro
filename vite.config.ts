@@ -12,7 +12,7 @@ export default defineConfig({
         return {
           resolve: {
             alias: {
-              'onnxruntime-web': resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-web.min.js'),
+              'onnxruntime-web': resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort.all.min.js'),
             }
           }
         };

@@ -8,7 +8,10 @@ export interface AudioFragmentProcessorProps {
   onLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
 }
 
-export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ onBack, onLog }) => {
+export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
+  onBack,
+  onLog,
+}) => {
   const {
     // Streaming recording
     startStreamingRecording,
@@ -35,7 +38,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
   const [transcriptions, setTranscriptions] = useState<string[]>([]);
   const [streamInfo, setStreamInfo] = useState<string>('No stream active');
   const consoleRef = useRef<HTMLDivElement>(null);
-  
+
   // Auto-scroll console to bottom when new transcriptions arrive
   useEffect(() => {
     if (consoleRef.current) {
@@ -54,27 +57,29 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
       try {
         const audioTracks = currentStream.getAudioTracks();
         const videoTracks = currentStream.getVideoTracks();
-        
+
         const info = {
           id: currentStream.id,
           active: currentStream.active,
           audioTracks: audioTracks.length,
           videoTracks: videoTracks.length,
-          tracks: audioTracks.map(track => ({
+          tracks: audioTracks.map((track) => ({
             id: track.id.substring(0, 8),
             label: track.label || 'Unknown',
             kind: track.kind,
             enabled: track.enabled,
             muted: track.muted,
             readyState: track.readyState,
-            settings: track.getSettings ? {
-              sampleRate: track.getSettings().sampleRate,
-              channelCount: track.getSettings().channelCount,
-              echoCancellation: track.getSettings().echoCancellation,
-              noiseSuppression: track.getSettings().noiseSuppression,
-              autoGainControl: track.getSettings().autoGainControl,
-            } : {}
-          }))
+            settings: track.getSettings
+              ? {
+                  sampleRate: track.getSettings().sampleRate,
+                  channelCount: track.getSettings().channelCount,
+                  echoCancellation: track.getSettings().echoCancellation,
+                  noiseSuppression: track.getSettings().noiseSuppression,
+                  autoGainControl: track.getSettings().autoGainControl,
+                }
+              : {},
+          })),
         };
 
         setStreamInfo(JSON.stringify(info, null, 2));
@@ -106,12 +111,12 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
     const onChunkProcessed = (chunk: StreamingSusurroChunk) => {
       setChunksProcessed((prev) => prev + 1);
-      
+
       // Add transcription to console
       if (chunk.transcriptionText) {
         const timestamp = new Date(chunk.timestamp).toLocaleTimeString();
         const message = `[${timestamp}] Chunk ${chunk.id.substring(0, 8)} - VAD: ${chunk.vadScore.toFixed(2)} - ${chunk.isVoiceActive ? '🔊' : '🔇'}\n${chunk.transcriptionText}`;
-        setTranscriptions(prev => [...prev, message]);
+        setTranscriptions((prev) => [...prev, message]);
       }
     };
 
@@ -133,10 +138,10 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
       const chunks = await stopStreamingRecording();
       setIsRecording(false);
       setStatus(`[COMPLETE] Processed ${chunks.length} chunks`);
-      
+
       // Add summary to console
-      const summary = `\n========== RECORDING SUMMARY ==========\nTotal chunks: ${chunks.length}\nTotal transcriptions: ${chunks.filter(c => c.transcriptionText).length}\n=======================================\n`;
-      setTranscriptions(prev => [...prev, summary]);
+      const summary = `\n========== RECORDING SUMMARY ==========\nTotal chunks: ${chunks.length}\nTotal transcriptions: ${chunks.filter((c) => c.transcriptionText).length}\n=======================================\n`;
+      setTranscriptions((prev) => [...prev, summary]);
     } catch (error) {
       setIsRecording(false);
       setStatus(`[ERROR] ${error instanceof Error ? error.message : String(error)}`);
@@ -155,22 +160,31 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
         const startTime = performance.now();
         const result = await processAndTranscribeFile(file);
         const processingTime = performance.now() - startTime;
-        
+
         setFileResult(result);
         setStatus('[FILE_COMPLETE]');
-        
+
         onLog?.(`✅ Archivo procesado en ${processingTime.toFixed(0)}ms`, 'success');
         onLog?.(`📊 VAD promedio: ${(result.vadAnalysis.averageVad * 100).toFixed(1)}%`, 'info');
         onLog?.(`🎵 Duración: ${result.metadata.duration.toFixed(2)} segundos`, 'info');
-        onLog?.(`📡 Sample rate: ${result.metadata.sampleRate}Hz | Canales: ${result.metadata.channels}`, 'info');
-        
+        onLog?.(
+          `📡 Sample rate: ${result.metadata.sampleRate}Hz | Canales: ${result.metadata.channels}`,
+          'info'
+        );
+
         if (result.transcriptionText) {
           const preview = result.transcriptionText.substring(0, 150);
-          onLog?.(`💬 Transcripción: "${preview}${result.transcriptionText.length > 150 ? '...' : ''}"`, 'success');
+          onLog?.(
+            `💬 Transcripción: "${preview}${result.transcriptionText.length > 150 ? '...' : ''}"`,
+            'success'
+          );
         }
-        
+
         if (result.vadAnalysis.voiceSegments.length > 0) {
-          onLog?.(`🎙️ Segmentos de voz detectados: ${result.vadAnalysis.voiceSegments.length}`, 'info');
+          onLog?.(
+            `🎙️ Segmentos de voz detectados: ${result.vadAnalysis.voiceSegments.length}`,
+            'info'
+          );
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -204,8 +218,35 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
 
       {/* SimpleWaveformAnalyzer - The entire visualization solution */}
       <div style={{ marginBottom: '20px' }}>
-        <div>
-          {isRecording ? 'Recording...' : 'Not Recording'}
+        <div>{isRecording ? 'Recording...' : 'Not Recording'}</div>
+
+        {/* MediaStream Info - Real-time stream details */}
+        <div
+          style={{
+            marginBottom: '20px',
+            padding: '15px',
+            background: 'rgba(0, 0, 0, 0.8)',
+            border: '1px solid #00ff41',
+            borderRadius: '4px',
+            maxHeight: '300px',
+            overflowY: 'auto',
+          }}
+        >
+          <h3 style={{ margin: '0 0 10px 0', color: '#00ff41' }}>
+            📡 MediaStream Info (Real-time)
+          </h3>
+          <pre
+            style={{
+              margin: 0,
+              fontSize: '12px',
+              fontFamily: 'monospace',
+              color: '#00ff41',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+            }}
+          >
+            {streamInfo}
+          </pre>
         </div>
         <SimpleWaveformAnalyzer
           stream={currentStream || undefined}
@@ -213,31 +254,6 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
           width={800}
           height={200}
         />
-      </div>
-
-      {/* MediaStream Info - Real-time stream details */}
-      <div style={{ 
-        marginBottom: '20px',
-        padding: '15px',
-        background: 'rgba(0, 0, 0, 0.8)',
-        border: '1px solid #00ff41',
-        borderRadius: '4px',
-        maxHeight: '300px',
-        overflowY: 'auto'
-      }}>
-        <h3 style={{ margin: '0 0 10px 0', color: '#00ff41' }}>
-          📡 MediaStream Info (Real-time)
-        </h3>
-        <pre style={{ 
-          margin: 0,
-          fontSize: '12px',
-          fontFamily: 'monospace',
-          color: '#00ff41',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-all'
-        }}>
-          {streamInfo}
-        </pre>
       </div>
 
       <button
@@ -262,7 +278,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
       {/* Transcription Console */}
       <div style={{ marginTop: '20px', marginBottom: '20px' }}>
         <h3 style={{ color: '#00ff41', marginBottom: '10px' }}>📝 TRANSCRIPTION CONSOLE</h3>
-        <div 
+        <div
           ref={consoleRef}
           style={{
             background: '#000',
@@ -275,7 +291,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
             fontSize: '12px',
             color: '#00ff41',
             whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word'
+            wordBreak: 'break-word',
           }}
         >
           {transcriptions.length === 0 ? (
@@ -284,14 +300,21 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
             </div>
           ) : (
             transcriptions.map((text, index) => (
-              <div key={index} style={{ marginBottom: '10px', borderBottom: '1px solid #003311', paddingBottom: '10px' }}>
+              <div
+                key={index}
+                style={{
+                  marginBottom: '10px',
+                  borderBottom: '1px solid #003311',
+                  paddingBottom: '10px',
+                }}
+              >
                 {text}
               </div>
             ))
           )}
         </div>
         {transcriptions.length > 0 && (
-          <button 
+          <button
             onClick={() => setTranscriptions([])}
             style={{
               marginTop: '10px',
@@ -299,7 +322,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
               background: '#ff0041',
               border: 'none',
               color: '#fff',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             Clear Console

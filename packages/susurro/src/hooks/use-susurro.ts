@@ -1,9 +1,9 @@
 // useSusurro.ts — lean & mean: MediaRecorder 100% en murmuraba
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useMurmubaraEngine } from 'murmuraba';
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
 import { useLatencyMonitor } from './use-latency-monitor';
+import { useAudioEngineManager } from './use-audio-engine-manager';
 
 import type {
   AudioChunk,
@@ -41,7 +41,7 @@ async function ensureASR(model: string, quantized: boolean, onProgress: (p: numb
     // Use Xenova ONNX models that work with v3
     const modelName = `Xenova/${model}`;
     // eslint-disable-next-line no-console
-    console.log('[ensureASR] Loading model:', modelName);
+    
 
     // Create pipeline with v3 API
     const asr = await pipeline('automatic-speech-recognition', modelName, {
@@ -58,7 +58,7 @@ async function ensureASR(model: string, quantized: boolean, onProgress: (p: numb
         } else if (p?.status) {
           // Log status updates
           // eslint-disable-next-line no-console
-          console.log('[ensureASR] Status:', p.status);
+          
         }
       },
     });
@@ -66,7 +66,7 @@ async function ensureASR(model: string, quantized: boolean, onProgress: (p: numb
     return asr;
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('[ensureASR] Failed to create pipeline:', error);
+    
     throw error;
   }
 }
@@ -203,23 +203,15 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     onWhisperProgressLog,
   } = options;
 
-  // — Murmuraba: única fuente de verdad de MediaRecorder —
-  // Import the hook directly instead of lazy loading to avoid conditional hook calls
+  // — Audio Engine Manager: Single source of truth for Murmuraba —
   const {
-    recordingState, // { isRecording, chunks[], stream? }
-    startRecording: startMurmurabaRecording,
-    stopRecording: stopMurmurabaRecording,
-    pauseRecording: pauseMurmurabaRecording,
-    resumeRecording: resumeMurmurabaRecording,
-    isInitialized: murmubaraInitialized,
-    initialize: initializeMurmuraba,
-    error: murmubaraError,
-    isLoading: murmubaraLoading,
-    currentStream,
-    // NOTE: murmuraba maneja internamente getUserMedia/MediaRecorder
-  } = useMurmubaraEngine({
-    autoInitialize: false,
-  });
+    isReady: engineReady,
+    isInitializing: engineInitializing,
+    hasError: engineHasError,
+    initialize: initializeEngine,
+    reset: resetEngine,
+    getEngine
+  } = useAudioEngineManager();
 
   // — Whisper state —
   const [whisperReady, setWhisperReady] = useState(false);
@@ -244,7 +236,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       try {
         // Log initial state
         // eslint-disable-next-line no-console
-        console.log('[Whisper] Starting initialization with model:', whisperModel);
+        
 
         const asr = await ensureASR(whisperModel, whisperQuantized, (p: number) => {
           setWhisperProgress(p);
@@ -272,15 +264,15 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           asrRef.current = asr;
           setWhisperReady(true);
           // eslint-disable-next-line no-console
-          console.log('[Whisper] Successfully initialized');
+          
         }
       } catch (e) {
         if (!cancelled) {
           const errorMessage = (e as Error)?.message ?? 'Failed to load Whisper';
           // eslint-disable-next-line no-console
-          console.error('[Whisper] Initialization error:', e);
+          
           // eslint-disable-next-line no-console
-          console.error('[Whisper] Error stack:', (e as Error)?.stack);
+          
           setWhisperError(errorMessage);
           onWhisperProgressLog?.(`❌ Error al cargar Whisper: ${errorMessage}`, 'error');
         }
@@ -311,9 +303,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const chunkTranscriptions = useRef(new Map<string, string>());
   const chunkProcessingTimes = useRef(new Map<string, number>());
 
-  const [isEngineInitialized, setIsEngineInitialized] = useState(false);
-  const [engineError, setEngineError] = useState<string | null>(null);
-  const [isInitializingEngine, setIsInitializingEngine] = useState(false);
+  // Engine state is now managed by AudioEngineManager - no local state needed
   const [isStreamingRecording, setIsStreamingRecording] = useState(false);
   const streamingCallbackRef = useRef<((c: StreamingSusurroChunk) => void) | null>(null);
   const streamingSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
@@ -323,29 +313,11 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   const [middlewarePipeline] = useState(() => new ChunkMiddlewarePipeline());
 
-  // — Engine init/reset —
+  // — Engine init/reset — Now delegated to AudioEngineManager
   const initializeAudioEngine = useCallback(async () => {
-    if (murmubaraInitialized || isEngineInitialized || isInitializingEngine || murmubaraLoading)
-      return;
-    try {
-      setIsInitializingEngine(true);
-      setEngineError(null);
-      await initializeMurmuraba();
-      setIsEngineInitialized(true);
-    } catch (e) {
-      setEngineError((e as Error)?.message ?? 'Engine initialization failed');
-      setIsEngineInitialized(false);
-      throw e;
-    } finally {
-      setIsInitializingEngine(false);
-    }
-  }, [
-    initializeMurmuraba,
-    murmubaraInitialized,
-    isEngineInitialized,
-    isInitializingEngine,
-    murmubaraLoading,
-  ]);
+    if (engineReady || engineInitializing) return;
+    await initializeEngine();
+  }, [engineReady, engineInitializing, initializeEngine]);
 
   // Move clearConversationalChunks declaration before resetAudioEngine
   const clearConversationalChunks = useCallback(() => {
@@ -356,7 +328,16 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   }, []);
 
   const resetAudioEngine = useCallback(async () => {
-    if (recordingState.isRecording) stopMurmurabaRecording();
+    // Stop any ongoing recordings first
+    try {
+      const engine = getEngine();
+      if (engine.recordingState?.isRecording) {
+        engine.stopRecording();
+      }
+    } catch {
+      // Engine not ready, that's fine
+    }
+
     if (streamingSessionRef.current) {
       await streamingSessionRef.current.stop();
       streamingSessionRef.current = null;
@@ -368,69 +349,55 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     setTranscriptions([]);
     clearConversationalChunks();
 
-    // Re-init
-    try {
-      await initializeAudioEngine();
-    } catch {
-      /* noop */
-    }
-  }, [
-    recordingState.isRecording,
-    stopMurmurabaRecording,
-    initializeAudioEngine,
-    clearConversationalChunks,
-  ]);
+    // Proper engine reset through manager
+    await resetEngine();
+  }, [getEngine, resetEngine, clearConversationalChunks]);
 
-  useEffect(() => {
-    if (murmubaraInitialized && !isEngineInitialized && !isInitializingEngine) {
-      setIsEngineInitialized(true);
-      setEngineError(null);
-    } else if (murmubaraError && !engineError) {
-      setEngineError(murmubaraError);
-      setIsEngineInitialized(false);
-    }
-  }, [
-    murmubaraInitialized,
-    murmubaraError,
-    isEngineInitialized,
-    isInitializingEngine,
-    engineError,
-  ]);
+  // Engine state synchronization is now handled by AudioEngineManager - no manual sync needed
 
   // — Recording controls (delegados) —
   const startRecording = useCallback(
     async (config?: RecordingConfig) => {
-      // Workaround for Murmuraba bug: destroy and reinitialize
-      if (isEngineInitialized) {
-        try {
-          const { destroyEngine } = await import('murmuraba');
-          await destroyEngine();
-          setIsEngineInitialized(false);
-        } catch (e) {
-          console.warn('Failed to destroy engine:', e);
-        }
+      // Ensure engine is ready
+      if (!engineReady) {
+        await initializeAudioEngine();
       }
 
-      // Always initialize (after destroying if needed)
-      await initializeAudioEngine();
+      const engine = getEngine();
       const seconds = (config?.chunkDuration ?? chunkDurationMs / 1000) | 0;
-      await startMurmurabaRecording(seconds);
-      // murmuraba maneja el MediaRecorder internamente
+      
+      
+      await engine.startRecording(seconds);
     },
-    [initializeAudioEngine, startMurmurabaRecording, chunkDurationMs, isEngineInitialized]
+    [engineReady, initializeAudioEngine, getEngine, chunkDurationMs]
   );
 
   const stopRecording = useCallback(() => {
-    stopMurmurabaRecording();
-  }, [stopMurmurabaRecording]);
+    try {
+      const engine = getEngine();
+      engine.stopRecording();
+    } catch (error) {
+      
+    }
+  }, [getEngine]);
 
   const pauseRecording = useCallback(() => {
-    pauseMurmurabaRecording();
-  }, [pauseMurmurabaRecording]);
+    try {
+      const engine = getEngine();
+      engine.pauseRecording();
+    } catch (error) {
+      
+    }
+  }, [getEngine]);
 
   const resumeRecording = useCallback(() => {
-    resumeMurmurabaRecording();
-  }, [resumeMurmurabaRecording]);
+    try {
+      const engine = getEngine();
+      engine.resumeRecording();
+    } catch (error) {
+      
+    }
+  }, [getEngine]);
 
   const clearTranscriptions = useCallback(() => {
     setTranscriptions([]);
@@ -510,30 +477,25 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     async (onChunk: (chunk: StreamingSusurroChunk) => void, config?: RecordingConfig) => {
       if (isStreamingRecording) throw new Error('Already recording. Stop first.');
 
-      // Workaround for Murmuraba bug: destroy and reinitialize
-      if (isEngineInitialized) {
-        try {
-          const { destroyEngine } = await import('murmuraba');
-          await destroyEngine();
-          setIsEngineInitialized(false);
-        } catch (e) {
-          console.warn('Failed to destroy engine:', e);
-        }
+      // Ensure engine is ready
+      if (!engineReady) {
+        await initializeAudioEngine();
       }
 
-      // Always initialize (after destroying if needed)
-      await initializeAudioEngine();
-
+      const engine = getEngine();
+      
       setIsStreamingRecording(true);
       streamingCallbackRef.current = onChunk;
-      lastProcessedChunkIndexRef.current = recordingState.chunks?.length ?? 0;
+      lastProcessedChunkIndexRef.current = engine.recordingState?.chunks?.length ?? 0;
 
       const seconds = (config?.chunkDuration ?? chunkDurationMs / 1000) | 0;
-      await startMurmurabaRecording(seconds);
+      
+      
+      await engine.startRecording(seconds);
 
       streamingSessionRef.current = {
         stop: async () => {
-          stopMurmurabaRecording();
+          engine.stopRecording();
           setIsStreamingRecording(false);
           streamingCallbackRef.current = null;
         },
@@ -541,11 +503,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     },
     [
       isStreamingRecording,
-      isEngineInitialized,
+      engineReady,
       initializeAudioEngine,
-      recordingState.chunks,
-      startMurmurabaRecording,
-      stopMurmurabaRecording,
+      getEngine,
       chunkDurationMs,
     ]
   );
@@ -570,78 +530,87 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     return chunks;
   }, [conversationalChunks]);
 
-  // — Observa y consume chunks de murmuraba (nada de MediaRecorder manual) —
+  // — Observa y consume chunks de murmuraba —
   useEffect(() => {
-    const chunks = recordingState.chunks || [];
-    // nuevos
-    const newOnes: AudioChunk[] = [];
-    for (let i = audioChunks.length; i < chunks.length; i++) {
-      const src = chunks[i];
+    if (!engineReady) return;
 
-      // Murmuraba v3 debería proveer processedAudioUrl y averageVad
-      const id = src.id || `chunk-${Date.now()}-${i}`;
-      const startTime = src.startTime ?? i * chunkDurationMs;
-      const endTime = src.endTime ?? (i + 1) * chunkDurationMs;
-      const vadScore = src.averageVad ?? 0;
+    try {
+      const engine = getEngine();
+      const chunks = engine.recordingState?.chunks || [];
+      
+      // Process new chunks
+      const newOnes: AudioChunk[] = [];
+      for (let i = audioChunks.length; i < chunks.length; i++) {
+        const src = chunks[i];
 
-      newOnes.push({
-        id,
-        blob: undefined as unknown as Blob, // lo traemos on-demand al transcribir
-        startTime,
-        endTime,
-        vadScore,
-        duration: src.duration ?? chunkDurationMs,
-      });
+        const id = src.id || `chunk-${Date.now()}-${i}`;
+        const startTime = src.startTime ?? i * chunkDurationMs;
+        const endTime = src.endTime ?? (i + 1) * chunkDurationMs;
+        const vadScore = src.averageVad ?? 0;
 
-      if (src.processedAudioUrl) {
-        processedAudioUrls.current.set(id, src.processedAudioUrl);
+        newOnes.push({
+          id,
+          blob: undefined as unknown as Blob, // lo traemos on-demand al transcribir
+          startTime,
+          endTime,
+          vadScore,
+          duration: src.duration ?? chunkDurationMs,
+        });
+
+        if (src.processedAudioUrl) {
+          processedAudioUrls.current.set(id, src.processedAudioUrl);
+        }
       }
-    }
 
-    if (newOnes.length) {
-      setAudioChunks((prev) => [...prev, ...newOnes]);
-    }
+      if (newOnes.length) {
+        setAudioChunks((prev) => [...prev, ...newOnes]);
+      }
 
-    // promedio de VAD del último
-    const last = chunks[chunks.length - 1];
-    if (last?.averageVad != null) setAverageVad(last.averageVad);
+      // promedio de VAD del último
+      const last = chunks[chunks.length - 1];
+      if (last?.averageVad != null) setAverageVad(last.averageVad);
 
-    // STREAMING: emite sólo el último chunk disponible
-    if (isStreamingRecording && streamingCallbackRef.current && chunks.length > 0) {
-      if (chunks.length > lastProcessedChunkIndexRef.current) {
-        const latest = chunks[chunks.length - 1];
-        (async () => {
-          const audioBlob = await urlToBlob(latest.processedAudioUrl);
-          const vadScore = latest.averageVad ?? 0;
-          const isVoiceActive = vadScore > 0.3;
+      // STREAMING: emite sólo el último chunk disponible
+      if (isStreamingRecording && streamingCallbackRef.current && chunks.length > 0) {
+        if (chunks.length > lastProcessedChunkIndexRef.current) {
+          const latest = chunks[chunks.length - 1];
+          (async () => {
+            const audioBlob = await urlToBlob(latest.processedAudioUrl);
+            const vadScore = latest.averageVad ?? 0;
+            const isVoiceActive = vadScore > 0.3;
 
-          let transcriptionText = '';
-          if (whisperReady && isVoiceActive && audioBlob.size > 0) {
-            try {
-              const r = await transcribeWithWhisper(audioBlob);
-              transcriptionText = r?.text ?? '';
-            } catch {
-              /* ignore */
+            let transcriptionText = '';
+            if (whisperReady && isVoiceActive && audioBlob.size > 0) {
+              try {
+                const r = await transcribeWithWhisper(audioBlob);
+                transcriptionText = r?.text ?? '';
+              } catch {
+                /* ignore */
+              }
             }
-          }
 
-          const streamingChunk: StreamingSusurroChunk = {
-            id: latest.id || `chunk-${Date.now()}`,
-            audioBlob,
-            vadScore,
-            timestamp: Date.now(),
-            transcriptionText,
-            duration: latest.duration ?? chunkDurationMs,
-            isVoiceActive,
-          };
+            const streamingChunk: StreamingSusurroChunk = {
+              id: latest.id || `chunk-${Date.now()}`,
+              audioBlob,
+              vadScore,
+              timestamp: Date.now(),
+              transcriptionText,
+              duration: latest.duration ?? chunkDurationMs,
+              isVoiceActive,
+            };
 
-          streamingCallbackRef.current?.(streamingChunk);
-          lastProcessedChunkIndexRef.current = chunks.length;
-        })();
+            streamingCallbackRef.current?.(streamingChunk);
+            lastProcessedChunkIndexRef.current = chunks.length;
+          })();
+        }
       }
+    } catch (error) {
+      // Engine not ready or error accessing it - ignore for now
+      
     }
   }, [
-    recordingState.chunks,
+    engineReady,
+    getEngine,
     audioChunks.length,
     chunkDurationMs,
     isStreamingRecording,
@@ -739,14 +708,23 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
   useEffect(() => {
     // si hay chunks y no estamos grabando → procesar batch
-    if (audioChunks.length > 0 && !recordingState.isRecording && whisperReady) {
-      setTimeout(() => {
-        if (!conversational?.onChunk || conversational.enableInstantTranscription) {
-          processChunks(audioChunks);
+    if (audioChunks.length > 0 && engineReady && whisperReady) {
+      try {
+        const engine = getEngine();
+        const isRecording = engine.recordingState?.isRecording ?? false;
+        
+        if (!isRecording) {
+          setTimeout(() => {
+            if (!conversational?.onChunk || conversational.enableInstantTranscription) {
+              processChunks(audioChunks);
+            }
+          }, 50);
         }
-      }, 50);
+      } catch {
+        // Engine not ready, skip processing
+      }
     }
-  }, [audioChunks, recordingState.isRecording, whisperReady, processChunks, conversational]);
+  }, [audioChunks, engineReady, getEngine, whisperReady, processChunks, conversational]);
 
   // — Limpieza — (already moved before resetAudioEngine)
 
@@ -829,8 +807,14 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   );
 
   return {
-    // Recording (puro murmuraba)
-    isRecording: recordingState.isRecording,
+    // Recording (managed by AudioEngineManager)
+    isRecording: (() => {
+      try {
+        return engineReady ? getEngine().recordingState?.isRecording ?? false : false;
+      } catch {
+        return false;
+      }
+    })(),
     isProcessing: processingStatus.isProcessing,
     transcriptions,
     audioChunks,
@@ -860,9 +844,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
     initializeAudioEngine,
     resetAudioEngine,
-    isEngineInitialized,
-    engineError,
-    isInitializingEngine,
+    isEngineInitialized: engineReady,
+    engineError: engineHasError ? 'Engine error detected' : null,
+    isInitializingEngine: engineInitializing,
 
     processAndTranscribeFile,
 
@@ -872,6 +856,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     analyzeVAD,
     convertBlobToBuffer,
 
-    currentStream, // provisto por murmuraba
+    currentStream: (() => {
+      try {
+        return engineReady ? getEngine().currentStream ?? null : null;
+      } catch {
+        return null;
+      }
+    })(),
   };
 }

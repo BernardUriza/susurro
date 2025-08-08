@@ -400,10 +400,19 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // — Recording controls (delegados) —
   const startRecording = useCallback(
     async (config?: RecordingConfig) => {
-      // Only initialize if not already initialized
-      if (!isEngineInitialized) {
-        await initializeAudioEngine();
+      // Workaround for Murmuraba bug: destroy and reinitialize
+      if (isEngineInitialized) {
+        try {
+          const { destroyEngine } = await import('murmuraba');
+          await destroyEngine();
+          setIsEngineInitialized(false);
+        } catch (e) {
+          console.warn('Failed to destroy engine:', e);
+        }
       }
+
+      // Always initialize (after destroying if needed)
+      await initializeAudioEngine();
       const seconds = (config?.chunkDuration ?? chunkDurationMs / 1000) | 0;
       await startMurmurabaRecording(seconds);
       // murmuraba maneja el MediaRecorder internamente
@@ -500,10 +509,20 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const startStreamingRecording = useCallback(
     async (onChunk: (chunk: StreamingSusurroChunk) => void, config?: RecordingConfig) => {
       if (isStreamingRecording) throw new Error('Already recording. Stop first.');
-      // Only initialize if not already initialized
-      if (!isEngineInitialized) {
-        await initializeAudioEngine();
+
+      // Workaround for Murmuraba bug: destroy and reinitialize
+      if (isEngineInitialized) {
+        try {
+          const { destroyEngine } = await import('murmuraba');
+          await destroyEngine();
+          setIsEngineInitialized(false);
+        } catch (e) {
+          console.warn('Failed to destroy engine:', e);
+        }
       }
+
+      // Always initialize (after destroying if needed)
+      await initializeAudioEngine();
 
       setIsStreamingRecording(true);
       streamingCallbackRef.current = onChunk;

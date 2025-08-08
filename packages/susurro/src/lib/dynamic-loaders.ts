@@ -15,19 +15,13 @@ export const loadTransformers = async () => {
   return transformers;
 };
 
-/**
- * Dynamically loads Murmuraba engine for audio processing
- * Reduces initial bundle size and improves First Contentful Paint
- */
-export const loadMurmubaraEngine = async () => {
-  const { useMurmubaraEngine } = await import(
-    /* webpackChunkName: "murmuraba-engine" */
-    /* webpackPreload: true */
-    'murmuraba'
-  );
-
-  return useMurmubaraEngine;
-};
+// Note: useMurmubaraEngine is now imported directly in use-susurro.ts
+// to avoid conditional hook calls which violate React's rules of hooks
+// Keeping this commented for reference
+// export const loadMurmubaraEngine = async () => {
+//   const { useMurmubaraEngine } = await import('murmuraba');
+//   return useMurmubaraEngine;
+// };
 
 /**
  * Dynamically loads Murmuraba processing functions

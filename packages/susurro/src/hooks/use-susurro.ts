@@ -1,7 +1,8 @@
 // useSusurro.ts — lean & mean: MediaRecorder 100% en murmuraba
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { loadMurmubaraEngine, loadTransformers, loadMurmubaraProcessing } from '../lib/dynamic-loaders';
+import { useMurmubaraEngine } from 'murmuraba';
+import { loadTransformers, loadMurmubaraProcessing } from '../lib/dynamic-loaders';
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
 import { useLatencyMonitor } from './use-latency-monitor';
 
@@ -163,40 +164,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     onWhisperProgressLog,
   } = options;
 
-  // — Murmuraba engine (loaded lazily) —
-  const [murmubaraEngine, setMurmubaraEngine] = useState<any>(null);
-  
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const useMurmubaraEngine = await loadMurmubaraEngine();
-        if (!cancelled) {
-          setMurmubaraEngine(() => useMurmubaraEngine);
-        }
-      } catch (error) {
-        console.error('Failed to load murmuraba engine:', error);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Use the dynamically loaded hook or provide fallback
-  const murmubaraHookResult = murmubaraEngine ? murmubaraEngine({ autoInitialize: false }) : {
-    recordingState: { isRecording: false, chunks: [] },
-    startRecording: async () => {},
-    stopRecording: () => {},
-    pauseRecording: () => {},
-    resumeRecording: () => {},
-    isInitialized: false,
-    initialize: async () => {},
-    error: null,
-    isLoading: true,
-    currentStream: null,
-  };
-
+  // — Murmuraba: única fuente de verdad de MediaRecorder —
+  // Import the hook directly instead of lazy loading to avoid conditional hook calls
   const {
-    recordingState,
+    recordingState, // { isRecording, chunks[], stream? }
     startRecording: startMurmurabaRecording,
     stopRecording: stopMurmurabaRecording,
     pauseRecording: pauseMurmurabaRecording,
@@ -206,7 +177,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     error: murmubaraError,
     isLoading: murmubaraLoading,
     currentStream,
-  } = murmubaraHookResult;
+    // NOTE: murmuraba maneja internamente getUserMedia/MediaRecorder
+  } = useMurmubaraEngine({
+    autoInitialize: false,
+  });
 
   // — Whisper state —
   const [whisperReady, setWhisperReady] = useState(false);

@@ -269,7 +269,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
         {isRecording ? 'STOP' : 'START'}
       </button>
 
-      {!whisperReady && <div>Loading Whisper: {(whisperProgress * 100).toFixed(0)}%</div>}
+      {!whisperReady && <div>Loading Whisper: {whisperProgress.toFixed(0)}%</div>}
 
       {chunksProcessed > 0 && <div>Chunks Processed: {chunksProcessed}</div>}
 

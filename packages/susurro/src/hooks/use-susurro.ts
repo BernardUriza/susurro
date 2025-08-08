@@ -228,12 +228,13 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const asrRef = useRef<CallableFunction | null>(null);
 
   // Use Xenova ONNX models compatible with v3
+  // Using English models that are known to work
   const modelMap: Record<string, string> = {
-    tiny: 'whisper-tiny',
-    base: 'whisper-base',
-    medium: 'whisper-medium',
+    tiny: 'whisper-tiny.en',
+    base: 'whisper-base.en',
+    medium: 'whisper-medium.en',
   };
-  const whisperModel = modelMap[options.initialModel || 'tiny'] || 'whisper-tiny';
+  const whisperModel = modelMap[options.initialModel || 'tiny'] || 'whisper-tiny.en';
   const whisperLanguage = whisperConfig?.language || 'en';
   const whisperQuantized = true;
 

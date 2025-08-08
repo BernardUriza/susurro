@@ -33,6 +33,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
   const [fileResult, setFileResult] = useState<CompleteAudioResult | null>(null);
   const [chunksProcessed, setChunksProcessed] = useState(0);
   const [transcriptions, setTranscriptions] = useState<string[]>([]);
+  const [streamInfo, setStreamInfo] = useState<string>('No stream active');
   const consoleRef = useRef<HTMLDivElement>(null);
   
   // Auto-scroll console to bottom when new transcriptions arrive
@@ -41,6 +42,57 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
       consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
     }
   }, [transcriptions]);
+
+  // Update MediaStream info in real-time
+  useEffect(() => {
+    const updateStreamInfo = () => {
+      if (!currentStream) {
+        setStreamInfo('No stream active');
+        return;
+      }
+
+      try {
+        const audioTracks = currentStream.getAudioTracks();
+        const videoTracks = currentStream.getVideoTracks();
+        
+        const info = {
+          id: currentStream.id,
+          active: currentStream.active,
+          audioTracks: audioTracks.length,
+          videoTracks: videoTracks.length,
+          tracks: audioTracks.map(track => ({
+            id: track.id.substring(0, 8),
+            label: track.label || 'Unknown',
+            kind: track.kind,
+            enabled: track.enabled,
+            muted: track.muted,
+            readyState: track.readyState,
+            settings: track.getSettings ? {
+              sampleRate: track.getSettings().sampleRate,
+              channelCount: track.getSettings().channelCount,
+              echoCancellation: track.getSettings().echoCancellation,
+              noiseSuppression: track.getSettings().noiseSuppression,
+              autoGainControl: track.getSettings().autoGainControl,
+            } : {}
+          }))
+        };
+
+        setStreamInfo(JSON.stringify(info, null, 2));
+      } catch (error) {
+        setStreamInfo(`Error reading stream: ${error}`);
+      }
+    };
+
+    // Update immediately
+    updateStreamInfo();
+
+    // Update every 500ms while recording
+    const interval = isRecording ? setInterval(updateStreamInfo, 500) : null;
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [currentStream, isRecording]);
 
   const handleStartRecording = useCallback(async () => {
     // Allow recording even without Whisper (just won't have transcription)
@@ -161,6 +213,31 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({ 
           width={800}
           height={200}
         />
+      </div>
+
+      {/* MediaStream Info - Real-time stream details */}
+      <div style={{ 
+        marginBottom: '20px',
+        padding: '15px',
+        background: 'rgba(0, 0, 0, 0.8)',
+        border: '1px solid #00ff41',
+        borderRadius: '4px',
+        maxHeight: '300px',
+        overflowY: 'auto'
+      }}>
+        <h3 style={{ margin: '0 0 10px 0', color: '#00ff41' }}>
+          📡 MediaStream Info (Real-time)
+        </h3>
+        <pre style={{ 
+          margin: 0,
+          fontSize: '12px',
+          fontFamily: 'monospace',
+          color: '#00ff41',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-all'
+        }}>
+          {streamInfo}
+        </pre>
       </div>
 
       <button

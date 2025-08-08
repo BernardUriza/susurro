@@ -1,7 +1,7 @@
 // Configure ONNX Runtime BEFORE any other imports
 // This suppresses the "Removing initializer" warnings
 if (typeof window !== 'undefined') {
-  (window as any).ort = { env: { logLevel: 'error', debug: false } };
+  (window as Record<string, unknown>).ort = { env: { logLevel: 'error', debug: false } };
 }
 
 import React from 'react';

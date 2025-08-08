@@ -13,14 +13,11 @@ import type {
   StreamingSusurroChunk,
   RecordingConfig,
   AudioMetadata,
-  VoiceSegment,
 } from '../lib/types';
 
 // Import dynamic loaders from centralized location
 import { loadMurmubaraProcessing } from '../lib/dynamic-loaders';
 
-// Import destroyEngine directly for cleanup
-let destroyEngineRef: (() => Promise<void>) | null = null;
 
 // Conversational Evolution - Advanced chunk middleware
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';

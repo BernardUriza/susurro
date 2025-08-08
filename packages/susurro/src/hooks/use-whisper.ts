@@ -37,7 +37,7 @@ export function useWhisper(options: WhisperOptions = {}): UseWhisperReturn {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   
-  const pipelineRef = useRef<any>(null);
+  const pipelineRef = useRef<unknown>(null);
   const initStarted = useRef(false);
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export function useWhisper(options: WhisperOptions = {}): UseWhisperReturn {
           modelName,
           {
             quantized,
-            progress_callback: (p: any) => {
+            progress_callback: (p: { progress?: number }) => {
               if (p.progress) {
                 const percent = Math.round(p.progress * 100);
                 setProgress(percent);
@@ -68,7 +68,7 @@ export function useWhisper(options: WhisperOptions = {}): UseWhisperReturn {
         
         setIsReady(true);
         setProgress(100);
-      } catch (err: any) {
+      } catch (err: unknown) {
         setError(err.message || 'Failed to load model');
       } finally {
         setIsLoading(false);
@@ -76,7 +76,7 @@ export function useWhisper(options: WhisperOptions = {}): UseWhisperReturn {
     };
 
     initPipeline();
-  }, []); // Solo ejecutar una vez
+  }, [model, quantized]); // Include dependencies
 
   const transcribe = useCallback(async (audio: Blob | Float32Array): Promise<TranscriptionResult | null> => {
     if (!pipelineRef.current || !isReady) {
@@ -110,8 +110,8 @@ export function useWhisper(options: WhisperOptions = {}): UseWhisperReturn {
         chunks: output.chunks || []
       };
       
-    } catch (err: any) {
-      setError(err.message || 'Transcription failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Transcription failed');
       return null;
     }
   }, [isReady, language]);

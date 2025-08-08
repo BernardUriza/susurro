@@ -478,10 +478,12 @@ export const WhisperMatrixTerminal: React.FC = () => {
                           await initializeAudioEngine();
 
                           setStatus('[SYSTEM] Audio neural processor ready');
+                          // eslint-disable-next-line no-console
                           console.log('Audio engine initialized successfully on retry');
                         } catch (error) {
                           const errorMsg = error instanceof Error ? error.message : 'Unknown error';
                           setStatus(`[ERROR] Audio engine initialization failed: ${errorMsg}`);
+                          // eslint-disable-next-line no-console
                           console.error(`Engine initialization retry failed: ${errorMsg}`);
                         }
                       }}

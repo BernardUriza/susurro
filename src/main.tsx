@@ -31,11 +31,7 @@ console.log('[MAIN] Root element:', rootElement);
 
 if (rootElement) {
   try {
-    ReactDOM.createRoot(rootElement).render(
-      <React.StrictMode>
-        <App />
-      </React.StrictMode>
-    );
+    ReactDOM.createRoot(rootElement).render(<App />);
     // eslint-disable-next-line no-console
     console.log('[MAIN] React app mounted');
   } catch (error) {

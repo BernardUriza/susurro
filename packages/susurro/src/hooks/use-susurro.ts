@@ -28,32 +28,38 @@ async function ensureASR(model: string, quantized: boolean, onProgress: (p: numb
   try {
     // Import transformers.js with all its exports
     const transformersModule = await import('@xenova/transformers');
-    
+
     // Extract what we need
     const { pipeline, env } = transformersModule;
-    
+
     // Configure transformers environment safely
     if (env) {
       env.allowLocalModels = WHISPER_ENV.allowLocalModels;
       env.useBrowserCache = WHISPER_ENV.useBrowserCache;
-      
+
       // Skip onnx backend configuration to avoid the error
       // The backend will be configured automatically when needed
     }
-    
-    // Create the ASR pipeline
-    const asr = await pipeline('automatic-speech-recognition', `Xenova/${model}`, {
+
+    // Create the ASR pipeline with the correct model path
+    const modelName = `Xenova/${model}`;
+    // eslint-disable-next-line no-console
+    console.log('[ensureASR] Loading model:', modelName);
+
+    // Create pipeline with specific options for Whisper models
+    const asr = await pipeline('automatic-speech-recognition', modelName, {
       quantized,
-      progress_callback: (p: any) => {
+      progress_callback: (p: { progress?: number }) => {
         if (typeof p?.progress === 'number') {
           const percent = p.progress <= 1 ? Math.round(p.progress * 100) : Math.round(p.progress);
           onProgress(Math.min(100, Math.max(0, percent)));
         }
       },
     });
-    
+
     return asr;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('[ensureASR] Failed to create pipeline:', error);
     throw error;
   }
@@ -73,7 +79,7 @@ async function resampleTo16k(buffer: AudioBuffer): Promise<Float32Array> {
   return rendered.getChannelData(0).slice();
 }
 
-async function transcribeBlobWith(asr: any, blob: Blob, language: string) {
+async function transcribeBlobWith(asr: unknown, blob: Blob, language: string) {
   const ab = await blob.arrayBuffer();
   const ctx = new AudioContext();
   const decoded = await ctx.decodeAudioData(ab);
@@ -96,7 +102,7 @@ async function transcribeBlobWith(asr: any, blob: Blob, language: string) {
     chunkIndex: 0,
     timestamp: Date.now(),
     segments:
-      out?.chunks?.map((c: any, index: number) => ({
+      out?.chunks?.map((c: { timestamp?: [number, number]; text?: string }, index: number) => ({
         id: index,
         seek: c.timestamp?.[0] ?? 0,
         start: c.timestamp?.[0] ?? 0,
@@ -166,7 +172,17 @@ export interface UseSusurroReturn {
   ) => Promise<void>;
   stopStreamingRecording: () => Promise<StreamingSusurroChunk[]>;
 
-  analyzeVAD: (buffer: ArrayBuffer) => Promise<any>;
+  analyzeVAD: (buffer: ArrayBuffer) => Promise<{
+    averageVad: number;
+    vadScores: number[];
+    metrics: unknown[];
+    voiceSegments: Array<{
+      startTime: number;
+      endTime: number;
+      vadScore: number;
+      confidence: number;
+    }>;
+  }>;
   convertBlobToBuffer: (blob: Blob) => Promise<ArrayBuffer>;
 
   currentStream: MediaStream | null; // exposed from murmuraba
@@ -203,10 +219,17 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const [whisperReady, setWhisperReady] = useState(false);
   const [whisperProgress, setWhisperProgress] = useState(0);
   const [whisperError, setWhisperError] = useState<Error | string | null>(null);
-  const asrRef = useRef<any>(null);
+  const asrRef = useRef<unknown>(null);
 
-  const whisperModel = options.initialModel ? `whisper-${options.initialModel}` : 'whisper-tiny';
-  const whisperLanguage = whisperConfig?.language || 'es';
+  // Use the specific Xenova models that are known to work
+  const modelMap: Record<string, string> = {
+    tiny: 'whisper-tiny.en',
+    base: 'whisper-base.en',
+    small: 'whisper-small.en',
+    medium: 'whisper-medium.en',
+  };
+  const whisperModel = modelMap[options.initialModel || 'tiny'] || 'whisper-tiny.en';
+  const whisperLanguage = whisperConfig?.language || 'en';
   const whisperQuantized = true;
 
   useEffect(() => {
@@ -214,13 +237,17 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     (async () => {
       try {
         // Log initial state
+        // eslint-disable-next-line no-console
         console.log('[Whisper] Starting initialization with model:', whisperModel);
-        
-        const asr = await ensureASR(whisperModel, whisperQuantized, (p) => {
+
+        const asr = await ensureASR(whisperModel, whisperQuantized, (p: number) => {
           setWhisperProgress(p);
           if (onWhisperProgressLog) {
             if (p === 100) {
-              onWhisperProgressLog(`✅ Modelo Whisper ${whisperModel} cargado correctamente`, 'success');
+              onWhisperProgressLog(
+                `✅ Modelo Whisper ${whisperModel} cargado correctamente`,
+                'success'
+              );
               onWhisperProgressLog('🎙️ Sistema de transcripción listo para usar', 'success');
             } else if (p === 0) {
               onWhisperProgressLog(`📥 Iniciando descarga del modelo ${whisperModel}...`, 'info');
@@ -238,13 +265,16 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         if (!cancelled) {
           asrRef.current = asr;
           setWhisperReady(true);
+          // eslint-disable-next-line no-console
           console.log('[Whisper] Successfully initialized');
         }
-      } catch (e: any) {
+      } catch (e) {
         if (!cancelled) {
-          const errorMessage = e?.message ?? 'Failed to load Whisper';
+          const errorMessage = (e as Error)?.message ?? 'Failed to load Whisper';
+          // eslint-disable-next-line no-console
           console.error('[Whisper] Initialization error:', e);
-          console.error('[Whisper] Error stack:', e?.stack);
+          // eslint-disable-next-line no-console
+          console.error('[Whisper] Error stack:', (e as Error)?.stack);
           setWhisperError(errorMessage);
           onWhisperProgressLog?.(`❌ Error al cargar Whisper: ${errorMessage}`, 'error');
         }
@@ -296,8 +326,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       setEngineError(null);
       await initializeMurmuraba();
       setIsEngineInitialized(true);
-    } catch (e: any) {
-      setEngineError(e?.message ?? 'Engine initialization failed');
+    } catch (e) {
+      setEngineError((e as Error)?.message ?? 'Engine initialization failed');
       setIsEngineInitialized(false);
       throw e;
     } finally {
@@ -330,7 +360,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     } catch {
       /* noop */
     }
-  }, [recordingState.isRecording, stopMurmurabaRecording, initializeAudioEngine]);
+  }, [
+    recordingState.isRecording,
+    stopMurmurabaRecording,
+    initializeAudioEngine,
+    clearConversationalChunks,
+  ]);
 
   useEffect(() => {
     if (murmubaraInitialized && !isEngineInitialized && !isInitializingEngine) {
@@ -411,12 +446,19 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         averageVad: r.average || 0,
         vadScores: r.scores || [],
         metrics: r.metrics || [],
-        voiceSegments: (r.voiceSegments || []).map((s: any) => ({
-          startTime: s.startTime || 0,
-          endTime: s.endTime || 0,
-          vadScore: s.vadScore || 0,
-          confidence: s.confidence || 0,
-        })),
+        voiceSegments: (r.voiceSegments || []).map(
+          (s: {
+            startTime?: number;
+            endTime?: number;
+            vadScore?: number;
+            confidence?: number;
+          }) => ({
+            startTime: s.startTime || 0,
+            endTime: s.endTime || 0,
+            vadScore: s.vadScore || 0,
+            confidence: s.confidence || 0,
+          })
+        ),
       };
     } catch {
       return { averageVad: 0, vadScores: [], metrics: [], voiceSegments: [] };
@@ -504,7 +546,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
       newOnes.push({
         id,
-        blob: undefined as any, // lo traemos on-demand al transcribir
+        blob: undefined as unknown as Blob, // lo traemos on-demand al transcribir
         startTime,
         endTime,
         vadScore,
@@ -636,10 +678,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           const blob = await urlToBlob(processedUrl);
           const r = await transcribeWithWhisper(blob);
           if (r) {
-            setTranscriptions((prev) => [
-              ...prev,
-              { ...r, chunkIndex: i, timestamp: Date.now() } as any,
-            ]);
+            setTranscriptions((prev) => [...prev, { ...r, chunkIndex: i, timestamp: Date.now() }]);
             chunkTranscriptions.current.set(id, r.text);
             await tryEmitChunk(chunks[i]);
           }
@@ -687,7 +726,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   }, [clearConversationalChunks]);
 
   // — Export stub (murmuraba puede ofrecer export real si lo expone) —
-  const exportChunkAsWav = useCallback(async (_chunkId: string) => {
+  const exportChunkAsWav = useCallback(async () => {
     // delegable a murmuraba si publica API; placeholder para compatibilidad
     return new Blob();
   }, []);

@@ -388,33 +388,21 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       };
 
       try {
-        // Get user media stream
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: recordingConfig.enableNoiseReduction,
-            noiseSuppression: recordingConfig.enableNoiseReduction,
-            autoGainControl: true,
-            sampleRate: 44100,
-          },
-        });
-
-        setCurrentMediaStream(stream);
-
+        // Ensure audio engine is initialized
+        if (!murmubaraInitialized && !isEngineInitialized) {
+          await initializeAudioEngine();
+        }
+        
         // Reset the last processed chunk index
         lastProcessedChunkIndexRef.current = recordingState.chunks.length;
         
         // Start recording with Murmuraba (with configured chunk duration)
+        // Murmuraba handles the media stream internally
         await startMurmurabaRecording(recordingConfig.chunkDuration);
 
         // Store session with proper cleanup
         const streamingSession = {
           stop: async () => {
-
-            // Stop media stream
-            if (stream) {
-              stream.getTracks().forEach((track) => track.stop());
-            }
-            setCurrentMediaStream(null);
 
             // Stop Murmuraba recording
             stopMurmurabaRecording();
@@ -434,7 +422,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         throw new Error(`Streaming recording failed: ${errorMsg}`);
       }
     },
-    [isStreamingRecording, startMurmurabaRecording, stopMurmurabaRecording, recordingState.chunks, chunkDurationMs]
+    [isStreamingRecording, startMurmurabaRecording, stopMurmurabaRecording, recordingState.chunks, chunkDurationMs, murmubaraInitialized, isEngineInitialized, initializeAudioEngine]
   );
 
   const stopStreamingRecording = useCallback(async (): Promise<StreamingSusurroChunk[]> => {

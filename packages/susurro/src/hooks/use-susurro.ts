@@ -123,6 +123,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     isLoading: murmubaraLoading,
   } = useMurmubaraEngine({
     autoInitialize: false, // Manual initialization for better control
+    chunkDuration: chunkDurationMs / 1000, // Convert ms to seconds
   });
 
   const exportChunkAsWav = useCallback(async () => {
@@ -189,6 +190,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // NEW REFS for streaming recording
   const streamingCallbackRef = useRef<((chunk: StreamingSusurroChunk) => void) | null>(null);
   const streamingSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
+  const lastProcessedChunkIndexRef = useRef<number>(0);
 
   // Using simple Whisper implementation following HuggingFace tutorial
   const {
@@ -379,11 +381,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
       // Configuration with defaults
       const recordingConfig = {
-        chunkDuration: 3, // 3 seconds per chunk
-        vadThreshold: 0.5,
-        enableRealTimeTranscription: true,
-        enableNoiseReduction: true,
-        ...config,
+        chunkDuration: config.chunkDuration || chunkDurationMs / 1000, // Use config or default (8s)
+        vadThreshold: config.vadThreshold || 0.5,
+        enableRealTimeTranscription: config.enableRealTimeTranscription ?? true,
+        enableNoiseReduction: config.enableNoiseReduction ?? true,
       };
 
       try {
@@ -399,67 +400,15 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
         setCurrentMediaStream(stream);
 
-        // Start recording with Murmuraba
-        await startMurmurabaRecording();
+        // Reset the last processed chunk index
+        lastProcessedChunkIndexRef.current = recordingState.chunks.length;
         
-        // Process Murmuraba chunks at regular intervals
-        let lastProcessedIndex = 0;
-        const chunkInterval = setInterval(async () => {
-          if (!streamingCallbackRef.current) {
-            return;
-          }
-          
-          // Get new chunks from Murmuraba's recording state
-          const murmubaraChunks = recordingState.chunks || [];
-          const newChunks = murmubaraChunks.slice(lastProcessedIndex);
-          
-          // Process each new chunk
-          for (const murmurabaChunk of newChunks) {
-            if (!murmurabaChunk.processedAudioUrl) continue;
-            
-            // Convert URL to blob
-            const audioBlob = await urlToBlob(murmurabaChunk.processedAudioUrl);
-            
-            // Analyze VAD (already provided by Murmuraba)
-            const vadScore = murmurabaChunk.averageVad || 0;
-            const isVoiceActive = vadScore > recordingConfig.vadThreshold;
-            
-            // Transcribe if Whisper is ready and voice is active
-            let transcriptionText = '';
-            if (whisperReady && isVoiceActive) {
-              try {
-                const transcriptionResult = await transcribeWhisper(audioBlob);
-                transcriptionText = transcriptionResult?.text || '';
-              } catch (error) {
-                // Transcription failed, continue without it
-              }
-            }
-            
-            // Create a streaming chunk with real data from Murmuraba
-            const chunk: StreamingSusurroChunk = {
-              id: murmurabaChunk.id || `streaming-chunk-${Date.now()}`,
-              audioBlob: audioBlob,
-              vadScore: vadScore,
-              timestamp: Date.now(),
-              transcriptionText: transcriptionText,
-              duration: murmurabaChunk.duration || recordingConfig.chunkDuration * 1000,
-              isVoiceActive: isVoiceActive,
-            };
-            
-            // Store chunk
-            setCurrentStreamingChunks((prev) => [...prev, chunk]);
-            
-            // Call the callback
-            streamingCallbackRef.current(chunk);
-          }
-          
-          lastProcessedIndex = murmubaraChunks.length;
-        }, 1000); // Check for new chunks every second
+        // Start recording with Murmuraba (with configured chunk duration)
+        await startMurmurabaRecording(recordingConfig.chunkDuration);
 
         // Store session with proper cleanup
         const streamingSession = {
           stop: async () => {
-            clearInterval(chunkInterval);
 
             // Stop media stream
             if (stream) {
@@ -485,7 +434,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         throw new Error(`Streaming recording failed: ${errorMsg}`);
       }
     },
-    [isStreamingRecording, startMurmurabaRecording, stopMurmurabaRecording, whisperReady, transcribeWhisper, recordingState.chunks]
+    [isStreamingRecording, startMurmurabaRecording, stopMurmurabaRecording, recordingState.chunks, chunkDurationMs]
   );
 
   const stopStreamingRecording = useCallback(async (): Promise<StreamingSusurroChunk[]> => {
@@ -823,6 +772,64 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       calculateDuration,
     ]
   );
+
+  // Process streaming chunks in real-time when in streaming mode
+  useEffect(() => {
+    if (!isStreamingRecording || !streamingCallbackRef.current) {
+      return;
+    }
+
+    const processNewStreamingChunk = async () => {
+      const chunks = recordingState.chunks || [];
+      const lastProcessedIndex = lastProcessedChunkIndexRef.current;
+      
+      // Check if there are new chunks
+      if (chunks.length > lastProcessedIndex) {
+        const newChunk = chunks[chunks.length - 1]; // Get the latest chunk
+        
+        if (newChunk && newChunk.processedAudioUrl) {
+          
+          // Convert URL to blob
+          const audioBlob = await urlToBlob(newChunk.processedAudioUrl);
+          
+          // Get VAD score from Murmuraba
+          const vadScore = newChunk.averageVad || 0;
+          const isVoiceActive = vadScore > 0.3; // Use a reasonable threshold
+          
+          // Transcribe if Whisper is ready and voice is active
+          let transcriptionText = '';
+          if (whisperReady && isVoiceActive) {
+            try {
+              const transcriptionResult = await transcribeWhisper(audioBlob);
+              transcriptionText = transcriptionResult?.text || '';
+            } catch (error) {
+              // Transcription failed, continue without it
+            }
+          }
+          
+          // Create streaming chunk
+          const streamingChunk: StreamingSusurroChunk = {
+            id: newChunk.id || `chunk-${Date.now()}`,
+            audioBlob: audioBlob,
+            vadScore: vadScore,
+            timestamp: Date.now(),
+            transcriptionText: transcriptionText,
+            duration: newChunk.duration || 8000,
+            isVoiceActive: isVoiceActive,
+          };
+          
+          // Store and emit chunk
+          setCurrentStreamingChunks((prev) => [...prev, streamingChunk]);
+          streamingCallbackRef.current(streamingChunk);
+          
+          // Update last processed index
+          lastProcessedChunkIndexRef.current = chunks.length;
+        }
+      }
+    };
+    
+    processNewStreamingChunk();
+  }, [recordingState.chunks.length, isStreamingRecording, whisperReady, transcribeWhisper]);
 
   // Real-time chunk processing with hook pattern (Murmuraba v3 integration)
   useEffect(() => {

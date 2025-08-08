@@ -68,6 +68,7 @@ export function useModelCache(): UseModelCacheReturn {
         request.onerror = () => reject(request.error);
       });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [initDB, storeName]
   );
 

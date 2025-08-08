@@ -43,7 +43,7 @@ export function useWhisper(options: WhisperOptions = {}): UseWhisperReturn {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const pipelineRef = useRef<any>(null);
+  const pipelineRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const hasInitStarted = useRef(false);
 
   useEffect(() => {

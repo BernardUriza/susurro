@@ -96,7 +96,7 @@ export interface UseSusurroReturn {
 
   // Auxiliary methods
   convertBlobToBuffer: (blob: Blob) => Promise<ArrayBuffer>;
-  analyzeVAD: (buffer: ArrayBuffer) => Promise<any>;
+  analyzeVAD: (buffer: ArrayBuffer) => Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
   // NEW: Expose MediaStream for waveform visualization
   currentStream: MediaStream | null;
@@ -320,6 +320,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         averageVad: result.average || 0,
         vadScores: result.scores || [],
         metrics: result.metrics || [],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         voiceSegments: (result.voiceSegments || []).map((segment: any) => ({
           startTime: segment.startTime || 0,
           endTime: segment.endTime || 0,

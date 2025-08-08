@@ -93,7 +93,7 @@ export class SilentThreadProcessor {
           onProgress(100);
 
           this.onLog?.('Transcription complete', 'success');
-          resolve((result as any)?.text || '');
+          resolve((result as any)?.text || ''); // eslint-disable-line @typescript-eslint/no-explicit-any
         } catch (error) {
           this.onLog?.(`Transcription failed: ${error}`, 'error');
           reject(error);

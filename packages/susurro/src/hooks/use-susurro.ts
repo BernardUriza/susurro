@@ -415,7 +415,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           
           // Process each new chunk
           for (const murmurabaChunk of newChunks) {
-            if (!murmurabaChunk.blob) continue;
+            if (!murmurabaChunk.processedAudioUrl) continue;
+            
+            // Convert URL to blob
+            const audioBlob = await urlToBlob(murmurabaChunk.processedAudioUrl);
             
             // Analyze VAD (already provided by Murmuraba)
             const vadScore = murmurabaChunk.averageVad || 0;
@@ -425,7 +428,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
             let transcriptionText = '';
             if (whisperReady && isVoiceActive) {
               try {
-                const transcriptionResult = await transcribeWhisper(murmurabaChunk.blob);
+                const transcriptionResult = await transcribeWhisper(audioBlob);
                 transcriptionText = transcriptionResult?.text || '';
               } catch (error) {
                 // Transcription failed, continue without it
@@ -434,10 +437,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
             
             // Create a streaming chunk with real data from Murmuraba
             const chunk: StreamingSusurroChunk = {
-              id: murmurabaChunk.id,
-              audioBlob: murmurabaChunk.blob,
+              id: murmurabaChunk.id || `streaming-chunk-${Date.now()}`,
+              audioBlob: audioBlob,
               vadScore: vadScore,
-              timestamp: murmurabaChunk.timestamp || Date.now(),
+              timestamp: Date.now(),
               transcriptionText: transcriptionText,
               duration: murmurabaChunk.duration || recordingConfig.chunkDuration * 1000,
               isVoiceActive: isVoiceActive,

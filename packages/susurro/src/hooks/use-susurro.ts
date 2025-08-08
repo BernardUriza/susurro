@@ -399,12 +399,15 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   // — Recording controls (delegados) —
   const startRecording = useCallback(
     async (config?: RecordingConfig) => {
-      await initializeAudioEngine();
+      // Only initialize if not already initialized
+      if (!isEngineInitialized) {
+        await initializeAudioEngine();
+      }
       const seconds = (config?.chunkDuration ?? chunkDurationMs / 1000) | 0;
       await startMurmurabaRecording(seconds);
       // murmuraba maneja el MediaRecorder internamente
     },
-    [initializeAudioEngine, startMurmurabaRecording, chunkDurationMs]
+    [initializeAudioEngine, startMurmurabaRecording, chunkDurationMs, isEngineInitialized]
   );
 
   const stopRecording = useCallback(() => {
@@ -496,7 +499,10 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const startStreamingRecording = useCallback(
     async (onChunk: (chunk: StreamingSusurroChunk) => void, config?: RecordingConfig) => {
       if (isStreamingRecording) throw new Error('Already recording. Stop first.');
-      await initializeAudioEngine();
+      // Only initialize if not already initialized
+      if (!isEngineInitialized) {
+        await initializeAudioEngine();
+      }
 
       setIsStreamingRecording(true);
       streamingCallbackRef.current = onChunk;
@@ -515,6 +521,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     },
     [
       isStreamingRecording,
+      isEngineInitialized,
       initializeAudioEngine,
       recordingState.chunks,
       startMurmurabaRecording,

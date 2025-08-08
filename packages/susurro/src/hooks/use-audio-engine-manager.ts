@@ -1,9 +1,9 @@
 /**
  * useAudioEngineManager Hook
- * 
+ *
  * Provides React integration for the AudioEngineManager singleton.
  * This is the ONLY way components should interact with the audio engine.
- * 
+ *
  * @author The Tech Lead Inquisitor
  */
 
@@ -19,7 +19,7 @@ interface UseAudioEngineManagerReturn {
   isDestroying: boolean;
   hasError: boolean;
   state: string;
-  
+
   // Health metrics
   healthMetrics: {
     initializationAttempts: number;
@@ -33,7 +33,7 @@ interface UseAudioEngineManagerReturn {
   initialize: () => Promise<void>;
   destroy: () => Promise<void>;
   reset: () => Promise<void>;
-  
+
   // Engine access (only when ready)
   getEngine: () => any;
 }
@@ -44,7 +44,7 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
   const [healthMetrics, setHealthMetrics] = useState({
     initializationAttempts: 0,
     consecutiveFailures: 0,
-    isHealthy: false
+    isHealthy: false,
   });
 
   // Use the actual Murmuraba hook
@@ -59,15 +59,15 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
         autoRecover: true,
         maxRetries: 3,
         retryDelayMs: 1000,
-        healthCheckIntervalMs: 30000
+        healthCheckIntervalMs: 30000,
       });
     }
 
     const manager = managerRef.current;
-    
+
     // Register the Murmuraba engine with the manager
     manager.registerEngine(murmubaraEngine);
-    
+
     // Set initial state
     setState(manager.getState());
     setHealthMetrics(manager.getHealthMetrics());
@@ -82,7 +82,6 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
           setHealthMetrics(manager.getHealthMetrics());
           break;
         case 'error':
-          
           setHealthMetrics(manager.getHealthMetrics());
           break;
       }
@@ -98,42 +97,39 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
   // Actions
   const initialize = useCallback(async () => {
     if (!managerRef.current) return;
-    
+
     try {
       // First let manager do its destroy/cleanup cycle
       await managerRef.current.initialize();
-      
+
       // Then initialize the Murmuraba hook
       if (murmubaraEngine.initialize) {
         await murmubaraEngine.initialize();
       }
-      
+
       // Re-register the engine after initialization
       managerRef.current.registerEngine(murmubaraEngine);
     } catch (error) {
-      
       throw error;
     }
   }, [murmubaraEngine]);
 
   const destroy = useCallback(async () => {
     if (!managerRef.current) return;
-    
+
     try {
       await managerRef.current.destroy();
     } catch (error) {
-      
       throw error;
     }
   }, []);
 
   const reset = useCallback(async () => {
     if (!managerRef.current) return;
-    
+
     try {
       await managerRef.current.reset();
     } catch (error) {
-      
       throw error;
     }
   }, []);
@@ -152,14 +148,14 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
     isDestroying: state === 'destroying',
     hasError: state === 'error',
     state,
-    
+
     // Health metrics
     healthMetrics,
-    
+
     // Actions
     initialize,
     destroy,
     reset,
-    getEngine
+    getEngine,
   };
 }

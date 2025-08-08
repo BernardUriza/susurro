@@ -64,7 +64,6 @@ export const WhisperMatrixTerminal = () => {
       console.log('[WhisperMatrixTerminal] Component unmounting');
       // Any cleanup if needed
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount/unmount
 
   // REMOVED: Manual engine initialization - useSusurro handles this automatically
@@ -77,7 +76,6 @@ export const WhisperMatrixTerminal = () => {
     } else if (isInitializingEngine) {
       setStatus('[SYSTEM] Initializing audio engine...');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEngineInitialized, engineError, isInitializingEngine]);
 
   useEffect(() => {

@@ -1,15 +1,15 @@
 /**
  * AudioEngineManager - The Single Source of Truth for Murmuraba Engine
- * 
+ *
  * This class implements proper lifecycle management, state machines, and error recovery
  * for the Murmuraba audio engine. No more destroy/reinit dance of shame.
- * 
+ *
  * @author The Tech Lead Inquisitor
  */
 
-type EngineState = 
+type EngineState =
   | 'uninitialized'
-  | 'initializing' 
+  | 'initializing'
   | 'ready'
   | 'error'
   | 'destroying'
@@ -49,13 +49,13 @@ export class AudioEngineManager {
       maxRetries: 3,
       retryDelayMs: 1000,
       healthCheckIntervalMs: 30000,
-      ...config
+      ...config,
     };
 
     this.healthMetrics = {
       initializationAttempts: 0,
       consecutiveFailures: 0,
-      isHealthy: false
+      isHealthy: false,
     };
 
     this.startHealthMonitoring();
@@ -112,7 +112,7 @@ export class AudioEngineManager {
     }
 
     this.initPromise = this.performInitialization();
-    
+
     try {
       await this.initPromise;
     } finally {
@@ -126,7 +126,7 @@ export class AudioEngineManager {
    */
   public registerEngine(engine: unknown): void {
     this.murmurabaEngine = engine;
-    
+
     if (engine && typeof engine === 'object' && 'isInitialized' in engine && engine.isInitialized) {
       this.setState('ready');
       this.healthMetrics.lastSuccessfulInit = Date.now();
@@ -148,7 +148,7 @@ export class AudioEngineManager {
     try {
       // First, ensure we have a clean slate by destroying any existing engine
       // Destroying any existing engine for clean initialization
-      
+
       try {
         const { destroyEngine } = await import('murmuraba');
         if (typeof destroyEngine === 'function') {
@@ -160,7 +160,7 @@ export class AudioEngineManager {
       }
 
       // Wait for cleanup to complete
-      await new Promise(resolve => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, 250));
 
       // Now we need to signal that a re-initialization is required
       // The actual initialization will happen through the hook registration
@@ -168,9 +168,6 @@ export class AudioEngineManager {
       this.healthMetrics.lastSuccessfulInit = Date.now();
       this.healthMetrics.consecutiveFailures = 0;
       this.healthMetrics.isHealthy = true;
-
-      
-
     } catch (error) {
       this.handleInitializationError(error);
       throw error;
@@ -184,19 +181,20 @@ export class AudioEngineManager {
     this.healthMetrics.isHealthy = false;
 
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
 
     this.emitEvent('error', { error, context: 'initialization' });
 
     // Auto-recovery logic
-    if (this.config.autoRecover && this.healthMetrics.consecutiveFailures < this.config.maxRetries) {
-      
-      
-      setTimeout(() => {
-        this.initialize().catch(err => {
-          
-        });
-      }, this.config.retryDelayMs * Math.pow(2, this.healthMetrics.consecutiveFailures - 1)); // Exponential backoff
+    if (
+      this.config.autoRecover &&
+      this.healthMetrics.consecutiveFailures < this.config.maxRetries
+    ) {
+      setTimeout(
+        () => {
+          this.initialize().catch((err) => {});
+        },
+        this.config.retryDelayMs * Math.pow(2, this.healthMetrics.consecutiveFailures - 1)
+      ); // Exponential backoff
     }
   }
 
@@ -213,9 +211,7 @@ export class AudioEngineManager {
     try {
       await this.cleanupEngine();
       this.setState('destroyed');
-      
     } catch (error) {
-      
       this.setState('error');
       throw error;
     }
@@ -240,9 +236,7 @@ export class AudioEngineManager {
           await destroyEngine();
         }
       }
-
     } catch (error) {
-      
     } finally {
       this.murmurabaEngine = null;
     }
@@ -262,15 +256,13 @@ export class AudioEngineManager {
    * Reset the engine - proper recovery, not panic destruction
    */
   public async reset(): Promise<void> {
-    
-    
     await this.destroy();
-    
+
     // Clear health metrics for fresh start
     this.healthMetrics = {
       initializationAttempts: 0,
       consecutiveFailures: 0,
-      isHealthy: false
+      isHealthy: false,
     };
 
     await this.initialize();
@@ -294,19 +286,17 @@ export class AudioEngineManager {
     if (this.state !== newState) {
       const oldState = this.state;
       this.state = newState;
-      
+
       this.emitEvent('state-change', { oldState, newState });
     }
   }
 
   private emitEvent(type: EngineEventType, data: unknown): void {
     const event = { type, data };
-    this.listeners.forEach(listener => {
+    this.listeners.forEach((listener) => {
       try {
         listener(event);
-      } catch (error) {
-        
-      }
+      } catch (error) {}
     });
   }
 
@@ -339,15 +329,11 @@ export class AudioEngineManager {
 
     // If health status changed, emit event
     if (wasHealthy !== isCurrentlyHealthy) {
-      
       this.emitEvent('health-update', { isHealthy: isCurrentlyHealthy });
 
       // Trigger recovery if unhealthy
       if (!isCurrentlyHealthy && this.config.autoRecover) {
-        
-        this.initialize().catch(error => {
-          
-        });
+        this.initialize().catch((error) => {});
       }
     }
   }
@@ -368,5 +354,5 @@ export class AudioEngineManager {
 }
 
 // Export singleton instance getter
-export const getAudioEngineManager = (config?: Partial<AudioEngineConfig>) => 
+export const getAudioEngineManager = (config?: Partial<AudioEngineConfig>) =>
   AudioEngineManager.getInstance(config);

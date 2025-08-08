@@ -40,8 +40,6 @@ async function ensureASR(model: string, quantized: boolean, onProgress: (p: numb
 
     // Use Xenova ONNX models that work with v3
     const modelName = `Xenova/${model}`;
-    // eslint-disable-next-line no-console
-    
 
     // Create pipeline with v3 API
     const asr = await pipeline('automatic-speech-recognition', modelName, {
@@ -57,16 +55,12 @@ async function ensureASR(model: string, quantized: boolean, onProgress: (p: numb
           onProgress(Math.min(100, Math.max(0, percent)));
         } else if (p?.status) {
           // Log status updates
-          // eslint-disable-next-line no-console
-          
         }
       },
     });
 
     return asr;
   } catch (error) {
-    // eslint-disable-next-line no-console
-    
     throw error;
   }
 }
@@ -210,7 +204,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     hasError: engineHasError,
     initialize: initializeEngine,
     reset: resetEngine,
-    getEngine
+    getEngine,
   } = useAudioEngineManager();
 
   // — Whisper state —
@@ -235,8 +229,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     (async () => {
       try {
         // Log initial state
-        // eslint-disable-next-line no-console
-        
 
         const asr = await ensureASR(whisperModel, whisperQuantized, (p: number) => {
           setWhisperProgress(p);
@@ -263,16 +255,11 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         if (!cancelled) {
           asrRef.current = asr;
           setWhisperReady(true);
-          // eslint-disable-next-line no-console
-          
         }
       } catch (e) {
         if (!cancelled) {
           const errorMessage = (e as Error)?.message ?? 'Failed to load Whisper';
-          // eslint-disable-next-line no-console
-          
-          // eslint-disable-next-line no-console
-          
+
           setWhisperError(errorMessage);
           onWhisperProgressLog?.(`❌ Error al cargar Whisper: ${errorMessage}`, 'error');
         }
@@ -365,8 +352,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
       const engine = getEngine();
       const seconds = (config?.chunkDuration ?? chunkDurationMs / 1000) | 0;
-      
-      
+
       await engine.startRecording(seconds);
     },
     [engineReady, initializeAudioEngine, getEngine, chunkDurationMs]
@@ -376,27 +362,21 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     try {
       const engine = getEngine();
       engine.stopRecording();
-    } catch (error) {
-      
-    }
+    } catch (error) {}
   }, [getEngine]);
 
   const pauseRecording = useCallback(() => {
     try {
       const engine = getEngine();
       engine.pauseRecording();
-    } catch (error) {
-      
-    }
+    } catch (error) {}
   }, [getEngine]);
 
   const resumeRecording = useCallback(() => {
     try {
       const engine = getEngine();
       engine.resumeRecording();
-    } catch (error) {
-      
-    }
+    } catch (error) {}
   }, [getEngine]);
 
   const clearTranscriptions = useCallback(() => {
@@ -483,14 +463,13 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       }
 
       const engine = getEngine();
-      
+
       setIsStreamingRecording(true);
       streamingCallbackRef.current = onChunk;
       lastProcessedChunkIndexRef.current = engine.recordingState?.chunks?.length ?? 0;
 
       const seconds = (config?.chunkDuration ?? chunkDurationMs / 1000) | 0;
-      
-      
+
       await engine.startRecording(seconds);
 
       streamingSessionRef.current = {
@@ -501,13 +480,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         },
       };
     },
-    [
-      isStreamingRecording,
-      engineReady,
-      initializeAudioEngine,
-      getEngine,
-      chunkDurationMs,
-    ]
+    [isStreamingRecording, engineReady, initializeAudioEngine, getEngine, chunkDurationMs]
   );
 
   const stopStreamingRecording = useCallback(async (): Promise<StreamingSusurroChunk[]> => {
@@ -537,7 +510,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     try {
       const engine = getEngine();
       const chunks = engine.recordingState?.chunks || [];
-      
+
       // Process new chunks
       const newOnes: AudioChunk[] = [];
       for (let i = audioChunks.length; i < chunks.length; i++) {
@@ -606,7 +579,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       }
     } catch (error) {
       // Engine not ready or error accessing it - ignore for now
-      
     }
   }, [
     engineReady,
@@ -712,7 +684,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       try {
         const engine = getEngine();
         const isRecording = engine.recordingState?.isRecording ?? false;
-        
+
         if (!isRecording) {
           setTimeout(() => {
             if (!conversational?.onChunk || conversational.enableInstantTranscription) {
@@ -810,7 +782,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     // Recording (managed by AudioEngineManager)
     isRecording: (() => {
       try {
-        return engineReady ? getEngine().recordingState?.isRecording ?? false : false;
+        return engineReady ? (getEngine().recordingState?.isRecording ?? false) : false;
       } catch {
         return false;
       }
@@ -858,7 +830,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
     currentStream: (() => {
       try {
-        return engineReady ? getEngine().currentStream ?? null : null;
+        return engineReady ? (getEngine().currentStream ?? null) : null;
       } catch {
         return null;
       }

@@ -3,7 +3,22 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Custom plugin to handle onnxruntime-web
+    {
+      name: 'configure-onnxruntime',
+      config() {
+        return {
+          resolve: {
+            alias: {
+              'onnxruntime-web': resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-web.min.js'),
+            }
+          }
+        };
+      }
+    }
+  ],
   resolve: {
     alias: {
       '@': resolve(__dirname, './'),
@@ -27,9 +42,20 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Force these to be excluded from pre-bundling to enable proper code-splitting
-    exclude: ['@xenova/transformers', 'murmuraba'],
-    // Include polyfills that murmuraba needs
-    include: ['stream-browserify', 'events', 'buffer', 'util', 'process'],
+    exclude: ['murmuraba'],
+    // Include dependencies that need pre-bundling
+    include: [
+      'stream-browserify', 
+      'events', 
+      'buffer', 
+      'util', 
+      'process',
+      '@xenova/transformers',
+      'onnxruntime-web'
+    ],
+    esbuildOptions: {
+      target: 'es2020'
+    }
   },
   build: {
     outDir: 'dist',

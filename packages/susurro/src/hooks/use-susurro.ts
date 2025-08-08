@@ -25,32 +25,38 @@ const WHISPER_ENV = {
 } as const;
 
 async function ensureASR(model: string, quantized: boolean, onProgress: (p: number) => void) {
-  // Import transformers.js directly to avoid destructuring issues
-  const transformers = await import('@xenova/transformers');
-  
-  // Configure transformers environment safely
-  if (transformers.env) {
-    transformers.env.allowLocalModels = WHISPER_ENV.allowLocalModels;
-    transformers.env.useBrowserCache = WHISPER_ENV.useBrowserCache;
+  try {
+    // Import transformers.js with all its exports
+    const transformersModule = await import('@xenova/transformers');
     
-    // Only set onnx logLevel if backends exists
-    if (transformers.env.backends?.onnx) {
-      transformers.env.backends.onnx.logLevel = WHISPER_ENV.logLevel;
+    // Extract what we need
+    const { pipeline, env } = transformersModule;
+    
+    // Configure transformers environment safely
+    if (env) {
+      env.allowLocalModels = WHISPER_ENV.allowLocalModels;
+      env.useBrowserCache = WHISPER_ENV.useBrowserCache;
+      
+      // Skip onnx backend configuration to avoid the error
+      // The backend will be configured automatically when needed
     }
+    
+    // Create the ASR pipeline
+    const asr = await pipeline('automatic-speech-recognition', `Xenova/${model}`, {
+      quantized,
+      progress_callback: (p: any) => {
+        if (typeof p?.progress === 'number') {
+          const percent = p.progress <= 1 ? Math.round(p.progress * 100) : Math.round(p.progress);
+          onProgress(Math.min(100, Math.max(0, percent)));
+        }
+      },
+    });
+    
+    return asr;
+  } catch (error) {
+    console.error('[ensureASR] Failed to create pipeline:', error);
+    throw error;
   }
-  
-  // Use pipeline directly from the module
-  const { pipeline } = transformers;
-  const asr = await pipeline('automatic-speech-recognition', `Xenova/${model}`, {
-    quantized,
-    progress_callback: (p: any) => {
-      if (typeof p?.progress === 'number') {
-        const percent = p.progress <= 1 ? Math.round(p.progress * 100) : Math.round(p.progress);
-        onProgress(Math.min(100, Math.max(0, percent)));
-      }
-    },
-  });
-  return asr;
 }
 
 async function resampleTo16k(buffer: AudioBuffer): Promise<Float32Array> {

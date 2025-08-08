@@ -45,17 +45,6 @@ export interface TranscriptionSegment {
   no_speech_prob: number;
 }
 
-export interface UseWhisperReturn {
-  isTranscribing: boolean;
-  transcript: string | null;
-  error: Error | null;
-  transcribe: (audioBlob: Blob) => Promise<TranscriptionResult | null>;
-  clearTranscript: () => void;
-  modelReady: boolean;
-  loadingProgress: number;
-  isLoadingFromCache?: boolean;
-}
-
 // 🎯 Next Evolution: Conversational Chunks — El Murmullo del Futuro
 export interface SusurroChunk {
   id: string; // Unique identifier

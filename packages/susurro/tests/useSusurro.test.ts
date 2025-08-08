@@ -22,8 +22,6 @@ vi.mock('murmuraba', () => ({
   }),
 }));
 
-// useWhisper hook mock removed - dead code eliminated
-
 describe('useSusurro', () => {
   beforeEach(() => {
     vi.clearAllMocks();

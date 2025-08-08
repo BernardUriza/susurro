@@ -5,7 +5,6 @@ export { useSusurro } from './hooks/use-susurro';
 export { useAudioEngine } from './hooks/use-audio-engine';
 
 // All audio functionality consolidated into single useSusurro hook
-// useWhisperDirect is internal - accessed through useSusurro
 export * from './lib/types';
 export * from './lib/ui-interfaces';
 // whisper-types removed as part of dead code cleanup

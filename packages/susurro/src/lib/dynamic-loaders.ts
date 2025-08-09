@@ -34,9 +34,12 @@ export const loadMurmubaraProcessing = async () => {
     'murmuraba'
   );
 
+  console.log('[loadMurmubaraProcessing] Module loaded, keys:', Object.keys(module));
+  console.log('[loadMurmubaraProcessing] murmubaraVAD type:', typeof module.murmubaraVAD);
+
   return {
     processFileWithMetrics: module.processFileWithMetrics || module.processFile, // Use processFileWithMetrics first, fallback to processFile
-    murmubaraVAD: module.murmubaraVAD || module.getDiagnostics, // Fallback function
+    murmubaraVAD: module.murmubaraVAD, // No fallback - murmubaraVAD is a required export
     extractAudioMetadata:
       module.extractAudioMetadata || (() => ({ duration: 1.0, sampleRate: 44100, channels: 2 })), // Fallback metadata
     // Add engine status check to ensure initialization

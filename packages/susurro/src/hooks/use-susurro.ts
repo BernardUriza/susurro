@@ -83,11 +83,17 @@ async function transcribeBlobWith(asr: CallableFunction, blob: Blob, language: s
   const ab = await blob.arrayBuffer();
   const ctx = new AudioContext();
   const decoded = await ctx.decodeAudioData(ab);
-  const array = await resampleTo16k(decoded);
+  const audioData = await resampleTo16k(decoded);
   ctx.close();
 
+  // Ensure we have a Float32Array
+  const audioArray = audioData instanceof Float32Array ? audioData : new Float32Array(audioData);
+  
+  console.log('[transcribeBlobWith] Audio array type:', audioArray.constructor.name, 'Length:', audioArray.length);
+
+  // Whisper expects the audio directly as the first parameter
   const out = await asr(
-    { array, sampling_rate: 16000 },
+    audioArray,  // Pass the Float32Array directly
     {
       language,
       task: 'transcribe',
@@ -205,6 +211,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     initialize: initializeEngine,
     reset: resetEngine,
     getEngine,
+    currentStream: engineStream,
   } = useAudioEngineManager();
 
   // — Whisper state —
@@ -414,7 +421,20 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     try {
       const { loadMurmubaraProcessing } = await import('../lib/dynamic-loaders');
       const { murmubaraVAD } = await loadMurmubaraProcessing();
+      
+      if (!murmubaraVAD) {
+        console.warn('murmubaraVAD function not available in murmuraba module');
+        return { averageVad: 0, vadScores: [], metrics: [], voiceSegments: [] };
+      }
+      
+      // Log for debugging
+      console.log('[analyzeVAD] Buffer type:', buffer.constructor.name, 'Size:', buffer.byteLength);
+      console.log('[analyzeVAD] murmubaraVAD type:', typeof murmubaraVAD);
+      
       const r = await murmubaraVAD(buffer);
+      
+      console.log('[analyzeVAD] Result type:', typeof r, 'Keys:', r ? Object.keys(r) : 'null');
+      
       return {
         averageVad: r.average || 0,
         vadScores: r.scores || [],
@@ -433,7 +453,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           })
         ),
       };
-    } catch {
+    } catch (error) {
+      console.error('VAD analysis failed:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
       return { averageVad: 0, vadScores: [], metrics: [], voiceSegments: [] };
     }
   }, []);
@@ -828,12 +850,6 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     analyzeVAD,
     convertBlobToBuffer,
 
-    currentStream: (() => {
-      try {
-        return engineReady ? (getEngine().currentStream ?? null) : null;
-      } catch {
-        return null;
-      }
-    })(),
+    currentStream: engineStream,
   };
 }

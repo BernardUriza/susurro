@@ -246,10 +246,13 @@ export class AudioEngineManager {
    * Get the Murmuraba engine instance - only if ready
    */
   public getEngine(): unknown {
-    if (!this.isReady()) {
-      throw new Error(`Engine not ready. Current state: ${this.state}`);
+    // If we have a registered engine, return it even if state is not "ready"
+    // This fixes the synchronization issue between hook state and manager state
+    if (this.murmurabaEngine) {
+      return this.murmurabaEngine;
     }
-    return this.murmurabaEngine;
+    
+    throw new Error(`Engine not registered. Current state: ${this.state}`);
   }
 
   /**

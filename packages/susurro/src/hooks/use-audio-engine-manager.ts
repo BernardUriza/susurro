@@ -36,6 +36,10 @@ interface UseAudioEngineManagerReturn {
 
   // Engine access (only when ready)
   getEngine: () => any;
+  
+  // Direct engine properties
+  currentStream: MediaStream | null;
+  recordingState: any;
 }
 
 export function useAudioEngineManager(): UseAudioEngineManagerReturn {
@@ -47,16 +51,16 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
     isHealthy: false,
   });
 
-  // Use the actual Murmuraba hook
+  // Use the actual Murmuraba hook with auto-initialization
   const murmubaraEngine = useMurmubaraEngine({
-    autoInitialize: false,
+    autoInitialize: true, // Changed to true for automatic initialization on mount
   });
 
   // Store engine ref to avoid re-registering on every render
   const murmubaraEngineRef = useRef(murmubaraEngine);
   murmubaraEngineRef.current = murmubaraEngine;
 
-  // Initialize manager on first mount
+  // Sync state with Murmuraba engine state
   useEffect(() => {
     if (!managerRef.current) {
       managerRef.current = getAudioEngineManager({
@@ -72,9 +76,23 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
     // Register the Murmuraba engine with the manager
     manager.registerEngine(murmubaraEngineRef.current);
 
-    // Set initial state
-    setState(manager.getState());
-    setHealthMetrics(manager.getHealthMetrics());
+    // Update state based on Murmuraba engine state
+    if (murmubaraEngine.isInitialized) {
+      setState('ready');
+      setHealthMetrics({
+        initializationAttempts: 0,
+        consecutiveFailures: 0,
+        isHealthy: true,
+      });
+    } else if (murmubaraEngine.isLoading) {
+      setState('initializing');
+    } else if (murmubaraEngine.error) {
+      setState('error');
+      setHealthMetrics(prev => ({
+        ...prev,
+        isHealthy: false,
+      }));
+    }
 
     // Listen for state changes
     const handleEvent = (event: { type: string; data: any }) => {
@@ -96,18 +114,31 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
     return () => {
       manager.removeEventListener(handleEvent);
     };
-  }, []); // Remove murmubaraEngine dependency to prevent infinite loops
+  }, [murmubaraEngine.isInitialized, murmubaraEngine.isLoading, murmubaraEngine.error]); // Sync with Murmuraba state
 
   // Actions
   const initialize = useCallback(async () => {
     if (!managerRef.current) return;
 
+    // Check if already initialized
+    if (murmubaraEngineRef.current?.isInitialized) {
+      // Already initialized, just update state
+      setState('ready');
+      const metrics = managerRef.current.getHealthMetrics();
+      setHealthMetrics({
+        ...metrics,
+        isHealthy: true
+      });
+      managerRef.current.registerEngine(murmubaraEngineRef.current);
+      return;
+    }
+
     try {
       // First let manager do its destroy/cleanup cycle
       await managerRef.current.initialize();
 
-      // Then initialize the Murmuraba hook
-      if (murmubaraEngineRef.current.initialize) {
+      // Then initialize the Murmuraba hook only if it's not already initialized
+      if (murmubaraEngineRef.current.initialize && !murmubaraEngineRef.current.isInitialized) {
         await murmubaraEngineRef.current.initialize();
       }
       
@@ -122,6 +153,17 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
       // Re-register the engine after initialization
       managerRef.current.registerEngine(murmubaraEngineRef.current);
     } catch (error) {
+      // If error is about already initialized, treat as success
+      if (error instanceof Error && error.message.includes('already initialized')) {
+        setState('ready');
+        const metrics = managerRef.current.getHealthMetrics();
+        setHealthMetrics({
+          ...metrics,
+          isHealthy: true
+        });
+        managerRef.current.registerEngine(murmubaraEngineRef.current);
+        return;
+      }
       throw error;
     }
   }, []); // Remove dependency on murmubaraEngine
@@ -169,5 +211,9 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
     destroy,
     reset,
     getEngine,
+    
+    // Direct engine properties for convenience
+    currentStream: murmubaraEngine.currentStream || null,
+    recordingState: murmubaraEngine.recordingState || null,
   };
 }

@@ -7,7 +7,7 @@ import { WhisperProvider } from './contexts/WhisperContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 export function App() {
-  const [selectedModel, setSelectedModel] = useState<'tiny' | 'base' | 'medium' | null>(null);
+  const [selectedModel, setSelectedModel] = useState<'tiny' | 'base' | 'small' | 'medium' | 'large' | null>(null);
 
   // eslint-disable-next-line no-console
   console.log('[App] Rendering, selectedModel:', selectedModel);

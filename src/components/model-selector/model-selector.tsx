@@ -5,19 +5,22 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 
 export interface WhisperModel {
-  id: 'tiny' | 'base' | 'medium';
+  id: 'tiny' | 'base' | 'small' | 'medium' | 'large';
   name: string;
   size: string;
+  description: string;
 }
 
 const WHISPER_MODELS: WhisperModel[] = [
-  { id: 'tiny', name: 'Whisper Tiny', size: '39 MB' },
-  { id: 'base', name: 'Whisper Base', size: '74 MB' },
-  { id: 'medium', name: 'Whisper Medium', size: '769 MB' },
+  { id: 'tiny', name: 'Whisper Tiny', size: '39 MB', description: 'Más rápido, menos preciso' },
+  { id: 'base', name: 'Whisper Base', size: '74 MB', description: 'Balance básico' },
+  { id: 'small', name: 'Whisper Small', size: '244 MB', description: 'Buena precisión' },
+  { id: 'medium', name: 'Whisper Medium', size: '769 MB', description: 'Recomendado - Mejor balance' },
+  { id: 'large', name: 'Whisper Large-v3', size: '1.5 GB', description: 'Máxima precisión' },
 ];
 
 interface ModelSelectorProps {
-  onModelSelect: (modelId: 'tiny' | 'base' | 'medium') => void;
+  onModelSelect: (modelId: 'tiny' | 'base' | 'small' | 'medium' | 'large') => void;
 }
 
 export const ModelSelector: FC<ModelSelectorProps> = ({ onModelSelect }) => {
@@ -101,8 +104,10 @@ export const ModelSelector: FC<ModelSelectorProps> = ({ onModelSelect }) => {
     <div style={styles.container}>
       <div style={styles.box}>
         <h1 style={styles.title}>WHISPER MODEL SELECTOR</h1>
-
-        <div style={styles.instructions}>↑/↓ Navigate • ENTER Select</div>
+        <div style={{ ...styles.instructions, fontSize: '14px', marginBottom: '10px' }}>
+          🌍 Modelos Multilingües - Soporte Completo para Español
+        </div>
+        <div style={styles.instructions}>↑/↓ Navegar • ENTER Seleccionar</div>
 
         <ul style={styles.list}>
           {WHISPER_MODELS.map((model, index) => (
@@ -115,7 +120,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({ onModelSelect }) => {
               onClick={() => onModelSelect(model.id)}
             >
               {index === selectedIndex ? '▶ ' : '  '}
-              {model.name} [{model.size}]
+              {model.name} [{model.size}] - {model.description}
             </li>
           ))}
         </ul>

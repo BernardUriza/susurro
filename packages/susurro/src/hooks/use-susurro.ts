@@ -180,7 +180,7 @@ async function urlToBlob(url?: string): Promise<Blob> {
 // —— Public API ——
 export interface UseSusurroOptions extends BaseUseSusurroOptions {
   onWhisperProgressLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
-  initialModel?: 'tiny' | 'base' | 'medium';
+  initialModel?: 'tiny' | 'base' | 'small' | 'medium' | 'large';
 }
 
 export interface UseSusurroReturn {

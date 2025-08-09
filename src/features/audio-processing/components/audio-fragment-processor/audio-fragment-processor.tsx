@@ -30,6 +30,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
     engineError,
     isInitializingEngine,
     initializeAudioEngine,
+    resetAudioEngine,
 
     // MediaStream for visualization
     currentStream,
@@ -42,7 +43,6 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
   const [chunksProcessed, setChunksProcessed] = useState(0);
   const [transcriptions, setTranscriptions] = useState<string[]>([]);
   const [streamInfo, setStreamInfo] = useState<string>('No stream active');
-  const [isInitializingAudio, setIsInitializingAudio] = useState(false);
   const consoleRef = useRef<HTMLDivElement>(null);
 
   // Memoize the onLog callback to prevent unnecessary re-renders
@@ -50,27 +50,16 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
     onLog?.(message, type);
   }, [onLog]);
 
-  // Initialize audio engine on component mount - Fixed infinite loop
+  // Log engine state changes
   useEffect(() => {
-    const initializeEngine = async () => {
-      // Only run if engine is not initialized and not currently initializing
-      if (!isEngineInitialized && !isInitializingEngine) {
-        setIsInitializingAudio(true);
-        try {
-          await initializeAudioEngine();
-          memoizedOnLog('✅ Audio engine initialized successfully', 'success');
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          memoizedOnLog(`❌ Failed to initialize audio engine: ${errorMessage}`, 'error');
-        } finally {
-          setIsInitializingAudio(false);
-        }
-      }
-    };
-
-    initializeEngine();
-    // Removed isInitializingAudio from dependencies to prevent circular dependency
-  }, [isEngineInitialized, isInitializingEngine, initializeAudioEngine, memoizedOnLog]);
+    if (isEngineInitialized) {
+      memoizedOnLog('✅ Audio engine ready', 'success');
+    } else if (isInitializingEngine) {
+      memoizedOnLog('⏳ Initializing audio engine...', 'info');
+    } else if (engineError) {
+      memoizedOnLog(`❌ Engine error: ${engineError}`, 'error');
+    }
+  }, [isEngineInitialized, isInitializingEngine, engineError, memoizedOnLog]);
 
   // Auto-scroll console to bottom when new transcriptions arrive
   useEffect(() => {
@@ -133,19 +122,28 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
     };
   }, [updateStreamInfo, isRecording]);
 
+  const handleResetEngine = useCallback(async () => {
+    setStatus('[RESETTING_ENGINE]');
+    memoizedOnLog('🔄 Resetting audio engine...', 'info');
+    try {
+      await resetAudioEngine();
+      setTranscriptions([]);
+      setChunksProcessed(0);
+      setStatus('');
+      memoizedOnLog('✅ Engine reset successfully', 'success');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setStatus(`[RESET_ERROR] ${errorMessage}`);
+      memoizedOnLog(`❌ Reset failed: ${errorMessage}`, 'error');
+    }
+  }, [resetAudioEngine, memoizedOnLog]);
+
   const handleStartRecording = useCallback(async () => {
-    // Ensure audio engine is initialized before recording
+    // Engine should be initialized automatically, but check just in case
     if (!isEngineInitialized) {
-      setStatus('[INITIALIZING_ENGINE]');
-      try {
-        await initializeAudioEngine();
-        onLog?.('🎯 Audio engine initialized for recording', 'info');
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        setStatus(`[ENGINE_ERROR] ${errorMessage}`);
-        onLog?.(`❌ Engine initialization failed: ${errorMessage}`, 'error');
-        return;
-      }
+      setStatus('[ENGINE_NOT_READY]');
+      memoizedOnLog('⚠️ Engine not ready yet', 'warning');
+      return;
     }
 
     // Check for engine errors
@@ -278,7 +276,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
       {/* Engine Status Display */}
       <div style={{ marginBottom: '20px' }}>
         <div style={{ color: '#00ff41', marginBottom: '10px' }}>
-          Engine Status: {isEngineInitialized ? 'Ready' : isInitializingEngine || isInitializingAudio ? 'Initializing...' : 'Not Initialized'}
+          Engine Status: {isEngineInitialized ? 'Ready' : isInitializingEngine ? 'Initializing...' : 'Not Initialized'}
           {engineError && <span style={{ color: '#ff0041' }}> - Error: {engineError}</span>}
         </div>
         <div>{isRecording ? 'Recording...' : 'Not Recording'}</div>
@@ -337,7 +335,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
               marginBottom: '20px',
             }}
           >
-            {isInitializingEngine || isInitializingAudio
+            {isInitializingEngine
               ? '⏳ Initializing audio engine...'
               : engineError
               ? `❌ Engine Error: ${engineError}`
@@ -346,30 +344,47 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
         )}
       </div>
 
-      <button
-        onClick={isRecording ? handleStopRecording : handleStartRecording}
-        disabled={!isEngineInitialized || !!engineError || isInitializingEngine || isInitializingAudio}
-        style={{
-          padding: '15px 40px',
-          fontSize: '1.2rem',
-          background: isRecording 
-            ? '#ff0041' 
-            : (!isEngineInitialized || !!engineError || isInitializingEngine || isInitializingAudio) 
-              ? '#666666' 
-              : '#00ff41',
-          border: 'none',
-          color: '#000',
-          cursor: (!isEngineInitialized || !!engineError || isInitializingEngine || isInitializingAudio) ? 'not-allowed' : 'pointer',
-          marginBottom: '20px',
-          opacity: (!isEngineInitialized || !!engineError || isInitializingEngine || isInitializingAudio) ? 0.5 : 1,
-        }}
-      >
-        {isRecording ? 'STOP' : 
-         isInitializingEngine || isInitializingAudio ? 'INITIALIZING...' : 
-         !isEngineInitialized ? 'ENGINE NOT READY' : 
-         engineError ? 'ENGINE ERROR' : 
-         'START'}
-      </button>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        <button
+          onClick={isRecording ? handleStopRecording : handleStartRecording}
+          disabled={!isEngineInitialized || !!engineError || isInitializingEngine}
+          style={{
+            padding: '15px 40px',
+            fontSize: '1.2rem',
+            background: isRecording 
+              ? '#ff0041' 
+              : (!isEngineInitialized || !!engineError || isInitializingEngine) 
+                ? '#666666' 
+                : '#00ff41',
+            border: 'none',
+            color: '#000',
+            cursor: (!isEngineInitialized || !!engineError || isInitializingEngine) ? 'not-allowed' : 'pointer',
+            opacity: (!isEngineInitialized || !!engineError || isInitializingEngine) ? 0.5 : 1,
+          }}
+        >
+          {isRecording ? 'STOP' : 
+           isInitializingEngine ? 'INITIALIZING...' : 
+           !isEngineInitialized ? 'ENGINE NOT READY' : 
+           engineError ? 'ENGINE ERROR' : 
+           'START'}
+        </button>
+
+        <button
+          onClick={handleResetEngine}
+          disabled={isRecording || isInitializingEngine}
+          style={{
+            padding: '15px 30px',
+            fontSize: '1.2rem',
+            background: (isRecording || isInitializingEngine) ? '#666666' : '#ff9500',
+            border: 'none',
+            color: '#000',
+            cursor: (isRecording || isInitializingEngine) ? 'not-allowed' : 'pointer',
+            opacity: (isRecording || isInitializingEngine) ? 0.5 : 1,
+          }}
+        >
+          RESET ENGINE
+        </button>
+      </div>
 
       {!whisperReady && <div>Loading Whisper: {whisperProgress.toFixed(0)}%</div>}
 

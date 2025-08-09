@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { SimpleWaveformAnalyzer } from 'murmuraba';
 import styles from '../audio-fragment-processor.module.css';
 
@@ -17,57 +17,8 @@ export const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
   showStreamInfo = false,
   onToggleStreamInfo,
 }) => {
-  const waveformContainerRef = useRef<HTMLDivElement>(null);
-  const waveformRef = useRef<any>(null);
   const [streamInfo, setStreamInfo] = useState<string>('No stream active');
 
-  // Initialize waveform analyzer
-  useEffect(() => {
-    if (waveformContainerRef.current && !waveformRef.current) {
-      try {
-        waveformRef.current = new (SimpleWaveformAnalyzer as any)(waveformContainerRef.current, {
-          lineColor: '#00ff41',
-          lineWidth: 2,
-          fillColor: 'rgba(0, 255, 65, 0.1)',
-          canvasBackground: '#000000',
-          responsive: true,
-          smoothing: 0.8,
-          minDecibels: -90,
-          maxDecibels: -10,
-          fftSize: 2048,
-        });
-      } catch (error) {
-        console.error('Failed to create waveform analyzer:', error);
-      }
-    }
-
-    return () => {
-      if (waveformRef.current) {
-        waveformRef.current.destroy();
-        waveformRef.current = null;
-      }
-    };
-  }, []);
-
-  // Connect stream to waveform
-  useEffect(() => {
-    if (waveformRef.current && currentStream && isRecording) {
-      try {
-        waveformRef.current.connectStream(currentStream);
-        waveformRef.current.start();
-      } catch (error) {
-        console.error('Failed to connect stream to waveform:', error);
-      }
-    } else if (waveformRef.current && !isRecording) {
-      waveformRef.current.stop();
-    }
-
-    return () => {
-      if (waveformRef.current && waveformRef.current.isActive) {
-        waveformRef.current.stop();
-      }
-    };
-  }, [currentStream, isRecording]);
 
   // Update stream info
   useEffect(() => {
@@ -118,7 +69,7 @@ Track State:
         </button>
       </div>
 
-      <div className={styles.waveformContainer} ref={waveformContainerRef}>
+      <div className={styles.waveformContainer}>
         {!engineReady && (
           <div className={styles.loading}>
             <span className={styles.spinner}></span>
@@ -135,6 +86,12 @@ Track State:
           }}>
             Start recording to see waveform
           </div>
+        )}
+        {engineReady && isRecording && currentStream && (
+          <SimpleWaveformAnalyzer
+            stream={currentStream}
+            isActive={isRecording}
+          />
         )}
       </div>
 

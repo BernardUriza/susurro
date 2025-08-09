@@ -92,16 +92,38 @@ async function transcribeBlobWith(asr: CallableFunction, blob: Blob, language: s
   console.log('[transcribeBlobWith] Audio array type:', audioArray.constructor.name, 'Length:', audioArray.length);
 
   // Whisper expects the audio directly as the first parameter
-  const out = await asr(
-    audioArray,  // Pass the Float32Array directly
-    {
-      language,
+  // Build options based on what the model supports
+  const options: any = {
+    return_timestamps: true,
+    chunk_length_s: 30,
+    stride_length_s: 5,
+  };
+  
+  // Try with language/task first, if it fails, retry without them
+  try {
+    // First attempt with language and task (for multilingual models)
+    const out = await asr(audioArray, {
+      ...options,
+      language: language || 'en',
       task: 'transcribe',
-      return_timestamps: true,
-      chunk_length_s: 30,
-      stride_length_s: 5,
+    });
+    return processTranscriptionResult(out);
+  } catch (error: any) {
+    console.warn('[transcribeBlobWith] First attempt failed:', error?.message);
+    
+    // If error mentions English-only model, retry without language/task
+    if (error?.message?.includes('English-only') || error?.message?.includes('Cannot specify')) {
+      console.log('[transcribeBlobWith] Retrying for English-only model...');
+      const out = await asr(audioArray, options);
+      return processTranscriptionResult(out);
     }
-  );
+    
+    // If it's a different error, throw it
+    throw error;
+  }
+}
+
+function processTranscriptionResult(out: any): TranscriptionResult {
 
   const result: TranscriptionResult = {
     text: out?.text ?? '',

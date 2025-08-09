@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useWhisper } from '../../../../contexts/WhisperContext';
 import { ErrorBoundary } from '../../../../components/ErrorBoundary';
 import type { StreamingSusurroChunk } from '@susurro/core';
@@ -52,6 +52,8 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
   const [chunksProcessed, setChunksProcessed] = useState(0);
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const transcribingCountRef = useRef(0);
 
   // UI states
   const [isSettingsCollapsed, setIsSettingsCollapsed] = useState(true);
@@ -122,17 +124,55 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
       setChunksProcessed((prev) => prev + 1);
 
       const timestamp = new Date(chunk.timestamp).toLocaleTimeString();
+      const chunkIdShort = chunk.id.substring(0, 8);
 
       if (chunk.transcriptionText) {
-        const message = `[${timestamp}] Chunk ${chunk.id.substring(0, 8)} - VAD: ${chunk.vadScore.toFixed(2)} - ${chunk.isVoiceActive ? '🔊' : '🔇'}\n📝 Transcription: "${chunk.transcriptionText}"\n---`;
+        // Already transcribed - add immediately
+        const message = `[${timestamp}] Chunk ${chunkIdShort} - VAD: ${chunk.vadScore.toFixed(2)} - ${chunk.isVoiceActive ? '🔊' : '🔇'}\n📝 Transcription: "${chunk.transcriptionText}"\n---`;
         setTranscriptions((prev) => [...prev, message]);
         onLog?.(
           `🎤 Transcription: "${chunk.transcriptionText.substring(0, 100)}${chunk.transcriptionText.length > 100 ? '...' : ''}"`,
           'success'
         );
       } else if (chunk.isVoiceActive) {
-        const message = `[${timestamp}] Chunk ${chunk.id.substring(0, 8)} - VAD: ${chunk.vadScore.toFixed(2)} - ${chunk.isVoiceActive ? '🔊' : '🔇'}\n⏳ Processing transcription...\n---`;
-        setTranscriptions((prev) => [...prev, message]);
+        // Add placeholder message while transcribing
+        const placeholderMessage = `[${timestamp}] Chunk ${chunkIdShort} - VAD: ${chunk.vadScore.toFixed(2)} - ${chunk.isVoiceActive ? '🔊' : '🔇'}\n⏳ Processing transcription...\n---`;
+        setTranscriptions((prev) => [...prev, placeholderMessage]);
+        
+        // Non-blocking transcription using setTimeout to free main thread
+        if (chunk.audioBlob && chunk.audioBlob.size > 0) {
+          // Track active transcriptions
+          transcribingCountRef.current++;
+          setIsTranscribing(true);
+          
+          setTimeout(async () => {
+            // This runs after the current call stack clears, preventing UI freeze
+            try {
+              // Process the audio chunk for transcription
+              const transcriptionResult = await processAndTranscribeFile(new File([chunk.audioBlob], 'chunk.wav', { type: 'audio/wav' }));
+              if (transcriptionResult?.transcriptionText) {
+                const finalMessage = `[${timestamp}] Chunk ${chunkIdShort} - VAD: ${chunk.vadScore.toFixed(2)} - 🔊\n📝 Transcription: "${transcriptionResult.transcriptionText}"\n---`;
+                
+                // Replace the placeholder with the actual transcription
+                setTranscriptions((prev) => 
+                  prev.map((msg) => 
+                    msg.includes(`Chunk ${chunkIdShort}`) && msg.includes('⏳ Processing transcription')
+                      ? finalMessage
+                      : msg
+                  )
+                );
+              }
+            } catch (error) {
+              console.error('[Transcription] Non-blocking transcription error:', error);
+            } finally {
+              // Update transcribing state
+              transcribingCountRef.current--;
+              if (transcribingCountRef.current === 0) {
+                setIsTranscribing(false);
+              }
+            }
+          }, 0);
+        }
       }
     };
 
@@ -265,6 +305,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
             onStart={handleStartRecording}
             onStop={handleStopRecording}
             onReset={handleResetEngine}
+            isTranscribing={isTranscribing}
           />
 
           {/* Visualization Panel - Waveform & Stream Info */}

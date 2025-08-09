@@ -27,6 +27,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
   const listRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [filteredTranscriptions, setFilteredTranscriptions] = useState<string[]>([]);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   // Filter transcriptions
   useEffect(() => {
@@ -70,6 +71,52 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
       text: textMatch ? textMatch[1] : entry,
       isVoiceActive,
       isSummary: entry.includes('RECORDING SUMMARY'),
+    };
+  };
+
+  // Copy all transcriptions concatenated
+  const copyAllTranscriptions = () => {
+    const allText = transcriptions
+      .filter(t => t.includes('📝 Transcription:'))
+      .map(t => {
+        const match = t.match(/📝 Transcription:\s*"([^"]+)"/);
+        return match ? match[1] : '';
+      })
+      .filter(text => text.length > 0)
+      .join(' ');
+    
+    if (allText.length === 0) {
+      return;
+    }
+    
+    navigator.clipboard.writeText(allText).then(() => {
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    }).catch(() => {
+      // Fallback for browsers without clipboard API
+      const textArea = document.createElement('textarea');
+      textArea.value = allText;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    });
+  };
+
+  // Get transcription statistics
+  const getStats = () => {
+    const transcribedEntries = transcriptions.filter(t => t.includes('📝 Transcription:'));
+    const totalChars = transcribedEntries.reduce((acc, t) => {
+      const match = t.match(/📝 Transcription:\s*"([^"]+)"/);
+      return acc + (match ? match[1].length : 0);
+    }, 0);
+    
+    return {
+      count: transcribedEntries.length,
+      totalChars,
+      avgCharsPerEntry: transcribedEntries.length > 0 ? Math.round(totalChars / transcribedEntries.length) : 0
     };
   };
 
@@ -120,6 +167,44 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
           </button>
         )}
       </div>
+
+      {/* Copy and Stats Bar */}
+      {transcriptions.length > 0 && (
+        <div style={{ 
+          display: 'flex', 
+          gap: '10px', 
+          alignItems: 'center',
+          marginBottom: '10px',
+          padding: '8px',
+          background: 'rgba(0, 255, 65, 0.05)',
+          border: '1px solid rgba(0, 255, 65, 0.3)',
+          borderRadius: '4px'
+        }}>
+          <button
+            onClick={copyAllTranscriptions}
+            className={styles.primaryButton}
+            style={{
+              padding: '6px 12px',
+              fontSize: '0.9rem',
+              background: copySuccess ? '#00cc33' : '#00ff41',
+            }}
+          >
+            {copySuccess ? '✅ COPIED!' : '📋 COPY TEXT'}
+          </button>
+          
+          <div style={{ 
+            color: '#00ff41', 
+            fontSize: '0.85rem',
+            marginLeft: 'auto',
+            opacity: 0.8
+          }}>
+            {(() => {
+              const stats = getStats();
+              return `📊 ${stats.count} entries • ${stats.totalChars} chars • ~${stats.avgCharsPerEntry} avg`;
+            })()}
+          </div>
+        </div>
+      )}
 
       <div 
         ref={listRef}

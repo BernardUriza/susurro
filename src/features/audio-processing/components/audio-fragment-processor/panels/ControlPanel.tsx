@@ -17,6 +17,7 @@ interface ControlPanelProps {
   onStart: () => void;
   onStop: () => void;
   onReset: () => void;
+  isTranscribing?: boolean;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -28,6 +29,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onStart,
   onStop,
   onReset,
+  isTranscribing = false,
 }) => {
   const formatDuration = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
@@ -63,6 +65,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         <div className={styles.statusIndicator}>
           <span className={getStatusDotClass()}></span>
           <span>{getStatusText()}</span>
+          {isTranscribing && (
+            <span style={{ 
+              marginLeft: '10px',
+              color: '#ffaa00', 
+              fontSize: '0.85rem',
+              animation: 'pulse 1s infinite' 
+            }}>
+              🔄 Transcribing...
+            </span>
+          )}
         </div>
         
         {/* Whisper Progress Bar */}

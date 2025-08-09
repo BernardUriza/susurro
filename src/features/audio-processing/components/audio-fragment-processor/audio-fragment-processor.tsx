@@ -51,6 +51,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
   const [fileResult, setFileResult] = useState<CompleteAudioResult | null>(null);
   const [chunksProcessed, setChunksProcessed] = useState(0);
   const [transcriptions, setTranscriptions] = useState<string[]>([]);
+  const [chunkDurationSeconds, setChunkDurationSeconds] = useState<number>(8); // User-configurable chunk duration
 
   // Add recording timer
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
@@ -200,14 +201,16 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
     }
 
     setIsRecording(true);
-    setStatus(whisperReady ? '[RECORDING_ACTIVE]' : '[RECORDING_NO_TRANSCRIPTION]');
+    setStatus(whisperReady 
+      ? `[RECORDING_ACTIVE] Chunk duration: ${chunkDurationSeconds}s` 
+      : `[RECORDING_NO_TRANSCRIPTION] Chunk duration: ${chunkDurationSeconds}s`);
     setChunksProcessed(0);
     setTranscriptions([]); // Clear previous transcriptions
     setRecordingStartTime(Date.now());
     setRecordingDuration(0);
 
-    console.log('[RECORDING] Starting recording with Whisper ready:', whisperReady);
-    onLog?.('🎬 Starting streaming recording...', 'info');
+    console.log('[RECORDING] Starting recording with Whisper ready:', whisperReady, 'Chunk duration:', chunkDurationSeconds);
+    onLog?.(`🎬 Starting streaming recording with ${chunkDurationSeconds}s chunks...`, 'info');
 
     const onChunkProcessed = (chunk: StreamingSusurroChunk) => {
       console.log('[onChunkProcessed] Received chunk:', {
@@ -242,7 +245,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
 
     try {
       await startStreamingRecording(onChunkProcessed, {
-        chunkDuration: 8,
+        chunkDuration: chunkDurationSeconds,
         vadThreshold: 0.2,
         enableRealTimeTranscription: true,
         enableNoiseReduction: true,
@@ -260,6 +263,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
     engineError,
     initializeAudioEngine,
     memoizedOnLog,
+    chunkDurationSeconds,
   ]);
 
   const handleStopRecording = useCallback(async () => {
@@ -478,6 +482,75 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
                   : '⚠️ Audio engine not initialized'}
             </div>
           )}
+        </div>
+
+        {/* Chunk Duration Control */}
+        <div style={{ 
+          marginBottom: '20px', 
+          padding: '15px', 
+          border: '1px solid #00ff41',
+          background: 'rgba(0, 255, 65, 0.05)'
+        }}>
+          <label style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '15px',
+            fontSize: '1.1rem' 
+          }}>
+            <span style={{ color: '#00ff41', fontWeight: 'bold' }}>
+              📏 Chunk Duration (seconds):
+            </span>
+            <input
+              type="number"
+              min="1"
+              max="60"
+              value={chunkDurationSeconds}
+              onChange={(e) => {
+                const value = parseInt(e.target.value) || 8;
+                // Clamp between 1 and 60 seconds
+                const clampedValue = Math.min(60, Math.max(1, value));
+                setChunkDurationSeconds(clampedValue);
+              }}
+              disabled={isRecording}
+              style={{
+                background: '#000',
+                color: '#00ff41',
+                border: '2px solid #00ff41',
+                padding: '8px 12px',
+                fontSize: '1.1rem',
+                width: '80px',
+                textAlign: 'center',
+                cursor: isRecording ? 'not-allowed' : 'text',
+                opacity: isRecording ? 0.5 : 1,
+              }}
+            />
+            <span style={{ color: '#888', fontSize: '0.9rem' }}>
+              (1-60 seconds, default: 8)
+            </span>
+            {chunkDurationSeconds !== 8 && (
+              <button
+                onClick={() => setChunkDurationSeconds(8)}
+                disabled={isRecording}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #00ff41',
+                  color: '#00ff41',
+                  padding: '4px 8px',
+                  cursor: isRecording ? 'not-allowed' : 'pointer',
+                  fontSize: '0.9rem',
+                }}
+              >
+                Reset to Default
+              </button>
+            )}
+          </label>
+          <div style={{ 
+            marginTop: '10px', 
+            fontSize: '0.85rem', 
+            color: '#888' 
+          }}>
+            💡 Tip: Shorter chunks (3-8s) give faster real-time feedback. Longer chunks (15-30s) are better for complete sentences.
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>

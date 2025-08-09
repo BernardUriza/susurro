@@ -1,15 +1,8 @@
-// Main hook - now ENFORCED through context pattern to prevent multiple instances
-export { useSusurro } from './hooks/use-susurro-enforced';
+// Main hook - now using useMurmubaraEngine directly from murmuraba
+export { useSusurro } from './hooks/use-susurro';
 
-// Internal use only - components should use WhisperProvider
-export { useSusurro as useSusurroInternal } from './hooks/use-susurro';
-
-// NEW: Proper engine management
-export { useAudioEngineManager } from './hooks/use-audio-engine-manager';
-export { getAudioEngineManager } from './lib/audio-engine-manager';
-
-// DEPRECATED: Old engine hook - kept for compatibility
-export { useAudioEngine } from './hooks/use-audio-engine';
+// Audio engine management is now handled internally by useMurmubaraEngine
+// No need for separate engine management hooks
 
 // All audio functionality consolidated into single useSusurro hook
 export * from './lib/types';

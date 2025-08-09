@@ -4,7 +4,6 @@ if (typeof window !== 'undefined') {
   (window as unknown as Record<string, unknown>).ort = { env: { logLevel: 'error', debug: false } };
 }
 
-import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './app';
 import './styles/reset.css';

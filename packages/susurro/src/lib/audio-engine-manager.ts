@@ -251,7 +251,7 @@ export class AudioEngineManager {
     if (this.murmurabaEngine) {
       return this.murmurabaEngine;
     }
-    
+
     throw new Error(`Engine not registered. Current state: ${this.state}`);
   }
 

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useSusurroInternal as useSusurro } from '@susurro/core';
+import { useSusurro } from '@susurro/core';
 import type { UseSusurroReturn } from '@susurro/core';
 
 interface WhisperContextType extends UseSusurroReturn {

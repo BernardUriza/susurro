@@ -1,17 +1,29 @@
 // Dynamic loaders for bundle size optimization
 // This file handles lazy loading of heavy dependencies
 
+// Cache for loaded modules to prevent multiple loads
+const MODULE_CACHE = {
+  transformers: null as any,
+  murmubaraProcessing: null as any,
+};
+
 /**
  * Dynamically loads Transformers.js for Whisper processing
  * Reduces initial bundle size by ~45MB
  */
 export const loadTransformers = async () => {
+  if (MODULE_CACHE.transformers) {
+    console.log('[loadTransformers] Using cached module');
+    return MODULE_CACHE.transformers;
+  }
+
   const transformers = await import(
     /* webpackChunkName: "transformers-core" */
     /* webpackPreload: true */
     '@huggingface/transformers'
   );
 
+  MODULE_CACHE.transformers = transformers;
   return transformers;
 };
 
@@ -28,16 +40,21 @@ export const loadTransformers = async () => {
  * Separates heavy processing logic from core engine
  */
 export const loadMurmubaraProcessing = async () => {
+  if (MODULE_CACHE.murmubaraProcessing) {
+    console.log('[loadMurmubaraProcessing] Using cached module');
+    return MODULE_CACHE.murmubaraProcessing;
+  }
+
   const module = await import(
     /* webpackChunkName: "murmuraba-processing" */
     /* webpackPreload: true */
     'murmuraba'
   );
 
-  console.log('[loadMurmubaraProcessing] Module loaded, keys:', Object.keys(module));
+  console.log('[loadMurmubaraProcessing] Module loaded for first time, keys:', Object.keys(module));
   console.log('[loadMurmubaraProcessing] murmubaraVAD type:', typeof module.murmubaraVAD);
 
-  return {
+  const processedModule = {
     processFileWithMetrics: module.processFileWithMetrics || module.processFile, // Use processFileWithMetrics first, fallback to processFile
     murmubaraVAD: module.murmubaraVAD, // No fallback - murmubaraVAD is a required export
     extractAudioMetadata:
@@ -46,6 +63,9 @@ export const loadMurmubaraProcessing = async () => {
     getEngineStatus: module.getEngineStatus,
     initializeAudioEngine: module.initializeAudioEngine,
   };
+
+  MODULE_CACHE.murmubaraProcessing = processedModule;
+  return processedModule;
 };
 
 /**

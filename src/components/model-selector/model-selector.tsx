@@ -15,7 +15,12 @@ const WHISPER_MODELS: WhisperModel[] = [
   { id: 'tiny', name: 'Whisper Tiny', size: '39 MB', description: 'Más rápido, menos preciso' },
   { id: 'base', name: 'Whisper Base', size: '74 MB', description: 'Balance básico' },
   { id: 'small', name: 'Whisper Small', size: '244 MB', description: 'Buena precisión' },
-  { id: 'medium', name: 'Whisper Medium', size: '769 MB', description: 'Recomendado - Mejor balance' },
+  {
+    id: 'medium',
+    name: 'Whisper Medium',
+    size: '769 MB',
+    description: 'Recomendado - Mejor balance',
+  },
   { id: 'large', name: 'Whisper Large-v3', size: '1.5 GB', description: 'Máxima precisión' },
 ];
 

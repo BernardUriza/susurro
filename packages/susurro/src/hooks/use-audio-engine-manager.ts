@@ -52,6 +52,10 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
     autoInitialize: false,
   });
 
+  // Store engine ref to avoid re-registering on every render
+  const murmubaraEngineRef = useRef(murmubaraEngine);
+  murmubaraEngineRef.current = murmubaraEngine;
+
   // Initialize manager on first mount
   useEffect(() => {
     if (!managerRef.current) {
@@ -66,7 +70,7 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
     const manager = managerRef.current;
 
     // Register the Murmuraba engine with the manager
-    manager.registerEngine(murmubaraEngine);
+    manager.registerEngine(murmubaraEngineRef.current);
 
     // Set initial state
     setState(manager.getState());
@@ -92,7 +96,7 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
     return () => {
       manager.removeEventListener(handleEvent);
     };
-  }, [murmubaraEngine]);
+  }, []); // Remove murmubaraEngine dependency to prevent infinite loops
 
   // Actions
   const initialize = useCallback(async () => {
@@ -103,16 +107,24 @@ export function useAudioEngineManager(): UseAudioEngineManagerReturn {
       await managerRef.current.initialize();
 
       // Then initialize the Murmuraba hook
-      if (murmubaraEngine.initialize) {
-        await murmubaraEngine.initialize();
+      if (murmubaraEngineRef.current.initialize) {
+        await murmubaraEngineRef.current.initialize();
       }
+      
+      // Force state update after successful initialization
+      setState('ready');
+      const metrics = managerRef.current.getHealthMetrics();
+      setHealthMetrics({
+        ...metrics,
+        isHealthy: true  // Ensure isHealthy is true after successful init
+      });
 
       // Re-register the engine after initialization
-      managerRef.current.registerEngine(murmubaraEngine);
+      managerRef.current.registerEngine(murmubaraEngineRef.current);
     } catch (error) {
       throw error;
     }
-  }, [murmubaraEngine]);
+  }, []); // Remove dependency on murmubaraEngine
 
   const destroy = useCallback(async () => {
     if (!managerRef.current) return;

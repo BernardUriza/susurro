@@ -1,6 +1,7 @@
 import React, { useCallback, useState, useRef, useEffect } from 'react';
 import { useWhisper } from '../../../../contexts/WhisperContext';
 import { SimpleWaveformAnalyzer } from 'murmuraba';
+import { ErrorBoundary } from '../../../../components/ErrorBoundary';
 import type { CompleteAudioResult, StreamingSusurroChunk } from '@susurro/core';
 
 export interface AudioFragmentProcessorProps {
@@ -24,6 +25,12 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
     whisperReady,
     whisperProgress,
 
+    // Audio Engine Management
+    isEngineInitialized,
+    engineError,
+    isInitializingEngine,
+    initializeAudioEngine,
+
     // MediaStream for visualization
     currentStream,
   } = useWhisper();
@@ -35,7 +42,35 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
   const [chunksProcessed, setChunksProcessed] = useState(0);
   const [transcriptions, setTranscriptions] = useState<string[]>([]);
   const [streamInfo, setStreamInfo] = useState<string>('No stream active');
+  const [isInitializingAudio, setIsInitializingAudio] = useState(false);
   const consoleRef = useRef<HTMLDivElement>(null);
+
+  // Memoize the onLog callback to prevent unnecessary re-renders
+  const memoizedOnLog = useCallback((message: string, type?: 'info' | 'warning' | 'error' | 'success') => {
+    onLog?.(message, type);
+  }, [onLog]);
+
+  // Initialize audio engine on component mount - Fixed infinite loop
+  useEffect(() => {
+    const initializeEngine = async () => {
+      // Only run if engine is not initialized and not currently initializing
+      if (!isEngineInitialized && !isInitializingEngine) {
+        setIsInitializingAudio(true);
+        try {
+          await initializeAudioEngine();
+          memoizedOnLog('✅ Audio engine initialized successfully', 'success');
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          memoizedOnLog(`❌ Failed to initialize audio engine: ${errorMessage}`, 'error');
+        } finally {
+          setIsInitializingAudio(false);
+        }
+      }
+    };
+
+    initializeEngine();
+    // Removed isInitializingAudio from dependencies to prevent circular dependency
+  }, [isEngineInitialized, isInitializingEngine, initializeAudioEngine, memoizedOnLog]);
 
   // Auto-scroll console to bottom when new transcriptions arrive
   useEffect(() => {
@@ -44,48 +79,49 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
     }
   }, [transcriptions]);
 
+  // Memoize the stream info update function to prevent recreation on every render
+  const updateStreamInfo = useCallback(() => {
+    if (!currentStream) {
+      setStreamInfo('No stream active');
+      return;
+    }
+
+    try {
+      const audioTracks = currentStream.getAudioTracks();
+      const videoTracks = currentStream.getVideoTracks();
+
+      const info = {
+        id: currentStream.id,
+        active: currentStream.active,
+        audioTracks: audioTracks.length,
+        videoTracks: videoTracks.length,
+        tracks: audioTracks.map((track) => ({
+          id: track.id.substring(0, 8),
+          label: track.label || 'Unknown',
+          kind: track.kind,
+          enabled: track.enabled,
+          muted: track.muted,
+          readyState: track.readyState,
+          settings: track.getSettings
+            ? {
+                sampleRate: track.getSettings().sampleRate,
+                channelCount: track.getSettings().channelCount,
+                echoCancellation: track.getSettings().echoCancellation,
+                noiseSuppression: track.getSettings().noiseSuppression,
+                autoGainControl: track.getSettings().autoGainControl,
+              }
+            : {},
+        })),
+      };
+
+      setStreamInfo(JSON.stringify(info, null, 2));
+    } catch (error) {
+      setStreamInfo(`Error reading stream: ${error}`);
+    }
+  }, [currentStream]);
+
   // Update MediaStream info in real-time
   useEffect(() => {
-    const updateStreamInfo = () => {
-      if (!currentStream) {
-        setStreamInfo('No stream active');
-        return;
-      }
-
-      try {
-        const audioTracks = currentStream.getAudioTracks();
-        const videoTracks = currentStream.getVideoTracks();
-
-        const info = {
-          id: currentStream.id,
-          active: currentStream.active,
-          audioTracks: audioTracks.length,
-          videoTracks: videoTracks.length,
-          tracks: audioTracks.map((track) => ({
-            id: track.id.substring(0, 8),
-            label: track.label || 'Unknown',
-            kind: track.kind,
-            enabled: track.enabled,
-            muted: track.muted,
-            readyState: track.readyState,
-            settings: track.getSettings
-              ? {
-                  sampleRate: track.getSettings().sampleRate,
-                  channelCount: track.getSettings().channelCount,
-                  echoCancellation: track.getSettings().echoCancellation,
-                  noiseSuppression: track.getSettings().noiseSuppression,
-                  autoGainControl: track.getSettings().autoGainControl,
-                }
-              : {},
-          })),
-        };
-
-        setStreamInfo(JSON.stringify(info, null, 2));
-      } catch (error) {
-        setStreamInfo(`Error reading stream: ${error}`);
-      }
-    };
-
     // Update immediately
     updateStreamInfo();
 
@@ -95,13 +131,36 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [currentStream, isRecording]);
+  }, [updateStreamInfo, isRecording]);
 
   const handleStartRecording = useCallback(async () => {
+    // Ensure audio engine is initialized before recording
+    if (!isEngineInitialized) {
+      setStatus('[INITIALIZING_ENGINE]');
+      try {
+        await initializeAudioEngine();
+        onLog?.('🎯 Audio engine initialized for recording', 'info');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        setStatus(`[ENGINE_ERROR] ${errorMessage}`);
+        onLog?.(`❌ Engine initialization failed: ${errorMessage}`, 'error');
+        return;
+      }
+    }
+
+    // Check for engine errors
+    if (engineError) {
+      setStatus('[ENGINE_ERROR]');
+      onLog?.(`❌ Engine error detected: ${engineError}`, 'error');
+      return;
+    }
+
     // Allow recording even without Whisper (just won't have transcription)
     if (!whisperReady) {
       setStatus('[RECORDING_NO_TRANSCRIPTION]');
+      onLog?.('⚠️ Recording without transcription (Whisper not ready)', 'warning');
     }
+
     setIsRecording(true);
     setStatus(whisperReady ? '[RECORDING_ACTIVE]' : '[RECORDING_NO_TRANSCRIPTION]');
     setChunksProcessed(0);
@@ -127,9 +186,11 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
       });
     } catch (error) {
       setIsRecording(false);
-      setStatus(`[ERROR] ${error instanceof Error ? error.message : String(error)}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setStatus(`[ERROR] ${errorMessage}`);
+      onLog?.(`❌ Recording failed: ${errorMessage}`, 'error');
     }
-  }, [whisperReady, startStreamingRecording]);
+  }, [whisperReady, startStreamingRecording, isEngineInitialized, engineError, initializeAudioEngine, memoizedOnLog]);
 
   const handleStopRecording = useCallback(async () => {
     try {
@@ -190,7 +251,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
         onLog?.(`❌ Error procesando archivo: ${errorMsg}`, 'error');
       }
     },
-    [processAndTranscribeFile, onLog]
+    [processAndTranscribeFile, memoizedOnLog]
   );
 
   return (
@@ -214,59 +275,100 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
         </div>
       )}
 
-      {/* SimpleWaveformAnalyzer - The entire visualization solution */}
+      {/* Engine Status Display */}
       <div style={{ marginBottom: '20px' }}>
+        <div style={{ color: '#00ff41', marginBottom: '10px' }}>
+          Engine Status: {isEngineInitialized ? 'Ready' : isInitializingEngine || isInitializingAudio ? 'Initializing...' : 'Not Initialized'}
+          {engineError && <span style={{ color: '#ff0041' }}> - Error: {engineError}</span>}
+        </div>
         <div>{isRecording ? 'Recording...' : 'Not Recording'}</div>
+      </div>
 
-        {/* MediaStream Info - Real-time stream details */}
-        <div
+      {/* MediaStream Info - Real-time stream details */}
+      <div
+        style={{
+          marginBottom: '20px',
+          padding: '15px',
+          background: 'rgba(0, 0, 0, 0.8)',
+          border: '1px solid #00ff41',
+          borderRadius: '4px',
+          maxHeight: '300px',
+          overflowY: 'auto',
+        }}
+      >
+        <h3 style={{ margin: '0 0 10px 0', color: '#00ff41' }}>
+          📡 MediaStream Info (Real-time)
+        </h3>
+        <pre
           style={{
-            marginBottom: '20px',
-            padding: '15px',
-            background: 'rgba(0, 0, 0, 0.8)',
-            border: '1px solid #00ff41',
-            borderRadius: '4px',
-            maxHeight: '300px',
-            overflowY: 'auto',
+            margin: 0,
+            fontSize: '12px',
+            fontFamily: 'monospace',
+            color: '#00ff41',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-all',
           }}
         >
-          <h3 style={{ margin: '0 0 10px 0', color: '#00ff41' }}>
-            📡 MediaStream Info (Real-time)
-          </h3>
-          <pre
+          {streamInfo}
+        </pre>
+      </div>
+
+      {/* SimpleWaveformAnalyzer - Only render when engine is ready */}
+      <div style={{ marginBottom: '20px' }}>
+        {isEngineInitialized && !engineError ? (
+          <ErrorBoundary fallback={<div style={{ width: 800, height: 200, border: '2px solid #ff0041', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff0041' }}>❌ Waveform analyzer error</div>}>
+            <SimpleWaveformAnalyzer
+              stream={currentStream || undefined}
+              isActive={isRecording}
+              width={800}
+              height={200}
+            />
+          </ErrorBoundary>
+        ) : (
+          <div
             style={{
-              margin: 0,
-              fontSize: '12px',
-              fontFamily: 'monospace',
+              width: 800,
+              height: 200,
+              border: '2px dashed #00ff41',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               color: '#00ff41',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all',
+              marginBottom: '20px',
             }}
           >
-            {streamInfo}
-          </pre>
-        </div>
-        <SimpleWaveformAnalyzer
-          stream={currentStream || undefined}
-          isActive={isRecording}
-          width={800}
-          height={200}
-        />
+            {isInitializingEngine || isInitializingAudio
+              ? '⏳ Initializing audio engine...'
+              : engineError
+              ? `❌ Engine Error: ${engineError}`
+              : '⚠️ Audio engine not initialized'}
+          </div>
+        )}
       </div>
 
       <button
         onClick={isRecording ? handleStopRecording : handleStartRecording}
+        disabled={!isEngineInitialized || !!engineError || isInitializingEngine || isInitializingAudio}
         style={{
           padding: '15px 40px',
           fontSize: '1.2rem',
-          background: isRecording ? '#ff0041' : '#00ff41',
+          background: isRecording 
+            ? '#ff0041' 
+            : (!isEngineInitialized || !!engineError || isInitializingEngine || isInitializingAudio) 
+              ? '#666666' 
+              : '#00ff41',
           border: 'none',
           color: '#000',
-          cursor: 'pointer',
+          cursor: (!isEngineInitialized || !!engineError || isInitializingEngine || isInitializingAudio) ? 'not-allowed' : 'pointer',
           marginBottom: '20px',
+          opacity: (!isEngineInitialized || !!engineError || isInitializingEngine || isInitializingAudio) ? 0.5 : 1,
         }}
       >
-        {isRecording ? 'STOP' : 'START'}
+        {isRecording ? 'STOP' : 
+         isInitializingEngine || isInitializingAudio ? 'INITIALIZING...' : 
+         !isEngineInitialized ? 'ENGINE NOT READY' : 
+         engineError ? 'ENGINE ERROR' : 
+         'START'}
       </button>
 
       {!whisperReady && <div>Loading Whisper: {whisperProgress.toFixed(0)}%</div>}

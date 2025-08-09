@@ -178,9 +178,10 @@ export const WhisperMatrixTerminal = () => {
     if (whisperReady && pendingFileRef.current) {
       const file = pendingFileRef.current;
       pendingFileRef.current = null;
+      // Call handleFileProcess directly without dependency to prevent loops
       handleFileProcess(file);
     }
-  }, [whisperReady, handleFileProcess]);
+  }, [whisperReady]); // Remove handleFileProcess dependency to prevent infinite loops
 
   const loadExampleAudio = async () => {
     try {

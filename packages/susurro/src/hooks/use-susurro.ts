@@ -582,12 +582,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     }
   }, [
     engineReady,
-    getEngine,
     audioChunks.length,
     chunkDurationMs,
     isStreamingRecording,
     whisperReady,
-    transcribeWithWhisper,
+    // Remove getEngine and transcribeWithWhisper to prevent infinite loops
+    // They are accessed via refs within the effect
   ]);
 
   // — Conversational emit: cuando audio + transcripción están listos —
@@ -696,7 +696,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         // Engine not ready, skip processing
       }
     }
-  }, [audioChunks, engineReady, getEngine, whisperReady, processChunks, conversational]);
+  }, [audioChunks, engineReady, whisperReady, conversational]); // Remove getEngine and processChunks to prevent loops
 
   // — Limpieza — (already moved before resetAudioEngine)
 

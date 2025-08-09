@@ -1,10 +1,20 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [
     react(),
+    nodePolyfills({
+      // Only polyfill what murmuraba needs
+      include: ['buffer', 'stream', 'util', 'events', 'process'],
+      globals: {
+        Buffer: true,
+        global: true,
+        process: true,
+      },
+    }),
     // Custom plugin to handle onnxruntime-web
     {
       name: 'configure-onnxruntime',
@@ -23,33 +33,11 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, './'),
       '@susurro/core': resolve(__dirname, './packages/susurro/src'),
-      // Fix Node.js modules contamination from murmuraba
-      'stream': 'stream-browserify',
-      'events': 'events',
-      'buffer': 'buffer',
-      'util': 'util',
-      'process': 'process/browser',
     },
-  },
-  define: {
-    // Required for proper Node.js polyfills
-    global: 'globalThis',
-    'process.env': {},
-    'process.version': '"v16.0.0"',
-    'process.versions': '{}',
-    'process.platform': '"browser"',
-    'process.argv': '[]',
-    // Fix for exports error
-    'module.exports': '{}',
   },
   optimizeDeps: {
     // Include dependencies that need pre-bundling
     include: [
-      'stream-browserify', 
-      'events', 
-      'buffer', 
-      'util', 
-      'process',
       '@huggingface/transformers',
       'onnxruntime-web',
       'murmuraba'
@@ -82,11 +70,6 @@ export default defineConfig({
             return 'vendor-murmuraba';
           }
           
-          // Node.js polyfills
-          if (id.includes('stream-browserify') || id.includes('node_modules/events') || 
-              id.includes('node_modules/buffer') || id.includes('node_modules/util')) {
-            return 'vendor-polyfills';
-          }
           
           // Other node_modules
           if (id.includes('node_modules')) {

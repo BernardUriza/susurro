@@ -39,10 +39,10 @@ export default defineConfig({
     'process.versions': '{}',
     'process.platform': '"browser"',
     'process.argv': '[]',
+    // Fix for exports error
+    'module.exports': '{}',
   },
   optimizeDeps: {
-    // Force these to be excluded from pre-bundling to enable proper code-splitting
-    exclude: ['murmuraba'],
     // Include dependencies that need pre-bundling
     include: [
       'stream-browserify', 
@@ -51,7 +51,8 @@ export default defineConfig({
       'util', 
       'process',
       '@huggingface/transformers',
-      'onnxruntime-web'
+      'onnxruntime-web',
+      'murmuraba'
     ],
     esbuildOptions: {
       target: 'es2020'

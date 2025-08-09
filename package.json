@@ -1,7 +1,7 @@
 {
-  "name": "susurro-whisper-nextjs",
-  "version": "1.0.0",
-  "description": "Neural audio processing and real-time transcription using Whisper AI with conversational chunk streaming",
+  "name": "susurro-transcription-studio",
+  "version": "2.0.0",
+  "description": "Professional real-time voice transcription studio powered by Whisper AI and Murmuraba - Stream, transcribe, and export speech with advanced audio processing",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",

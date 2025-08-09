@@ -271,7 +271,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     chunkDurationMs: chunkDurationMs,
     autoCleanup: true,
     useAudioWorklet: true,
-    logLevel: 'info' as const,
+    logLevel: 'error' as const,  // Changed from 'info' to 'error' to reduce logs
+    enableDebugLogs: false,  // Explicitly disable debug logs
   };
 
   const {

@@ -23,8 +23,24 @@ const WHISPER_ENV = {
   logLevel: 'error' as const,
 } as const;
 
+// Singleton cache for ASR pipelines to prevent multiple loads
+const ASR_PIPELINE_CACHE = new Map<string, CallableFunction>();
+
 async function ensureASR(model: string, quantized: boolean, onProgress: (p: number) => void) {
   try {
+    // Create cache key based on model and quantization
+    const cacheKey = `${model}_${quantized ? 'q8' : 'fp32'}`;
+    
+    // Check if pipeline already exists in cache
+    const cachedPipeline = ASR_PIPELINE_CACHE.get(cacheKey);
+    if (cachedPipeline) {
+      console.log(`[ensureASR] Using cached pipeline for ${cacheKey}`);
+      onProgress(100); // Immediately complete since it's cached
+      return cachedPipeline;
+    }
+
+    console.log(`[ensureASR] Creating new pipeline for ${cacheKey}`);
+
     // Import @huggingface/transformers v3
     const transformersModule = await import('@huggingface/transformers');
 
@@ -39,7 +55,9 @@ async function ensureASR(model: string, quantized: boolean, onProgress: (p: numb
     }
 
     // Use Xenova ONNX models that work with v3
-    const modelName = `Xenova/${model}`;
+    // Remove .en suffix to ensure multilingual support (needed for Spanish)
+    const modelName = `Xenova/${model.replace('.en', '')}`;
+    console.log(`[ensureASR] Loading model: ${modelName}`);
 
     // Create pipeline with v3 API
     const asr = await pipeline('automatic-speech-recognition', modelName, {
@@ -55,12 +73,18 @@ async function ensureASR(model: string, quantized: boolean, onProgress: (p: numb
           onProgress(Math.min(100, Math.max(0, percent)));
         } else if (p?.status) {
           // Log status updates
+          console.log(`[ensureASR] Status: ${p.status}`);
         }
       },
     });
 
+    // Store in cache for future use
+    ASR_PIPELINE_CACHE.set(cacheKey, asr);
+    console.log(`[ensureASR] Pipeline cached for ${cacheKey}`);
+
     return asr;
   } catch (error) {
+    console.error(`[ensureASR] Failed to load model:`, error);
     throw error;
   }
 }
@@ -104,9 +128,10 @@ async function transcribeBlobWith(asr: CallableFunction, blob: Blob, language: s
     // First attempt with language and task (for multilingual models)
     const out = await asr(audioArray, {
       ...options,
-      language: language || 'en',
+      language: language || 'es', // Default to Spanish
       task: 'transcribe',
     });
+    console.log('[transcribeBlobWith] Transcription successful with language:', language || 'es');
     return processTranscriptionResult(out);
   } catch (error: any) {
     console.warn('[transcribeBlobWith] First attempt failed:', error?.message);
@@ -242,15 +267,17 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const [whisperError, setWhisperError] = useState<Error | string | null>(null);
   const asrRef = useRef<CallableFunction | null>(null);
 
-  // Use Xenova ONNX models compatible with v3
-  // Using English models that are known to work
+  // Use Xenova ONNX multilingual models for Spanish support
+  // Removed .en suffix to support multiple languages including Spanish
   const modelMap: Record<string, string> = {
-    tiny: 'whisper-tiny.en',
-    base: 'whisper-base.en',
-    medium: 'whisper-medium.en',
+    tiny: 'whisper-tiny',
+    base: 'whisper-base', 
+    medium: 'whisper-medium',
+    small: 'whisper-small',
+    large: 'whisper-large-v3',
   };
-  const whisperModel = modelMap[options.initialModel || 'tiny'] || 'whisper-tiny.en';
-  const whisperLanguage = whisperConfig?.language || 'en';
+  const whisperModel = modelMap[options.initialModel || 'tiny'] || 'whisper-tiny';
+  const whisperLanguage = whisperConfig?.language || 'es'; // Default to Spanish
   const whisperQuantized = true;
 
   useEffect(() => {

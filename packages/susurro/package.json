@@ -1,6 +1,6 @@
 {
   "name": "susurro-audio",
-  "version": "2.0.0",
+  "version": "2.1.1",
   "description": "🎙️ Real-time conversational audio with AI transcription. Build ChatGPT-style voice interfaces in minutes with <300ms latency",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

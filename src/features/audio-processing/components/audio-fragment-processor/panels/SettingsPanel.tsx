@@ -64,14 +64,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <span style={{ color: '#888', fontSize: '0.8rem' }}>
                 {chunkDuration}s
               </span>
-              {chunkDuration !== 8 && (
+              {chunkDuration !== 20 && (
                 <button
-                  onClick={() => onChunkDurationChange(8)}
+                  onClick={() => onChunkDurationChange(20)}
                   disabled={isRecording}
                   className={styles.secondaryButton}
                   style={{ padding: '4px 8px', fontSize: '0.8rem' }}
                 >
-                  Reset
+                  Reset to Default (20s)
                 </button>
               )}
             </div>

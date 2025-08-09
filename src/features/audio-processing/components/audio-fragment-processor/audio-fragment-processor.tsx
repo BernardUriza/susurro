@@ -61,7 +61,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
   const [transcriptionFilter, setTranscriptionFilter] = useState('');
 
   // Settings states
-  const [chunkDurationSeconds, setChunkDurationSeconds] = useState<number>(8);
+  const [chunkDurationSeconds, setChunkDurationSeconds] = useState<number>(20); // Default to Murmuraba's official 20 seconds
   const [vadThreshold, setVadThreshold] = useState<number>(0.2);
   const [noiseReduction, setNoiseReduction] = useState<boolean>(true);
 

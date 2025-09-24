@@ -57,10 +57,15 @@ export class WhisperBackendService {
   private timeout: number;
 
   constructor(
-    baseUrl = process.env.VITE_WHISPER_BACKEND_URL || 'https://your-backend.onrender.com',
+    baseUrl?: string,
     timeout = 60000 // 60 seconds for transcription
   ) {
-    this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+    // Get backend URL based on environment
+    const useRender = import.meta.env.VITE_USE_RENDER === 'true';
+    this.baseUrl = (baseUrl || (useRender
+      ? 'https://susurro-whisper-backend.onrender.com'
+      : 'http://localhost:8000'
+    )).replace(/\/$/, ''); // Remove trailing slash
     this.timeout = timeout;
   }
 
@@ -273,12 +278,9 @@ export const whisperBackend = new WhisperBackendService();
 
 // Utility function to detect if we should use backend or client-side
 export async function shouldUseBackend(): Promise<boolean> {
-  // Check environment variable preference
-  const forceBackend = process.env.VITE_FORCE_BACKEND === 'true';
-  const forceClient = process.env.VITE_FORCE_CLIENT === 'true';
-
-  if (forceClient) return false;
-  if (forceBackend) return true;
+  // When using Render, always prefer backend
+  const useRender = import.meta.env.VITE_USE_RENDER === 'true';
+  if (useRender) return true;
 
   // Auto-detect based on backend availability
   try {

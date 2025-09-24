@@ -12,12 +12,28 @@ export interface DeepgramConfig {
 export class DeepgramBackend {
   private ws: WebSocket | null = null;
   private backendUrl: string;
+  private restUrl: string;
   private isConnected: boolean = false;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
 
   constructor(config: DeepgramConfig = {}) {
-    this.backendUrl = config.backendUrl || 'ws://localhost:8001/ws/transcribe';
+    // Detect environment and use appropriate URLs
+    let useRender = false;
+    try {
+      useRender = typeof window !== 'undefined' &&
+                  (window as any).VITE_USE_RENDER === 'true';
+    } catch (e) {
+      useRender = false;
+    }
+
+    const baseUrl = config.backendUrl || (useRender
+      ? 'https://susurro-deepgram-backend.onrender.com'
+      : 'http://localhost:8001'
+    );
+
+    this.backendUrl = baseUrl.replace('http', 'ws') + '/ws/transcribe';
+    this.restUrl = baseUrl;
   }
 
   async connect(onTranscription: (result: any) => void): Promise<void> {
@@ -114,7 +130,7 @@ export class DeepgramBackend {
     }
 
     try {
-      const response = await fetch('http://localhost:8001/transcribe-chunk', {
+      const response = await fetch(`${this.restUrl}/transcribe-chunk`, {
         method: 'POST',
         body: formData
       });

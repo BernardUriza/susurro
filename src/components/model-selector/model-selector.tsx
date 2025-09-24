@@ -13,6 +13,13 @@ export interface WhisperModel {
 }
 
 const WHISPER_MODELS: WhisperModel[] = [
+  {
+    id: 'deepgram',
+    name: '🚀 Deepgram Nova-2',
+    size: 'Cloud API',
+    description: '⭐ RECOMENDADO - 99.9% precisión, 40h gratis',
+    type: 'backend'
+  },
   { id: 'tiny', name: 'Whisper Tiny', size: '39 MB', description: 'Más rápido, menos preciso', type: 'local' },
   { id: 'base', name: 'Whisper Base', size: '74 MB', description: 'Balance básico', type: 'local' },
   { id: 'small', name: 'Whisper Small', size: '244 MB', description: 'Buena precisión', type: 'local' },
@@ -20,11 +27,10 @@ const WHISPER_MODELS: WhisperModel[] = [
     id: 'medium',
     name: 'Whisper Medium',
     size: '769 MB',
-    description: 'Recomendado - Mejor balance',
+    description: 'Mejor balance local',
     type: 'local'
   },
-  { id: 'large', name: 'Whisper Large-v3', size: '1.5 GB', description: 'Máxima precisión', type: 'local' },
-  { id: 'deepgram', name: 'Deepgram Nova-2', size: 'Cloud API', description: 'API Premium - Alta precisión', type: 'backend' },
+  { id: 'large', name: 'Whisper Large-v3', size: '1.5 GB', description: 'Máxima precisión local', type: 'local' },
 ];
 
 interface ModelSelectorProps {
@@ -111,9 +117,12 @@ export const ModelSelector: FC<ModelSelectorProps> = ({ onModelSelect }) => {
   return (
     <div style={styles.container}>
       <div style={styles.box}>
-        <h1 style={styles.title}>WHISPER MODEL SELECTOR</h1>
+        <h1 style={styles.title}>SUSURRO TRANSCRIPTION ENGINE</h1>
         <div style={{ ...styles.instructions, fontSize: '14px', marginBottom: '10px' }}>
-          🌍 Modelos Multilingües - Soporte Completo para Español
+          🌍 Transcripción Multilingüe Profesional - Español Nativo
+        </div>
+        <div style={{ ...styles.instructions, fontSize: '12px', marginBottom: '15px', color: '#0a0' }}>
+          ⭐ Deepgram seleccionado por defecto - Calidad profesional garantizada
         </div>
         <div style={styles.instructions}>↑/↓ Navegar • ENTER Seleccionar</div>
 

@@ -11,6 +11,8 @@
   ],
   "scripts": {
     "dev": "npm run copy:wasm && concurrently -n \"SUSURRO,VITE,WHISPER,DEEPGRAM\" -c \"bgYellow.bold,bgGreen.bold,bgBlue.bold,bgMagenta.bold\" \"npm run dev:package\" \"npm run dev:vite\" \"npm run dev:backend\" \"npm run dev:deepgram\"",
+    "dev:mvp": "npm run copy:wasm && cross-env VITE_FORCE_DEEPGRAM=true VITE_DEFAULT_WHISPER_MODEL=deepgram concurrently -n \"SUSURRO,VITE,DEEPGRAM\" -c \"bgYellow.bold,bgGreen.bold,bgMagenta.bold\" \"npm run dev:package\" \"npm run dev:vite\" \"npm run dev:deepgram\"",
+    "dev:onrender": "npm run copy:wasm && cross-env VITE_USE_RENDER=true concurrently -n \"SUSURRO,VITE\" -c \"bgYellow.bold,bgGreen.bold\" \"npm run dev:package\" \"npm run dev:vite\"",
     "dev:simple": "npm run copy:wasm && vite",
     "dev:vite": "vite",
     "dev:package": "npm -w susurro-audio run dev",
@@ -91,6 +93,7 @@
     "@vitest/ui": "^3.2.4",
     "buffer": "^6.0.3",
     "concurrently": "^9.2.0",
+    "cross-env": "^10.0.0",
     "eslint": "^8.57.1",
     "eslint-plugin-prettier": "^5.5.3",
     "eslint-plugin-react": "^7.37.5",

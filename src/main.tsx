@@ -11,16 +11,8 @@ import './styles/tokens.css';
 import './styles/matrix-theme.css';
 import './styles/scroll-animations.css';
 
-// Set HuggingFace token from environment
-if (import.meta.env.VITE_HUGGINGFACE_TOKEN) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).VITE_HUGGINGFACE_TOKEN = import.meta.env.VITE_HUGGINGFACE_TOKEN;
-  // eslint-disable-next-line no-console
-  console.log('[MAIN] HuggingFace token configured from environment');
-} else {
-  // eslint-disable-next-line no-console
-  console.warn('[MAIN] No HuggingFace token configured - model loading may be restricted');
-}
+// Note: HuggingFace models are loaded directly without tokens
+// Local Whisper models work without authentication
 
 // eslint-disable-next-line no-console
 console.log('[MAIN] Starting React app...');

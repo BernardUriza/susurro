@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_HUGGINGFACE_TOKEN: string;
+  readonly VITE_USE_RENDER?: string;
   // add more env variables here as needed
 }
 

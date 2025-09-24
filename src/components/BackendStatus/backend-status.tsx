@@ -2,22 +2,52 @@ import { useEffect, useState } from 'react';
 import styles from './backend-status.module.css';
 
 interface BackendStatusProps {
-  backendUrl?: string;
   selectedModel?: string;
 }
 
+// Backend URLs configuration
+const getBackendUrls = () => {
+  const useRender = import.meta.env.VITE_USE_RENDER === 'true';
+
+  return {
+    whisper: useRender
+      ? 'https://susurro-whisper-backend.onrender.com'
+      : 'http://localhost:8000',
+    deepgram: useRender
+      ? 'https://susurro-deepgram-backend.onrender.com'
+      : 'http://localhost:8001'
+  };
+};
+
 export const BackendStatus: React.FC<BackendStatusProps> = ({
-  backendUrl = import.meta.env.VITE_WHISPER_BACKEND_URL || 'http://localhost:8000',
   selectedModel
 }) => {
   const [status, setStatus] = useState<'checking' | 'online' | 'offline' | 'error'>('checking');
   const [implementation, setImplementation] = useState<string>('');
 
   useEffect(() => {
+    const urls = getBackendUrls();
+    const backendUrl = selectedModel === 'deepgram' ? urls.deepgram : urls.whisper;
+
     const checkBackend = async () => {
       if (selectedModel === 'deepgram') {
-        setStatus('online');
-        setImplementation('Deepgram Nova-2 API');
+        // Check Deepgram backend health
+        try {
+          const response = await fetch(`${urls.deepgram}/health`, {
+            method: 'GET',
+            mode: 'cors',
+            signal: AbortSignal.timeout(3000)
+          });
+
+          if (response.ok) {
+            setStatus('online');
+            setImplementation('Deepgram Nova-2 API');
+          } else {
+            setStatus('offline');
+          }
+        } catch (error) {
+          setStatus('offline');
+        }
         return;
       }
 
@@ -47,7 +77,7 @@ export const BackendStatus: React.FC<BackendStatusProps> = ({
     const interval = setInterval(checkBackend, 10000);
 
     return () => clearInterval(interval);
-  }, [backendUrl, selectedModel]);
+  }, [selectedModel]);
 
   const getStatusColor = () => {
     switch (status) {

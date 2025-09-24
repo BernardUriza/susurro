@@ -82,7 +82,9 @@
       "Bash(cmake:*)",
       "Bash(msiexec:*)",
       "Bash(gh repo view:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)"
     ],
     "deny": []
   }

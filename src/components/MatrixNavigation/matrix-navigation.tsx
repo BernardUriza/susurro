@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 // Absolute imports (using aliases)
 import { MatrixScrollArea } from '../MatrixScrollArea';
 import {
-  WhisperMatrixTerminal,
+  NeuralMatrixTerminal,
   AudioFragmentProcessor,
 } from '../../features/audio-processing/components';
 import { WhisperEchoLogs } from '../../features/visualization/components/whisper-echo-logs';
-import { useWhisper } from '../../contexts/WhisperContext';
+import { useNeural } from '../../contexts/NeuralContext';
 
 // Type imports
 import type { MatrixNavigationProps as NavProps } from './types';
@@ -67,8 +67,8 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
     []
   );
 
-  // Get Whisper status from context (single instance)
-  const { whisperReady, whisperProgress, whisperError } = useWhisper();
+  // Get Neural status from context
+  const { whisperReady, whisperProgress, whisperError } = useNeural();
 
   // Set up logging effect - Only log at key milestones to avoid spam
   const lastLoggedProgressRef = useRef(0);
@@ -81,15 +81,15 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
       lastLoggedProgressRef.current = currentMilestone;
 
       if (currentMilestone === 0 && whisperProgress > 0) {
-        addWhisperLog('📥 Iniciando carga del modelo Whisper...', 'info');
+        addWhisperLog('📥 Iniciando carga del modelo Neural...', 'info');
       } else if (currentMilestone === 25) {
-        addWhisperLog('⏳ Cargando modelo Whisper: 25%', 'info');
+        addWhisperLog('⏳ Cargando modelo Neural: 25%', 'info');
       } else if (currentMilestone === 50) {
-        addWhisperLog('⏳ Cargando modelo Whisper: 50%', 'info');
+        addWhisperLog('⏳ Cargando modelo Neural: 50%', 'info');
       } else if (currentMilestone === 75) {
-        addWhisperLog('⏳ Cargando modelo Whisper: 75%', 'info');
+        addWhisperLog('⏳ Cargando modelo Neural: 75%', 'info');
       } else if (currentMilestone === 100 && whisperReady) {
-        addWhisperLog('✅ Modelo Whisper listo y operativo', 'success');
+        addWhisperLog('✅ Modelo Neural listo y operativo', 'success');
       }
     }
   }, [whisperProgress, whisperReady, addWhisperLog]);
@@ -103,8 +103,8 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
     () =>
       ({
         terminal: {
-          component: <WhisperMatrixTerminal />,
-          title: '[WHISPER_MATRIX_TERMINAL]',
+          component: <NeuralMatrixTerminal />,
+          title: '[NEURAL_MATRIX_TERMINAL]',
           key: 'F1',
         },
         processor: {
@@ -191,7 +191,7 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
       if (initialized) return;
       initialized = true;
 
-      addWhisperLog('👋 Bienvenido a Susurro Whisper AI', 'success');
+      addWhisperLog('👋 Bienvenido a Susurro Neural AI', 'success');
       addWhisperLog(
         `🔄 Inicializando sistema de transcripción con modelo: ${initialModel}`,
         'info'
@@ -228,10 +228,10 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
         });
     }, 500);
 
-    // Check Whisper status after a delay
+    // Check Neural status after a delay
     setTimeout(() => {
       if (whisperError) {
-        addWhisperLog(`❌ Error en modelo Whisper: ${whisperError}`, 'error');
+        addWhisperLog(`❌ Error en modelo Neural: ${whisperError}`, 'error');
       }
       // Removed duplicate ready/progress logs since they're handled by the milestone effect
     }, 1500);

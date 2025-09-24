@@ -82,12 +82,12 @@ npm run copy:wasm
 ## Architecture Overview
 
 ### Core Architecture Pattern
-This project uses a **singleton audio engine architecture** managed through React Context to prevent multiple audio engine instances. Direct usage of `useSusurro` hook is forbidden - all components must use `useWhisper()` from WhisperProvider.
+This project uses a **singleton audio engine architecture** managed through React Context to prevent multiple audio engine instances. Direct usage of `useSusurro` hook is forbidden - all components must use `useNeural()` from NeuralProvider.
 
 ### Key Technologies
-- **Murmuraba v3**: Neural audio processing engine (replaced MediaRecorder)
-- **Distil-Whisper v3**: Speech-to-text using `Xenova/distil-whisper` models with WebGPU acceleration
-- **Transformers.js v3**: Uses `@huggingface/transformers` for model loading
+- **Deepgram**: Primary transcription engine (default backend)
+- **Murmuraba v3**: Neural audio processing engine
+- **Neural AI**: Unified transcription system (formerly Whisper)
 - **React 19 + Vite 7**: Modern build system with optimized chunking
 
 ### Project Structure
@@ -101,7 +101,7 @@ susurro/
 │   └── tests/              # Unit tests for package
 ├── src/                     # Demo application
 │   ├── app.tsx             # Main app component
-│   ├── contexts/           # WhisperContext (required wrapper)
+│   ├── contexts/           # NeuralContext (required wrapper)
 │   ├── components/         # UI components
 │   └── features/           # Feature modules
 │       ├── audio-processing/
@@ -113,9 +113,9 @@ susurro/
 
 1. **Audio Engine Singleton Pattern**: The AudioEngineManager ensures only ONE Murmuraba engine instance exists. Multiple instances cause "Audio engine is already initialized" errors.
 
-2. **Context-Based Access**: All components MUST access audio functionality through `useWhisper()` from WhisperContext, never directly import `useSusurro`.
+2. **Context-Based Access**: All components MUST access audio functionality through `useNeural()` from NeuralContext, never directly import `useSusurro`.
 
-3. **Model Loading**: Whisper models are loaded dynamically via transformers.js v3 with caching in ASR_PIPELINE_CACHE to prevent duplicate loads.
+3. **Model Loading**: Deepgram backend handles transcription by default. Local models are loaded dynamically when needed.
 
 4. **WebGPU Configuration**: Requires CORS headers (configured in vite.config.ts) for WebGPU acceleration.
 
@@ -127,9 +127,9 @@ susurro/
 - Health monitoring with automatic recovery
 - Circuit breaker pattern for error resilience
 
-#### WhisperContext (`src/contexts/WhisperContext.tsx`)
+#### NeuralContext (`src/contexts/NeuralContext.tsx`)
 - Provides single audio engine instance to entire app
-- Manages Whisper model loading and transcription
+- Manages Neural/Deepgram model loading and transcription
 - Handles conversational mode with real-time chunks
 
 #### useSusurro Hook (`packages/susurro/src/hooks/use-susurro.ts`)
@@ -140,7 +140,7 @@ susurro/
 
 ### Common Issues and Solutions
 
-1. **"Audio engine is already initialized"**: Components are importing useSusurro directly. Use useWhisper() from WhisperContext instead.
+1. **"Audio engine is already initialized"**: Components are importing useSusurro directly. Use useNeural() from NeuralContext instead.
 
 2. **Model loading failures**: Check network connection and ensure transformers.js can download from Hugging Face.
 
@@ -166,7 +166,7 @@ susurro/
 ### Development Workflow
 
 1. Always run `npm run lint` and `npm run type-check` before committing
-2. Use the WhisperProvider wrapper in all demo components
+2. Use the NeuralProvider wrapper in all demo components
 3. Monitor browser console for audio engine state changes
-4. Test with different Whisper model sizes (tiny, base, small, medium, large)
+4. Deepgram is the default backend - always use backend transcription
 5. Ensure WASM files are copied when starting development

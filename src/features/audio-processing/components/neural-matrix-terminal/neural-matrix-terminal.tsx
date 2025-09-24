@@ -2,7 +2,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 
 // Use Whisper from context instead of creating new instance
-import { useWhisper } from '../../../../contexts/WhisperContext';
+import { useNeural } from '../../../../contexts/NeuralContext';
 import type { CompleteAudioResult } from '@susurro/core';
 
 // Relative imports - components
@@ -17,7 +17,7 @@ import '../../../../styles/improved-layout.css';
 
 type CubeFace = 'front' | 'right' | 'back' | 'left';
 
-export const WhisperMatrixTerminal = () => {
+export const NeuralMatrixTerminal = () => {
   // const [temporalSegmentDuration] = useState(15); // Not needed with context
   const [currentFace] = useState<CubeFace>('front');
 
@@ -38,7 +38,7 @@ export const WhisperMatrixTerminal = () => {
     isEngineInitialized,
     engineError,
     isInitializingEngine,
-  } = useWhisper();
+  } = useNeural();
 
   // SIMPLIFIED STATE - Much less state needed with consolidated useSusurro
   const [status, setStatus] = useState('');
@@ -57,11 +57,11 @@ export const WhisperMatrixTerminal = () => {
   // Component lifecycle logging
   useEffect(() => {
     // eslint-disable-next-line no-console
-    console.log('[WhisperMatrixTerminal] Component mounted');
+    console.log('[NeuralMatrixTerminal] Component mounted');
 
     return () => {
       // eslint-disable-next-line no-console
-      console.log('[WhisperMatrixTerminal] Component unmounting');
+      console.log('[NeuralMatrixTerminal] Component unmounting');
       // Any cleanup if needed
     };
   }, []); // Only run on mount/unmount

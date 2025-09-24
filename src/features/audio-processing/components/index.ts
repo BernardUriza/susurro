@@ -1,5 +1,5 @@
 // Audio processing components
-export * from './whisper-matrix-terminal';
+export * from './neural-matrix-terminal';
 export * from './audio-fragment-processor';
 export * from './temporal-segment-selector';
 

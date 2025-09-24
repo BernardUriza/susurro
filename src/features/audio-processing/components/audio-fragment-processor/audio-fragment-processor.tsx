@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
-import { useWhisper } from '../../../../contexts/WhisperContext';
+import { useNeural } from '../../../../contexts/NeuralContext';
 import { ErrorBoundary } from '../../../../components/ErrorBoundary';
 import type { StreamingSusurroChunk } from '@susurro/core';
 
@@ -44,7 +44,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
 
     // MediaStream for visualization
     currentStream,
-  } = useWhisper();
+  } = useNeural();
 
   // Core states
   const [isRecording, setIsRecording] = useState(false);

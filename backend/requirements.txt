@@ -1,0 +1,21 @@
+# Minimal requirements for Render.com free tier (512MB RAM)
+# Optimized for Whisper tiny model deployment
+
+# Core FastAPI dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Whisper implementation - faster-whisper for memory efficiency
+# Uses 4-8x less memory than openai-whisper, perfect for free tier
+faster-whisper==1.0.1
+
+# Optional: Environment management
+python-dotenv==1.0.0
+
+# Memory optimization notes:
+# - Using tiny model (~39MB) instead of base (~74MB) or larger
+# - faster-whisper uses CTranslate2 for optimized inference
+# - int8 quantization reduces memory usage by ~75%
+# - Single worker configuration saves memory
+# - Total estimated RAM usage: ~150-200MB including Python overhead

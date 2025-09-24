@@ -33,7 +33,28 @@ yarn-error.log*
 
 # TypeScript
 *.tsbuildinfo
-next-env.d.tspublic/models/whisper-tiny/onnx/*.onnx
-public/models/whisper-tiny/onnx/decoder_model_merged.onnx
-public/models/whisper-tiny/onnx/decoder_model_merged_quantized.onnx
-public/models/whisper-tiny/onnx/encoder_model_quantized.onnx
+next-env.d.ts
+
+# Whisper Models (downloaded at runtime)
+public/models/
+*.onnx
+*.bin
+
+# Test files and temporary
+*.py
+test_*.html
+*.zip
+*.msi
+whisper-cpp/
+backend-examples/
+cmake-*/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+env/
+
+# WASM files are needed
+!public/wasm/rnnoise.wasm

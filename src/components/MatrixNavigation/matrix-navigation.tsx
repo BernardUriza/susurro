@@ -70,13 +70,27 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
   // Get Whisper status from context (single instance)
   const { whisperReady, whisperProgress, whisperError } = useWhisper();
 
-  // Set up logging effect
+  // Set up logging effect - Only log at key milestones to avoid spam
+  const lastLoggedProgressRef = useRef(0);
   useEffect(() => {
-    // Log Whisper progress to the UI
-    if (whisperProgress > 0 && whisperProgress < 100) {
-      addWhisperLog(`⏳ Cargando modelo Whisper: ${whisperProgress}%`, 'info');
-    } else if (whisperProgress === 100 && whisperReady) {
-      addWhisperLog('✅ Modelo Whisper listo y operativo', 'success');
+    // Only log at specific milestones: 0%, 25%, 50%, 75%, 100%
+    const milestones = [0, 25, 50, 75, 100];
+    const currentMilestone = milestones.find(m => whisperProgress >= m && lastLoggedProgressRef.current < m);
+
+    if (currentMilestone !== undefined) {
+      lastLoggedProgressRef.current = currentMilestone;
+
+      if (currentMilestone === 0 && whisperProgress > 0) {
+        addWhisperLog('📥 Iniciando carga del modelo Whisper...', 'info');
+      } else if (currentMilestone === 25) {
+        addWhisperLog('⏳ Cargando modelo Whisper: 25%', 'info');
+      } else if (currentMilestone === 50) {
+        addWhisperLog('⏳ Cargando modelo Whisper: 50%', 'info');
+      } else if (currentMilestone === 75) {
+        addWhisperLog('⏳ Cargando modelo Whisper: 75%', 'info');
+      } else if (currentMilestone === 100 && whisperReady) {
+        addWhisperLog('✅ Modelo Whisper listo y operativo', 'success');
+      }
     }
   }, [whisperProgress, whisperReady, addWhisperLog]);
 
@@ -218,11 +232,8 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
     setTimeout(() => {
       if (whisperError) {
         addWhisperLog(`❌ Error en modelo Whisper: ${whisperError}`, 'error');
-      } else if (whisperReady) {
-        addWhisperLog('✅ Modelo Whisper listo y operativo', 'success');
-      } else if (whisperProgress > 0) {
-        addWhisperLog(`⏳ Cargando modelo Whisper: ${whisperProgress}%`, 'info');
       }
+      // Removed duplicate ready/progress logs since they're handled by the milestone effect
     }, 1500);
   }, [addWhisperLog, initialModel, whisperError, whisperReady, whisperProgress]);
 

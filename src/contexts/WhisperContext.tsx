@@ -10,7 +10,7 @@ const WhisperContext = createContext<WhisperContextType | null>(null);
 
 interface WhisperProviderProps {
   children: ReactNode;
-  initialModel?: 'tiny' | 'base' | 'small' | 'medium' | 'large'; // Match the type from useSusurro
+  initialModel?: 'tiny' | 'base' | 'small' | 'medium' | 'large' | 'deepgram'; // Match the type from useSusurro
   onWhisperProgressLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
 }
 

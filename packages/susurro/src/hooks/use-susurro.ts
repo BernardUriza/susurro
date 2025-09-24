@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMurmubaraEngine } from 'murmuraba';
 import { ChunkMiddlewarePipeline } from '../lib/chunk-middleware';
 import { useLatencyMonitor } from './use-latency-monitor';
+import { DeepgramBackend } from '../lib/backend-deepgram';
 
 import type {
   AudioChunk,
@@ -26,67 +27,117 @@ const WHISPER_ENV = {
 // Singleton cache for ASR pipelines to prevent multiple loads
 const ASR_PIPELINE_CACHE = new Map<string, CallableFunction>();
 
+// Retry configuration for model loading
+const RETRY_CONFIG = {
+  maxAttempts: 3,
+  delayMs: 2000,
+  backoffMultiplier: 1.5,
+} as const;
+
 async function ensureASR(model: string, quantized: boolean, onProgress: (p: number) => void) {
-  try {
-    // Create cache key based on model and quantization
-    const cacheKey = `${model}_${quantized ? 'q8' : 'fp32'}`;
+  // Create cache key based on model and quantization
+  const cacheKey = `${model}_${quantized ? 'q8' : 'fp32'}`;
 
-    // Check if pipeline already exists in cache
-    const cachedPipeline = ASR_PIPELINE_CACHE.get(cacheKey);
-    if (cachedPipeline) {
-      console.log(`[ensureASR] Using cached pipeline for ${cacheKey}`);
-      onProgress(100); // Immediately complete since it's cached
-      return cachedPipeline;
-    }
-
-    console.log(`[ensureASR] Creating new pipeline for ${cacheKey}`);
-
-    // Import @huggingface/transformers v3
-    const transformersModule = await import('@huggingface/transformers');
-
-    // Extract what we need
-    const { pipeline, env } = transformersModule;
-
-    // Configure transformers v3 environment
-    if (env) {
-      env.useBrowserCache = WHISPER_ENV.useBrowserCache;
-      // v3 uses allowRemoteModels (default true)
-      env.allowRemoteModels = true;
-    }
-
-    // Use Xenova ONNX models that work with v3
-    // Remove .en suffix to ensure multilingual support (needed for Spanish)
-    const modelName = `Xenova/${model.replace('.en', '')}`;
-    console.log(`[ensureASR] Loading model: ${modelName}`);
-
-    // Create pipeline with v3 API
-    const asr = await pipeline('automatic-speech-recognition', modelName, {
-      // v3 uses dtype instead of quantized
-      dtype: quantized ? 'q8' : 'fp32',
-      // Optional: use WebGPU if available (requires COEP/COOP headers)
-      // device: 'webgpu',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      progress_callback: (p: any) => {
-        // v3 has different progress info structure
-        if (p?.progress !== undefined) {
-          const percent = p.progress <= 1 ? Math.round(p.progress * 100) : Math.round(p.progress);
-          onProgress(Math.min(100, Math.max(0, percent)));
-        } else if (p?.status) {
-          // Log status updates
-          console.log(`[ensureASR] Status: ${p.status}`);
-        }
-      },
-    });
-
-    // Store in cache for future use
-    ASR_PIPELINE_CACHE.set(cacheKey, asr);
-    console.log(`[ensureASR] Pipeline cached for ${cacheKey}`);
-
-    return asr;
-  } catch (error) {
-    console.error(`[ensureASR] Failed to load model:`, error);
-    throw error;
+  // Check if pipeline already exists in cache
+  const cachedPipeline = ASR_PIPELINE_CACHE.get(cacheKey);
+  if (cachedPipeline) {
+    console.log(`[ensureASR] Using cached pipeline for ${cacheKey}`);
+    onProgress(100); // Immediately complete since it's cached
+    return cachedPipeline;
   }
+
+  console.log(`[ensureASR] Creating new pipeline for ${cacheKey}`);
+
+  // Retry logic with exponential backoff
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= RETRY_CONFIG.maxAttempts; attempt++) {
+    try {
+      console.log(`[ensureASR] Attempt ${attempt}/${RETRY_CONFIG.maxAttempts} to load model...`);
+
+      // Import @huggingface/transformers v3
+      const transformersModule = await import('@huggingface/transformers');
+
+      // Extract what we need
+      const { pipeline, env } = transformersModule;
+
+      // Configure transformers v3 environment
+      if (env) {
+        env.useBrowserCache = WHISPER_ENV.useBrowserCache;
+        // v3 uses allowRemoteModels (default true)
+        env.allowRemoteModels = true;
+        // Clear any stale cache on retry attempts
+        if (attempt > 1) {
+          console.log(`[ensureASR] Clearing browser cache for retry attempt ${attempt}`);
+          env.useBrowserCache = false;
+        }
+      }
+
+      // Use Xenova ONNX models that work with v3
+      // Remove .en suffix to ensure multilingual support (needed for Spanish)
+      const modelName = `Xenova/${model.replace('.en', '')}`;
+      console.log(`[ensureASR] Loading model: ${modelName}`);
+
+      // Create pipeline with v3 API
+      const asr = await pipeline('automatic-speech-recognition', modelName, {
+        // v3 uses dtype instead of quantized
+        dtype: quantized ? 'q8' : 'fp32',
+        // Optional: use WebGPU if available (requires COEP/COOP headers)
+        // device: 'webgpu',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        progress_callback: (p: any) => {
+          // v3 has different progress info structure
+          if (p?.progress !== undefined) {
+            const percent = p.progress <= 1 ? Math.round(p.progress * 100) : Math.round(p.progress);
+            // Adjust progress for retry attempts
+            const adjustedPercent = attempt > 1
+              ? Math.min(100, Math.max(0, percent * 0.9 + (attempt - 1) * 10))
+              : percent;
+            onProgress(Math.min(100, Math.max(0, adjustedPercent)));
+          } else if (p?.status) {
+            // Log status updates
+            console.log(`[ensureASR] Status: ${p.status}`);
+          }
+        },
+      });
+
+      // Store in cache for future use
+      ASR_PIPELINE_CACHE.set(cacheKey, asr);
+      console.log(`[ensureASR] Pipeline cached for ${cacheKey} after ${attempt} attempt(s)`);
+
+      return asr;
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`[ensureASR] Attempt ${attempt} failed:`, error);
+
+      // Check if error is related to JSON parsing (network/CORS issues)
+      if (error instanceof Error) {
+        if (error.message.includes('Unexpected token') || error.message.includes('JSON')) {
+          console.error(`[ensureASR] Network/CORS error detected. The model server might be:
+          1. Temporarily unavailable (503 error)
+          2. Blocked by CORS policy
+          3. Returning HTML instead of model files
+          Please check network tab for actual response.`);
+        }
+      }
+
+      // If not the last attempt, wait before retrying
+      if (attempt < RETRY_CONFIG.maxAttempts) {
+        const delay = RETRY_CONFIG.delayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt - 1);
+        console.log(`[ensureASR] Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  // All attempts failed
+  const errorMessage = `Failed to load Whisper model after ${RETRY_CONFIG.maxAttempts} attempts. ${
+    lastError?.message.includes('JSON')
+      ? 'Network or CORS error: The server returned non-JSON content.'
+      : ''
+  } Last error: ${lastError?.message}`;
+
+  throw new Error(errorMessage);
 }
 
 async function resampleTo16k(buffer: AudioBuffer): Promise<Float32Array> {
@@ -184,13 +235,16 @@ async function urlToBlob(url?: string): Promise<Blob> {
 // —— Public API ——
 export interface UseSusurroOptions extends BaseUseSusurroOptions {
   onWhisperProgressLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
-  initialModel?: 'tiny' | 'base' | 'small' | 'medium' | 'large';
+  initialModel?: 'tiny' | 'base' | 'small' | 'medium' | 'large' | 'deepgram';
   engineConfig?: {
     bufferSize?: number;
     denoiseStrength?: number;
     enableMetrics?: boolean;
     noiseReductionLevel?: 'low' | 'medium' | 'high';
     algorithm?: 'rnnoise';
+  };
+  deepgramConfig?: {
+    backendUrl?: string;
   };
 }
 
@@ -297,6 +351,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const [whisperProgress, setWhisperProgress] = useState(0);
   const [whisperError, setWhisperError] = useState<Error | string | null>(null);
   const asrRef = useRef<CallableFunction | null>(null);
+  const deepgramBackendRef = useRef<DeepgramBackend | null>(null);
 
   // Use Xenova ONNX multilingual models for Spanish support
   // Removed .en suffix to support multiple languages including Spanish
@@ -306,8 +361,11 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     medium: 'whisper-medium',
     small: 'whisper-small',
     large: 'whisper-large-v3',
+    deepgram: 'deepgram', // Special marker for Deepgram backend
   };
-  const whisperModel = modelMap[options.initialModel || 'tiny'] || 'whisper-tiny';
+  const selectedModel = options.initialModel || 'tiny';
+  const isDeepgram = selectedModel === 'deepgram';
+  const whisperModel = modelMap[selectedModel] || 'whisper-tiny';
   const whisperLanguage = whisperConfig?.language || 'es'; // Default to Spanish
   const whisperQuantized = true;
 
@@ -317,31 +375,51 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       try {
         // Log initial state
 
-        const asr = await ensureASR(whisperModel, whisperQuantized, (p: number) => {
-          setWhisperProgress(p);
+        if (isDeepgram) {
+          // Initialize Deepgram backend
           if (onWhisperProgressLog) {
-            if (p === 100) {
-              onWhisperProgressLog(
-                `✅ Modelo Whisper ${whisperModel} cargado correctamente`,
-                'success'
-              );
-              onWhisperProgressLog('🎙️ Sistema de transcripción listo para usar', 'success');
-            } else if (p === 0) {
-              onWhisperProgressLog(`📥 Iniciando descarga del modelo ${whisperModel}...`, 'info');
-            } else if (p > 0 && p < 25) {
-              onWhisperProgressLog(`📥 Descargando modelo Whisper... ${p}%`, 'info');
-            } else if (p >= 25 && p < 50) {
-              onWhisperProgressLog(`⚙️ Procesando modelo de IA... ${p}%`, 'info');
-            } else if (p >= 50 && p < 75) {
-              onWhisperProgressLog(`🔧 Configurando neural network... ${p}%`, 'info');
-            } else if (p >= 75 && p < 100) {
-              onWhisperProgressLog(`🚀 Finalizando inicialización... ${p}%`, 'info');
-            }
+            onWhisperProgressLog('🌐 Conectando con Deepgram API...', 'info');
           }
-        });
-        if (!cancelled) {
-          asrRef.current = asr;
+
+          const backend = new DeepgramBackend(options.deepgramConfig || {});
+          deepgramBackendRef.current = backend;
+
+          // Mark as ready for Deepgram
+          setWhisperProgress(100);
           setWhisperReady(true);
+
+          if (onWhisperProgressLog) {
+            onWhisperProgressLog('✅ Deepgram API conectado correctamente', 'success');
+            onWhisperProgressLog('🎙️ Sistema de transcripción Deepgram listo', 'success');
+          }
+        } else {
+          // Original Whisper logic
+          const asr = await ensureASR(whisperModel, whisperQuantized, (p: number) => {
+            setWhisperProgress(p);
+            if (onWhisperProgressLog) {
+              if (p === 100) {
+                onWhisperProgressLog(
+                  `✅ Modelo Whisper ${whisperModel} cargado correctamente`,
+                  'success'
+                );
+                onWhisperProgressLog('🎙️ Sistema de transcripción listo para usar', 'success');
+              } else if (p === 0) {
+                onWhisperProgressLog(`📥 Iniciando descarga del modelo ${whisperModel}...`, 'info');
+              } else if (p > 0 && p < 25) {
+                onWhisperProgressLog(`📥 Descargando modelo Whisper... ${p}%`, 'info');
+              } else if (p >= 25 && p < 50) {
+                onWhisperProgressLog(`⚙️ Procesando modelo de IA... ${p}%`, 'info');
+              } else if (p >= 50 && p < 75) {
+                onWhisperProgressLog(`🔧 Configurando neural network... ${p}%`, 'info');
+              } else if (p >= 75 && p < 100) {
+                onWhisperProgressLog(`🚀 Finalizando inicialización... ${p}%`, 'info');
+              }
+            }
+          });
+          if (!cancelled) {
+            asrRef.current = asr;
+            setWhisperReady(true);
+          }
         }
       } catch (e) {
         if (!cancelled) {
@@ -357,6 +435,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       asrRef.current = null;
       setWhisperReady(false);
       setWhisperProgress(0);
+
+      // Clean up Deepgram backend if it exists
+      if (deepgramBackendRef.current) {
+        deepgramBackendRef.current.disconnect();
+        deepgramBackendRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [whisperModel]);
@@ -476,12 +560,34 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     setConversationalChunks([]);
   }, []);
 
-  // — Whisper call —
+  // — Whisper/Deepgram transcription call —
   const transcribeWithWhisper = useCallback(
     async (blob: Blob): Promise<TranscriptionResult | null> => {
-      if (!asrRef.current || !whisperReady) return null;
+      if (!whisperReady) return null;
+
       const t0 = performance.now();
-      const out = await transcribeBlobWith(asrRef.current, blob, whisperLanguage);
+      let out: TranscriptionResult | null = null;
+
+      if (isDeepgram && deepgramBackendRef.current) {
+        // Use Deepgram backend
+        try {
+          const result = await deepgramBackendRef.current.transcribeChunk(blob);
+          out = {
+            text: result.transcript || '',
+            chunkIndex: 0,
+            timestamp: Date.now(),
+            segments: [],
+            confidence: result.confidence || 0,
+          };
+        } catch (error) {
+          console.error('[Deepgram] Transcription error:', error);
+          return null;
+        }
+      } else if (asrRef.current) {
+        // Use local Whisper model
+        out = await transcribeBlobWith(asrRef.current, blob, whisperLanguage);
+      }
+
       // latency metrics (best-effort)
       recordMetrics({
         chunkId: 'file',
@@ -494,7 +600,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       });
       return out;
     },
-    [whisperReady, whisperLanguage, recordMetrics]
+    [whisperReady, whisperLanguage, recordMetrics, isDeepgram]
   );
 
   // — VAD / metadata vía murmuraba processing helpers —

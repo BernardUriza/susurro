@@ -14,6 +14,7 @@ export interface TranscriptionResult {
   segments?: TranscriptionSegment[];
   chunkIndex: number;
   timestamp: number;
+  confidence?: number;
 }
 
 export interface AudioChunk {

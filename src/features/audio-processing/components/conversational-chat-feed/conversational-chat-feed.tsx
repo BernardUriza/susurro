@@ -5,6 +5,7 @@ import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSusurro } from '@susurro/core';
 import type { StreamingSusurroChunk } from '@susurro/core';
+import { AudioChunkPlayer } from '../audio-chunk-player/audio-chunk-player';
 
 interface ConversationalChatFeedProps {
   className?: string;
@@ -22,6 +23,7 @@ interface ChatConversation {
   audioChunk?: StreamingSusurroChunk;
   vadScore?: number;
   processingTime?: number;
+  audioUrl?: string; // URL for playback
 }
 
 export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
@@ -55,6 +57,7 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [recordingChunks, setRecordingChunks] = useState<StreamingSusurroChunk[]>([]);
+  const audioUrlsRef = useRef<Set<string>>(new Set());
 
   // Add system welcome message
   useEffect(() => {
@@ -67,6 +70,14 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
         timestamp: Date.now(),
       },
     ]);
+  }, []);
+
+  // Cleanup audio URLs on unmount
+  useEffect(() => {
+    return () => {
+      audioUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+      audioUrlsRef.current.clear();
+    };
   }, []);
 
   // Auto-scroll to bottom when new messages arrive
@@ -109,6 +120,15 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
 
     // CALLBACK PATTERN - Each chunk processed in real-time
     const onChunkProcessed = (chunk: StreamingSusurroChunk) => {
+      // Store chunk for reference regardless of voice activity
+      setRecordingChunks((prev) => [...prev, chunk]);
+
+      // Create audio URL for playback
+      const audioUrl = chunk.audioBlob ? URL.createObjectURL(chunk.audioBlob) : undefined;
+      if (audioUrl) {
+        audioUrlsRef.current.add(audioUrl);
+      }
+
       if (chunk.isVoiceActive && chunk.transcriptionText.trim()) {
         // Accumulate text from chunks
         setCurrentMessage((prev) => {
@@ -116,11 +136,36 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
           return newText.trim();
         });
 
-        // Store chunk for reference
-        setRecordingChunks((prev) => [...prev, chunk]);
+        // Add chunk info to conversations for debugging
+        setConversations((prev) => [
+          ...prev,
+          {
+            id: `chunk-${chunk.id}`,
+            type: 'system',
+            content: `[CHUNK] VAD: ${chunk.vadScore?.toFixed(2)} | Text: "${chunk.transcriptionText}"`,
+            timestamp: Date.now(),
+            audioChunk: chunk,
+            vadScore: chunk.vadScore,
+            audioUrl,
+          },
+        ]);
 
         // Auto-scroll
         setShouldAutoScroll(true);
+      } else if (chunk.audioBlob) {
+        // Show non-voice chunks too for debugging
+        setConversations((prev) => [
+          ...prev,
+          {
+            id: `chunk-silent-${chunk.id}`,
+            type: 'system',
+            content: `[SILENT CHUNK] VAD: ${chunk.vadScore?.toFixed(2)}`,
+            timestamp: Date.now(),
+            audioChunk: chunk,
+            vadScore: chunk.vadScore,
+            audioUrl,
+          },
+        ]);
       }
     };
 
@@ -316,6 +361,17 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
             >
               {conversation.content}
             </div>
+
+            {/* Audio Player */}
+            {conversation.audioUrl && (
+              <AudioChunkPlayer
+                audioUrl={conversation.audioUrl}
+                duration={conversation.audioChunk?.duration}
+                vadScore={conversation.vadScore}
+                chunkId={conversation.audioChunk?.id}
+                color={isUser ? '#00ff41' : isSystem ? '#ffff00' : '#0064ff'}
+              />
+            )}
 
             {/* Timestamp */}
             <div

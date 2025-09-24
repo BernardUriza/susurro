@@ -1,0 +1,58 @@
+# Render.com deployment configuration
+# This file can be used for Infrastructure as Code deployment
+
+services:
+  - type: web
+    name: susurro-whisper-backend
+    env: python
+    plan: free  # Use free tier
+    region: oregon  # or your preferred region
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /health
+
+    # Environment variables
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      - key: MODEL_DIR
+        value: "./models"
+      - key: PORT
+        value: "8000"
+      - key: FRONTEND_URL
+        # Set this to your actual frontend URL after deployment
+        value: "https://your-frontend.netlify.app"
+
+    # Resource limits for free tier
+    disk:
+      name: susurro-disk
+      size: 1GB
+      mountPath: /opt/render/project/src/models
+
+    # Auto-deploy from GitHub
+    repo: https://github.com/your-username/susurro  # Update with your repo
+    branch: main  # or master
+    rootDir: backend  # Deploy from backend directory
+
+    # Build settings
+    buildFilter:
+      paths:
+        - backend/**
+      ignoredPaths:
+        - "*.md"
+        - "docs/**"
+
+    # Health check configuration
+    healthCheck:
+      path: /health
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      unhealthyThresholdCount: 3
+      healthyThresholdCount: 2
+
+# Optional: Redis for caching (if needed in future)
+# databases:
+#   - name: susurro-cache
+#     databaseName: susurro
+#     user: susurro_user
+#     plan: free

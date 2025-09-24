@@ -75,7 +75,14 @@
       "Bash(npx tsup:*)",
       "Bash(npx -w:*)",
       "Bash(pkill:*)",
-      "Bash(true)"
+      "Bash(true)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "WebSearch",
+      "Bash(cmake:*)",
+      "Bash(msiexec:*)",
+      "Bash(gh repo view:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

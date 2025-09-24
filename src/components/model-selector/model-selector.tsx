@@ -5,27 +5,30 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 
 export interface WhisperModel {
-  id: 'tiny' | 'base' | 'small' | 'medium' | 'large';
+  id: 'tiny' | 'base' | 'small' | 'medium' | 'large' | 'deepgram';
   name: string;
   size: string;
   description: string;
+  type?: 'local' | 'backend';
 }
 
 const WHISPER_MODELS: WhisperModel[] = [
-  { id: 'tiny', name: 'Whisper Tiny', size: '39 MB', description: 'Más rápido, menos preciso' },
-  { id: 'base', name: 'Whisper Base', size: '74 MB', description: 'Balance básico' },
-  { id: 'small', name: 'Whisper Small', size: '244 MB', description: 'Buena precisión' },
+  { id: 'tiny', name: 'Whisper Tiny', size: '39 MB', description: 'Más rápido, menos preciso', type: 'local' },
+  { id: 'base', name: 'Whisper Base', size: '74 MB', description: 'Balance básico', type: 'local' },
+  { id: 'small', name: 'Whisper Small', size: '244 MB', description: 'Buena precisión', type: 'local' },
   {
     id: 'medium',
     name: 'Whisper Medium',
     size: '769 MB',
     description: 'Recomendado - Mejor balance',
+    type: 'local'
   },
-  { id: 'large', name: 'Whisper Large-v3', size: '1.5 GB', description: 'Máxima precisión' },
+  { id: 'large', name: 'Whisper Large-v3', size: '1.5 GB', description: 'Máxima precisión', type: 'local' },
+  { id: 'deepgram', name: 'Deepgram Nova-2', size: 'Cloud API', description: 'API Premium - Alta precisión', type: 'backend' },
 ];
 
 interface ModelSelectorProps {
-  onModelSelect: (modelId: 'tiny' | 'base' | 'small' | 'medium' | 'large') => void;
+  onModelSelect: (modelId: 'tiny' | 'base' | 'small' | 'medium' | 'large' | 'deepgram') => void;
 }
 
 export const ModelSelector: FC<ModelSelectorProps> = ({ onModelSelect }) => {

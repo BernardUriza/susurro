@@ -10,10 +10,14 @@
     "README.md"
   ],
   "scripts": {
-    "dev": "npm run copy:wasm && concurrently -n \"SUSURRO,VITE\" -c \"bgYellow.bold,bgGreen.bold\" \"npm run dev:package\" \"npm run dev:vite\"",
+    "dev": "npm run copy:wasm && concurrently -n \"SUSURRO,VITE,WHISPER,DEEPGRAM\" -c \"bgYellow.bold,bgGreen.bold,bgBlue.bold,bgMagenta.bold\" \"npm run dev:package\" \"npm run dev:vite\" \"npm run dev:backend\" \"npm run dev:deepgram\"",
     "dev:simple": "npm run copy:wasm && vite",
     "dev:vite": "vite",
     "dev:package": "npm -w susurro-audio run dev",
+    "dev:backend": "cd backend && python main.py",
+    "dev:deepgram": "cd backend-deepgram && python server.py",
+    "dev:no-backend": "npm run copy:wasm && concurrently -n \"SUSURRO,VITE\" -c \"bgYellow.bold,bgGreen.bold\" \"npm run dev:package\" \"npm run dev:vite\"",
+    "dev:with-whisper": "npm run copy:wasm && concurrently -n \"SUSURRO,VITE,WHISPER\" -c \"bgYellow.bold,bgGreen.bold,bgBlue.bold\" \"npm run dev:package\" \"npm run dev:vite\" \"npm run dev:backend\"",
     "build": "npm run copy:wasm && vite build",
     "build:package": "echo 'Package build skipped - no workspace found'",
     "copy:wasm": "node -e \"const fs=require('fs');const path=require('path');const dir='public/wasm';if(!fs.existsSync(dir))fs.mkdirSync(dir,{recursive:true});fs.copyFileSync('node_modules/murmuraba/dist/rnnoise.wasm',path.join(dir,'rnnoise.wasm'))\"",

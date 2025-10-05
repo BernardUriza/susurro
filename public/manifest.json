@@ -1,0 +1,28 @@
+{
+  "name": "Susurro - Neural Transcription Studio",
+  "short_name": "Susurro",
+  "description": "Professional real-time speech transcription with neural processing",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#00ff41",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "utilities", "business"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "scope": "/",
+  "permissions": ["microphone", "audio-capture"],
+  "prefer_related_applications": false
+}

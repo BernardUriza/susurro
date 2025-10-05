@@ -29,7 +29,7 @@ export const WhisperEchoLogs: React.FC<WhisperEchoLogsProps> = ({
   autoScroll = true,
 }) => {
   const scrollRef = useRef<MatrixScrollAreaRef>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true); // Collapsed by default for productivity
   const displayLogs = logs.slice(-maxLogs);
 
   // Auto-scroll to bottom when new logs arrive

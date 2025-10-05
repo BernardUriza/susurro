@@ -3,100 +3,12 @@
  * Extracted from AudioFragmentProcessor for better code organization
  */
 
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import type { StreamingSusurroChunk } from '@susurro/core';
 import { useDualTranscription } from '@susurro/core';
+import { SimpleWaveformAnalyzer } from 'murmuraba';
 import { useNeural } from '../../../../contexts/NeuralContext';
 import styles from './audio-fragment-processor.module.css';
-
-// Mini waveform component
-const MiniWaveform: React.FC<{ stream: MediaStream | null }> = ({ stream }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
-  const analyzerRef = useRef<AnalyserNode>();
-
-  useEffect(() => {
-    console.log('[MiniWaveform] Stream:', stream ? 'Available' : 'NULL', stream);
-    if (!stream || !canvasRef.current) {
-      console.log('[MiniWaveform] Not rendering - stream or canvas missing');
-      return;
-    }
-
-    const audioContext = new AudioContext();
-    const analyzer = audioContext.createAnalyser();
-    analyzer.fftSize = 256;
-
-    const source = audioContext.createMediaStreamSource(stream);
-    source.connect(analyzer);
-    analyzerRef.current = analyzer;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const bufferLength = analyzer.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-
-    const draw = () => {
-      if (!analyzerRef.current || !ctx) return;
-
-      animationRef.current = requestAnimationFrame(draw);
-      analyzer.getByteTimeDomainData(dataArray);
-
-      // Clear with semi-transparent black for trail effect
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Draw waveform
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#00ff41';
-      ctx.beginPath();
-
-      const sliceWidth = canvas.width / bufferLength;
-      let x = 0;
-
-      for (let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] / 128.0;
-        const y = (v * canvas.height) / 2;
-
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-
-        x += sliceWidth;
-      }
-
-      ctx.lineTo(canvas.width, canvas.height / 2);
-      ctx.stroke();
-    };
-
-    draw();
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-      audioContext.close();
-    };
-  }, [stream]);
-
-  if (!stream) return null;
-
-  return (
-    <canvas
-      ref={canvasRef}
-      width={200}
-      height={40}
-      style={{
-        background: 'rgba(0, 0, 0, 0.5)',
-        border: '1px solid rgba(0, 255, 65, 0.3)',
-        borderRadius: '4px',
-      }}
-    />
-  );
-};
 
 interface SimpleTranscriptionModeProps {
   onLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
@@ -143,23 +55,13 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
     // Clear initializing state after a short delay (Web Speech should have started by then)
     setTimeout(() => setIsInitializing(false), 500);
 
-    console.log('[SimpleMode] Starting recording, current stream:', neural.currentStream);
-
     await neural.startStreamingRecording(
       async (chunk: StreamingSusurroChunk) => {
-        console.log('[SimpleMode] Chunk received:', {
-          hasText: !!chunk.transcriptionText,
-          text: chunk.transcriptionText,
-          isVoiceActive: chunk.isVoiceActive,
-          vadScore: chunk.vadScore
-        });
 
         // Send ALL chunks to Deepgram, not just voice-active ones
         if (chunk.transcriptionText?.trim()) {
           deepgramChunksRef.current.push(chunk.transcriptionText);
           dual.addDeepgramChunk?.(chunk);
-
-          console.log('[SimpleMode] Deepgram chunk transcribed! Now refining with Claude...');
 
           // PROGRESSIVE REFINEMENT: When Deepgram returns a transcription,
           // send both Web Speech AND Deepgram to Claude for refinement
@@ -169,8 +71,6 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
           if (webSpeechCurrent || deepgramCurrent) {
             // Trigger Claude refinement with both sources
             await dual.refineWithClaude(webSpeechCurrent, deepgramCurrent);
-
-            console.log('[SimpleMode] ✨ Claude refinement complete!');
           }
 
           // Track Deepgram updates
@@ -223,7 +123,11 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
   // Keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && e.target === document.body) {
+      // Allow Space to work unless user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+
+      if (e.code === 'Space' && !isTyping) {
         e.preventDefault();
         toggleRecording();
       }
@@ -259,10 +163,6 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
     }
   }, [dual.refinedText]);
 
-  // Debug: Log deepgram text changes
-  useEffect(() => {
-    console.log('[SimpleMode] dual.deepgramText changed:', dual.deepgramText);
-  }, [dual.deepgramText]);
 
   // Current text display
   const currentText = isRecording
@@ -278,6 +178,43 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
 
   return (
     <div className={styles.simpleMode}>
+      {/* Waveform header - compact minimal design */}
+      {isRecording && (
+        <div style={{
+          padding: '4px 15px',
+          background: 'rgba(0, 0, 0, 0.3)',
+          borderBottom: '1px solid rgba(0, 255, 65, 0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>🎙️</span>
+          {neural.currentStream ? (
+            <div style={{ flex: 1, height: '18px' }}>
+              <SimpleWaveformAnalyzer
+                stream={neural.currentStream}
+                isActive={isRecording}
+              />
+            </div>
+          ) : (
+            <div style={{
+              flex: 1,
+              height: '18px',
+              background: 'rgba(255, 200, 0, 0.2)',
+              border: '1px solid #ffc800',
+              borderRadius: '3px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.65rem',
+              color: '#ffc800',
+            }}>
+              ⏳ Waiting...
+            </div>
+          )}
+        </div>
+      )}
+
       <div className={styles.simpleTextArea}>
         <textarea
           className={styles.simpleTextbox}
@@ -301,14 +238,6 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
                 borderRadius: '4px',
               }}>
                 <span style={{ fontSize: '0.8rem', color: '#ffc800' }}>⏳ Initializing Web Speech...</span>
-              </div>
-            )}
-
-            {/* Mini waveform - show when we have a stream */}
-            {isRecording && neural.currentStream && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '0.8rem', opacity: 0.8 }}>🎙️ Recording:</span>
-                <MiniWaveform stream={neural.currentStream} />
               </div>
             )}
 

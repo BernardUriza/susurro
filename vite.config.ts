@@ -52,30 +52,30 @@ export default defineConfig({
     chunkSizeWarningLimit: 1400, // Allow larger chunks for vendor libraries (transformers.js v3: 1396KB and murmuraba: 788KB)
     rollupOptions: {
       input: resolve(__dirname, 'index.html'),
-      // Proper code-splitting configuration  
+      // Proper code-splitting configuration
       output: {
         manualChunks: (id) => {
           // React ecosystem
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
             return 'vendor-react';
           }
-          
+
           // Transformers.js and related ML libraries (loaded dynamically)
           if (id.includes('@huggingface/transformers') || id.includes('onnxruntime-web')) {
             return 'vendor-transformers';
           }
-          
-          // Murmuraba audio processing (loaded dynamically)  
+
+          // Murmuraba audio processing (loaded dynamically)
           if (id.includes('murmuraba')) {
             return 'vendor-murmuraba';
           }
-          
-          
+
+
           // Other node_modules
           if (id.includes('node_modules')) {
             return 'vendor-misc';
           }
-          
+
           // Our application code - keep together for better caching
           return undefined;
         },
@@ -84,6 +84,10 @@ export default defineConfig({
         assetFileNames: (assetInfo) => {
           if (assetInfo.name?.endsWith('.css')) {
             return 'assets/[name]-[hash].css';
+          }
+          // PWA icons should keep their names for manifest
+          if (assetInfo.name?.includes('icon-')) {
+            return '[name][extname]';
           }
           return 'assets/[name]-[hash][extname]';
         },

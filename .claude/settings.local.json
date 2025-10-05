@@ -84,7 +84,8 @@
       "Bash(gh repo view:*)",
       "Bash(cat:*)",
       "Bash(netstat:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(magick:*)"
     ],
     "deny": []
   }

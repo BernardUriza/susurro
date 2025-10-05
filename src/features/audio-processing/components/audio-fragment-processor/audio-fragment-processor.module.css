@@ -40,6 +40,19 @@
   letter-spacing: 2px;
 }
 
+.badge {
+  display: flex;
+  gap: 10px;
+  font-size: 0.75rem;
+}
+
+.badge span {
+  padding: 4px 10px;
+  background: rgba(0, 255, 65, 0.1);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  border-radius: 12px;
+}
+
 /* Main Grid Layout */
 .dashboardGrid {
   display: grid;
@@ -922,4 +935,110 @@
     font-size: 0.9rem;
     min-height: 65px;
   }
+}
+
+/* Triple Mode Styles */
+.tripleMode {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  height: calc(100vh - 150px);
+}
+
+.waveformHeader {
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(0, 255, 65, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tripleControls {
+  display: flex;
+  gap: 15px;
+  padding: 15px 0;
+}
+
+.recordButton {
+  flex: 2;
+  padding: 20px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  background: rgba(0, 255, 65, 0.1);
+  border: 3px solid #00ff41;
+  color: #00ff41;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+.recordButton:hover:not(:disabled) {
+  background: rgba(0, 255, 65, 0.2);
+  transform: scale(1.02);
+  box-shadow: 0 0 25px rgba(0, 255, 65, 0.4);
+}
+
+.recordButton.recording {
+  background: rgba(255, 0, 65, 0.1);
+  border-color: #ff0041;
+  color: #ff0041;
+  animation: pulse 2s infinite;
+}
+
+.recordButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.copyButton {
+  flex: 1;
+  padding: 20px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  background: rgba(0, 150, 255, 0.1);
+  border: 3px solid #0096ff;
+  color: #0096ff;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+.copyButton:hover:not(:disabled) {
+  background: rgba(0, 150, 255, 0.2);
+  transform: scale(1.02);
+  box-shadow: 0 0 25px rgba(0, 150, 255, 0.4);
+}
+
+.copyButton:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.shortcuts {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  padding: 10px;
+  border-top: 1px solid rgba(0, 255, 65, 0.2);
+  gap: 15px;
+}
+
+.shortcuts span {
+  padding: 6px 12px;
+  background: rgba(0, 255, 65, 0.05);
+  border: 1px solid rgba(0, 255, 65, 0.2);
+}
+
+.error {
+  background: rgba(255, 0, 0, 0.1);
+  border: 2px solid #ff0041;
+  color: #ff0041;
+  padding: 15px;
+  font-size: 0.9rem;
+  text-align: center;
 }

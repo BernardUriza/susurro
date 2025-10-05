@@ -1,11 +1,16 @@
 // Main hook - now using useMurmubaraEngine directly from murmuraba
 export { useSusurro } from './hooks/use-susurro';
 
-// Dual transcription system - Web Speech + Deepgram + Claude
+// Triple transcription system - Web Speech + Whisper + Deepgram + Claude
+export { useTripleTranscription } from './hooks/use-triple-transcription';
 export { useWebSpeech } from './hooks/use-web-speech';
 export { useDualTranscription } from './hooks/use-dual-transcription';
 export { useTranscriptionWorker } from './hooks/use-transcription-worker';
 export { useAudioWorker } from './hooks/use-audio-worker';
+export type {
+  TripleTranscriptionOptions,
+  UseTripleTranscriptionReturn,
+} from './hooks/use-triple-transcription';
 export type { WebSpeechConfig, WebSpeechResult, UseWebSpeechReturn } from './hooks/use-web-speech';
 export type {
   DualTranscriptionResult,

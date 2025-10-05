@@ -282,11 +282,11 @@
   color: #00ff41;
 }
 
-/* Visualization Panel */
+/* Visualization Panel - Chaparro y ancho */
 .visualizationPanel {
   grid-column: 1;
   grid-row: 2;
-  height: 300px;
+  height: 120px; /* Muy bajo (chaparro) */
   display: flex;
   flex-direction: column;
 }
@@ -315,7 +315,7 @@
 .settingsPanel {
   grid-column: 2;
   grid-row: 2;
-  height: 300px;
+  height: 120px; /* Misma altura que visualization panel */
   display: flex;
   flex-direction: column;
 }
@@ -471,7 +471,7 @@
   .visualizationPanel {
     grid-column: 1;
     grid-row: 3;
-    height: 250px;
+    height: 100px; /* Chaparro también en responsive */
   }
 
   .settingsPanel {
@@ -548,7 +548,7 @@
   }
 
   .visualizationPanel {
-    height: 200px;
+    height: 80px; /* Más chaparro en móvil */
   }
 
   .transcriptionList {

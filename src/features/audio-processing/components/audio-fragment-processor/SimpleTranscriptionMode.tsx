@@ -345,8 +345,8 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
           <span style={{ fontSize: '0.5rem', opacity: 0.5 }}>🎙️</span>
           {/* Render SimpleWaveformAnalyzer with raw microphone stream */}
           {visualizerStream ? (
-            <div style={{ height: '24px', width: '200px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ transform: 'scale(0.12)', transformOrigin: 'center center' }}>
+            <div style={{ height: '24px', width: '1290px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ transform: 'scale(0.92)', transformOrigin: 'center center' }}>
                 <SimpleWaveformAnalyzer stream={visualizerStream} isActive={isRecording} />
               </div>
             </div>

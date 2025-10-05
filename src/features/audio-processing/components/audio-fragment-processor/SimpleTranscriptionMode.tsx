@@ -213,10 +213,18 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
 
     setIsRecording(false);
     setIsInitializing(false); // Clear any lingering initialization state
-    await neural.stopStreamingRecording();
+
+    // Stop transcription first
     await dual.stopTranscription();
+
+    // Stop streaming recording (this will stop MediaRecorder and release audio resources)
+    await neural.stopStreamingRecording();
+
+    // Wait a bit for cleanup to complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     // Don't clear deepgramChunksRef immediately - let UI update first
-    onLog?.('✅ Recording stopped', 'success');
+    onLog?.('✅ Recording stopped and resources released', 'success');
   }, [neural, dual, onLog, refinedTextFromWorker, visualizerStream]);
 
   // Toggle recording

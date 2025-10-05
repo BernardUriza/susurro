@@ -289,6 +289,7 @@ export interface UseSusurroReturn {
 
   initializeAudioEngine: () => Promise<void>;
   resetAudioEngine: () => Promise<void>;
+  destroyAudioEngine: () => Promise<void>;
   isEngineInitialized: boolean;
   engineError: string | null;
   isInitializingEngine: boolean;
@@ -1080,6 +1081,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
     initializeAudioEngine,
     resetAudioEngine,
+    destroyAudioEngine: murmubaraDestroyEngine,
     isEngineInitialized: engineReady,
     engineError: engineError ? String(engineError) : null,
     isInitializingEngine: engineInitializing,

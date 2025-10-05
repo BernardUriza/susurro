@@ -286,7 +286,7 @@
 .visualizationPanel {
   grid-column: 1;
   grid-row: 2;
-  height: 120px; /* Muy bajo (chaparro) */
+  height: 80px; /* Más chaparro (shorter) */
   display: flex;
   flex-direction: column;
 }
@@ -299,6 +299,15 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  position: relative;
+}
+
+/* Scale down canvas to fit the shorter container */
+.waveformContainer canvas {
+  max-height: 100% !important;
+  height: 100% !important;
+  width: 100% !important;
+  object-fit: contain;
 }
 
 .streamInfo {
@@ -315,7 +324,7 @@
 .settingsPanel {
   grid-column: 2;
   grid-row: 2;
-  height: 120px; /* Misma altura que visualization panel */
+  height: 80px; /* Misma altura que visualization panel */
   display: flex;
   flex-direction: column;
 }
@@ -471,7 +480,7 @@
   .visualizationPanel {
     grid-column: 1;
     grid-row: 3;
-    height: 100px; /* Chaparro también en responsive */
+    height: 60px; /* Más chaparro en responsive */
   }
 
   .settingsPanel {
@@ -548,7 +557,7 @@
   }
 
   .visualizationPanel {
-    height: 80px; /* Más chaparro en móvil */
+    height: 50px; /* Más chaparro en móvil */
   }
 
   .transcriptionList {

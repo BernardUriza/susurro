@@ -1,3 +1,6 @@
+# Netlify Configuration for Susurro Transcription Studio
+# Optimized for production deployment with PWA support
+
 [build]
   base = "."
   command = "npm run build"
@@ -5,8 +8,74 @@
 
 [build.environment]
   NODE_VERSION = "20.19.0"
+  NODE_ENV = "production"
 
+# Headers for security, performance, and WebGPU support
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Security headers
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+    # CORS for WebGPU (CRITICAL for Transformers.js)
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+    # Permissions Policy
+    Permissions-Policy = "microphone=(self), camera=(), geolocation=(), payment=()"
+
+# Cache control for static assets
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Cache control for WASM files (CRITICAL for Murmuraba)
+[[headers]]
+  for = "/wasm/*.wasm"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+    Content-Type = "application/wasm"
+
+# Service Worker - no cache
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Manifest
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+    Content-Type = "application/manifest+json"
+
+# SPA redirect
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Netlify Functions (serverless backend proxy)
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Dev server settings
+[dev]
+  command = "npm run dev:simple"
+  port = 5173
+  targetPort = 5173
+  publish = "dist"
+  autoLaunch = false
+
+# Deploy preview settings
+[context.deploy-preview]
+  command = "npm run build"
+
+# Production context
+[context.production]
+  command = "npm run build"

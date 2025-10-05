@@ -33,27 +33,35 @@ npm run preview
 
 ### Testing
 ```bash
-# Run all tests
+# Run all tests once (for CI/pre-commit)
 npm test
+
+# Watch mode - tests run on file changes (runs in dev by default)
+npm run test:watch
 
 # Run unit tests only
 npm run test:unit
 
+# Watch unit tests
+npm run test:unit:watch
+
+# Run integration tests (requires backend on port 8001)
+npm run test:integration
+
 # Run E2E tests
 npm run test:e2e
 
-# Run specific E2E test (Whisper pipeline)
-npm run test:e2e:whisper
+# Run ALL tests (unit + integration + E2E)
+npm run test:all
 
-# Run E2E test with Puppeteer
-npm run test:e2e:puppeteer
-
-# Run tests with UI
+# Run tests with UI (interactive)
 npm run test:ui
 
-# Run tests with coverage
+# Run tests with coverage report
 npm run coverage
 ```
+
+**Best Practice**: `npm run dev` already includes test watch mode, so you get instant feedback while coding!
 
 ### Code Quality
 ```bash
@@ -178,39 +186,62 @@ susurro/
 
 #### Pre-commit Checklist
 ```bash
-# 1. Run tests first
-npm test                    # Run all tests
-npm run test:unit          # Run unit tests only
+# Tests are already running in watch mode if you used 'npm run dev'
+# Just verify they're all passing before committing
 
-# 2. Check code quality
+# If you didn't use watch mode, run:
+npm run test:all           # Run all tests (unit + integration + E2E)
+
+# Check code quality
 npm run lint               # Check for linting issues
 npm run type-check         # Verify TypeScript types
 
-# 3. Fix issues automatically
+# Fix issues automatically
 npm run lint:fix           # Auto-fix linting issues
+
+# Quick pre-commit validation
+npm run lint:fix && npm run type-check && npm run test:all
 ```
 
 #### When Making Changes
 
-1. **Always run tests BEFORE and AFTER making changes**:
-   - Unit tests: `npm run test:unit` - Tests individual hooks and components
-   - E2E tests: `npm run test:e2e` - Tests complete user workflows
-   - Integration tests: Tests backend API integration
+1. **Modern Development Workflow (2025 Best Practices)**:
+   - Start dev with: `npm run dev` - Tests run automatically in watch mode 🧪
+   - Make your changes - tests re-run on every save
+   - See instant feedback in the cyan TESTS panel
+   - All tests must pass before committing
 
 2. **Test Coverage**:
-   - `packages/susurro/tests/use-dual-transcription.test.ts` - Dual transcription hook tests
-   - `src/features/.../SimpleTranscriptionMode.test.tsx` - UI component tests
-   - `test/e2e/dual-transcription.test.ts` - E2E workflow tests
-   - `test/integration/backend-refinement.test.ts` - Backend integration tests
+   - `packages/susurro/tests/use-dual-transcription.test.ts` - Dual transcription hook (unit)
+   - `src/features/.../SimpleTranscriptionMode.test.tsx` - UI component (unit)
+   - `test/e2e/dual-transcription.test.ts` - Complete user workflow (E2E)
+   - `test/integration/backend-refinement.test.ts` - Backend API (integration)
 
-3. **Critical Rules**:
+3. **Test Commands**:
+   ```bash
+   # During development (automatic)
+   npm run dev              # Includes test watch mode
+
+   # Manual testing
+   npm run test:unit        # Quick unit tests only
+   npm run test:integration # Backend integration tests
+   npm run test:e2e        # Full E2E workflow
+   npm run test:all        # Everything (pre-commit)
+
+   # Interactive debugging
+   npm run test:ui         # Visual test debugging
+   ```
+
+4. **Critical Rules**:
    - Use the NeuralProvider wrapper in all demo components
    - Monitor browser console for audio engine state changes
    - Deepgram is the default backend - always use backend transcription
    - Ensure WASM files are copied when starting development
-   - NEVER skip tests when making changes to core functionality
+   - **NEVER skip tests when making changes to core functionality**
+   - Watch mode gives instant feedback - use it!
 
-4. **Backend Testing**:
+5. **Backend Testing**:
    - Start backend: `cd backend-deepgram && python server.py`
    - Integration tests require backend running on port 8001
    - Tests will skip gracefully if backend unavailable
+   - Backend runs automatically with `npm run dev`

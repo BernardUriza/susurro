@@ -5,7 +5,7 @@
 
 import React, { useCallback, useState, useEffect } from 'react';
 import type { StreamingSusurroChunk } from '@susurro/core';
-import { useDualTranscription } from '@susurro/core';
+import { useDualTranscription, useTranscriptionWorker } from '@susurro/core';
 import { SimpleWaveformAnalyzer } from 'murmuraba';
 import { useNeural } from '../../../../contexts/NeuralContext';
 import styles from './audio-fragment-processor.module.css';
@@ -17,26 +17,54 @@ interface SimpleTranscriptionModeProps {
 export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = ({ onLog }) => {
   const neural = useNeural();
 
-  // Dual transcription hook
-  const dual = useDualTranscription({
-    language: 'es-ES',
-    autoRefine: true,
+  // Web Worker for non-blocking chunk processing
+  const worker = useTranscriptionWorker({
     claudeConfig: {
       enabled: true,
       apiUrl: 'http://localhost:8001/refine',
     },
   });
 
+  // Dual transcription hook
+  const dual = useDualTranscription({
+    language: 'es-ES',
+    autoRefine: false, // Disable auto-refine, we'll use worker
+    claudeConfig: {
+      enabled: false, // Worker handles Claude
+      apiUrl: 'http://localhost:8001/refine',
+    },
+  });
+
   // State
   const [isRecording, setIsRecording] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false); // NEW: Track initialization state
+  const [isInitializing, setIsInitializing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [refinedTextFromWorker, setRefinedTextFromWorker] = useState('');
   const [lastUpdate, setLastUpdate] = useState<{
     source: 'web-speech' | 'deepgram' | 'claude';
     text: string;
     timestamp: number;
   } | null>(null);
   const deepgramChunksRef = React.useRef<string[]>([]);
+
+  // Setup worker event handlers
+  useEffect(() => {
+    if (!worker.isReady) return;
+
+    worker.onTextRefined = (refinedText) => {
+      setRefinedTextFromWorker(refinedText);
+      setLastUpdate({
+        source: 'claude',
+        text: refinedText,
+        timestamp: Date.now(),
+      });
+      onLog?.('🧠 Claude refined text (via worker)', 'success');
+    };
+
+    worker.onError = (error) => {
+      onLog?.(`Worker error: ${error}`, 'error');
+    };
+  }, [worker.isReady, onLog]);
 
   // Start recording with dual transcription
   const startRecording = useCallback(async () => {
@@ -63,14 +91,13 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
           deepgramChunksRef.current.push(chunk.transcriptionText);
           dual.addDeepgramChunk?.(chunk);
 
-          // PROGRESSIVE REFINEMENT: When Deepgram returns a transcription,
-          // send both Web Speech AND Deepgram to Claude for refinement
+          // WORKER-BASED REFINEMENT (non-blocking!)
           const webSpeechCurrent = dual.webSpeechText || '';
           const deepgramCurrent = deepgramChunksRef.current.join(' ');
 
-          if (webSpeechCurrent || deepgramCurrent) {
-            // Trigger Claude refinement with both sources
-            await dual.refineWithClaude(webSpeechCurrent, deepgramCurrent);
+          if ((webSpeechCurrent || deepgramCurrent) && worker.isReady) {
+            // Send to worker for processing (doesn't block UI!)
+            worker.refineText(webSpeechCurrent, deepgramCurrent);
           }
 
           // Track Deepgram updates
@@ -164,8 +191,8 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
   }, [dual.refinedText]);
 
 
-  // Current text display - REFINED text (confirmed)
-  const confirmedText = dual.refinedText || '';
+  // Current text display - REFINED text from worker (confirmed)
+  const confirmedText = refinedTextFromWorker || '';
 
   // Pending text - what's being processed (shown in gray)
   const pendingText = isRecording
@@ -174,6 +201,9 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
 
   // Show pending only if different from confirmed
   const showPending = pendingText && pendingText !== confirmedText && !confirmedText.includes(pendingText);
+
+  // Show processing indicator when worker is refining
+  const isRefining = worker.isProcessing;
 
   // Placeholder text based on state
   const placeholderText = isInitializing
@@ -336,7 +366,11 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
           ) : isRecording ? (
             <>
               ⏹ PARAR
-              {showPending && <span style={{ fontSize: '0.75rem', marginLeft: '6px', opacity: 0.8 }}>● Procesando...</span>}
+              {(showPending || isRefining) && (
+                <span style={{ fontSize: '0.75rem', marginLeft: '6px', opacity: 0.8 }}>
+                  ● {isRefining ? 'Claude...' : 'Procesando...'}
+                </span>
+              )}
             </>
           ) : (
             '🎤 GRABAR'

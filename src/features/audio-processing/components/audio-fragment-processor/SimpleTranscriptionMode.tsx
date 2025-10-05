@@ -345,22 +345,22 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
           <span style={{ fontSize: '0.5rem', opacity: 0.5 }}>🎙️</span>
           {/* Render SimpleWaveformAnalyzer with raw microphone stream */}
           {visualizerStream ? (
-            <div style={{ height: '12px', width: '120px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ transform: 'scale(0.06)', transformOrigin: 'center center', width: '2000px', height: '200px' }}>
+            <div style={{ height: '24px', width: '200px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ transform: 'scale(0.12)', transformOrigin: 'center center' }}>
                 <SimpleWaveformAnalyzer stream={visualizerStream} isActive={isRecording} />
               </div>
             </div>
           ) : (
             <div
               style={{
-                height: '12px',
-                width: '120px',
+                height: '24px',
+                width: '200px',
                 background: 'rgba(0, 0, 0, 0.3)',
                 borderRadius: '2px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '0.45rem',
+                fontSize: '0.6rem',
                 color: '#ffc800',
                 opacity: 0.5,
               }}

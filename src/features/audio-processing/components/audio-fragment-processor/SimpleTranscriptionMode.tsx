@@ -164,17 +164,23 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
   }, [dual.refinedText]);
 
 
-  // Current text display
-  const currentText = isRecording
-    ? (dual.refinedText || dual.deepgramText || dual.webSpeechText)
-    : (dual.refinedText || dual.deepgramText || dual.webSpeechText || '');
+  // Current text display - REFINED text (confirmed)
+  const confirmedText = dual.refinedText || '';
+
+  // Pending text - what's being processed (shown in gray)
+  const pendingText = isRecording
+    ? (dual.deepgramText || dual.webSpeechText || '')
+    : '';
+
+  // Show pending only if different from confirmed
+  const showPending = pendingText && pendingText !== confirmedText && !confirmedText.includes(pendingText);
 
   // Placeholder text based on state
   const placeholderText = isInitializing
-    ? 'Starting Web Speech recognition...'
+    ? 'Iniciando reconocimiento...'
     : isRecording
-    ? 'Listening... speak now'
-    : 'Press SPACE to start recording';
+    ? 'Escuchando... habla ahora'
+    : 'Presiona SPACE para grabar';
 
   return (
     <div className={styles.simpleMode}>
@@ -216,16 +222,40 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
       )}
 
       <div className={styles.simpleTextArea}>
-        <textarea
-          className={styles.simpleTextbox}
-          value={currentText}
-          placeholder={placeholderText}
-          readOnly
-        />
+        {/* Text display with confirmed + pending preview */}
+        <div className={styles.simpleTextbox}>
+          {confirmedText || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{placeholderText}</span>}
 
-        {/* Live indicators - redesigned */}
+          {/* Pending text preview in gray */}
+          {showPending && (
+            <span style={{
+              color: '#888',
+              opacity: 0.6,
+              fontStyle: 'italic',
+              marginLeft: confirmedText ? '0.5ch' : '0'
+            }}>
+              {pendingText}
+            </span>
+          )}
+
+          {/* Processing indicator */}
+          {isRecording && !pendingText && confirmedText && (
+            <span style={{
+              color: '#00ff41',
+              opacity: 0.5,
+              animation: 'pulse 1.5s infinite',
+              marginLeft: '0.5ch'
+            }}>
+              ●
+            </span>
+          )}
+        </div>
+
+        {/* Live indicators - HIDDEN ON MOBILE, only show recording status */}
         {(isRecording || isInitializing) && (
-          <div className={styles.liveIndicators}>
+          <div className={styles.liveIndicators} style={{
+            display: window.innerWidth <= 768 ? 'none' : 'flex'
+          }}>
             {/* Initialization indicator */}
             {isInitializing && !dual.webSpeechText && (
               <div style={{
@@ -299,19 +329,27 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
         <button
           onClick={toggleRecording}
           className={`${styles.simpleRecordButton} ${isRecording ? styles.recording : ''}`}
-          disabled={!neural.isEngineInitialized}
+          disabled={!neural.isEngineInitialized || isInitializing}
         >
-          {isRecording ? '⏹ Stop (ESC)' : '🎤 Record (SPACE)'}
+          {isInitializing ? (
+            '⏳ INICIANDO...'
+          ) : isRecording ? (
+            <>
+              ⏹ PARAR
+              {showPending && <span style={{ fontSize: '0.75rem', marginLeft: '6px', opacity: 0.8 }}>● Procesando...</span>}
+            </>
+          ) : (
+            '🎤 GRABAR'
+          )}
         </button>
 
-        {currentText && (
-          <button
-            onClick={() => copyToClipboard(currentText)}
-            className={styles.simpleCopyButton}
-          >
-            {copied ? '✓ Copied!' : '📋 Copy'}
-          </button>
-        )}
+        <button
+          onClick={() => copyToClipboard(confirmedText)}
+          className={styles.simpleCopyButton}
+          disabled={!confirmedText}
+        >
+          {copied ? '✓ COPIADO' : '📋 COPIAR'}
+        </button>
       </div>
 
       <div className={styles.simpleShortcuts}>

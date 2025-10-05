@@ -9,10 +9,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies
 npm install
 
-# Development - runs both package and vite dev servers
+# Development - runs package, vite, backends AND tests in watch mode
 npm run dev
 
-# Simple development mode (Vite only)
+# Development with tests only (no Whisper backend)
+npm run dev:with-tests
+
+# Simple development mode (Vite only, no tests)
 npm run dev:simple
 
 # Build for production
@@ -21,6 +24,12 @@ npm run build
 # Preview production build
 npm run preview
 ```
+
+**IMPORTANT: `npm run dev` now includes test watch mode by default!**
+- Tests run automatically when you save files
+- Instant feedback on breaking changes
+- Minimal output with dot reporter
+- Tests are shown in cyan 🧪 TESTS panel
 
 ### Testing
 ```bash
@@ -165,8 +174,43 @@ susurro/
 
 ### Development Workflow
 
-1. Always run `npm run lint` and `npm run type-check` before committing
-2. Use the NeuralProvider wrapper in all demo components
-3. Monitor browser console for audio engine state changes
-4. Deepgram is the default backend - always use backend transcription
-5. Ensure WASM files are copied when starting development
+**IMPORTANT: Before making any code changes, always run tests to ensure nothing breaks!**
+
+#### Pre-commit Checklist
+```bash
+# 1. Run tests first
+npm test                    # Run all tests
+npm run test:unit          # Run unit tests only
+
+# 2. Check code quality
+npm run lint               # Check for linting issues
+npm run type-check         # Verify TypeScript types
+
+# 3. Fix issues automatically
+npm run lint:fix           # Auto-fix linting issues
+```
+
+#### When Making Changes
+
+1. **Always run tests BEFORE and AFTER making changes**:
+   - Unit tests: `npm run test:unit` - Tests individual hooks and components
+   - E2E tests: `npm run test:e2e` - Tests complete user workflows
+   - Integration tests: Tests backend API integration
+
+2. **Test Coverage**:
+   - `packages/susurro/tests/use-dual-transcription.test.ts` - Dual transcription hook tests
+   - `src/features/.../SimpleTranscriptionMode.test.tsx` - UI component tests
+   - `test/e2e/dual-transcription.test.ts` - E2E workflow tests
+   - `test/integration/backend-refinement.test.ts` - Backend integration tests
+
+3. **Critical Rules**:
+   - Use the NeuralProvider wrapper in all demo components
+   - Monitor browser console for audio engine state changes
+   - Deepgram is the default backend - always use backend transcription
+   - Ensure WASM files are copied when starting development
+   - NEVER skip tests when making changes to core functionality
+
+4. **Backend Testing**:
+   - Start backend: `cd backend-deepgram && python server.py`
+   - Integration tests require backend running on port 8001
+   - Tests will skip gracefully if backend unavailable

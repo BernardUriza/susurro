@@ -684,20 +684,18 @@
   font-size: 1.2rem;
   line-height: 1.8;
   padding: 25px;
-  resize: none;
   outline: none;
   transition: all 0.3s;
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
-.simpleTextbox:focus {
+.simpleTextbox:focus-within {
   border-color: #00ff41;
   background: rgba(0, 255, 65, 0.08);
   box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
-}
-
-.simpleTextbox::placeholder {
-  color: rgba(0, 255, 65, 0.4);
-  font-style: italic;
 }
 
 .liveIndicators {
@@ -785,10 +783,17 @@
   min-height: 60px;
 }
 
-.simpleCopyButton:hover {
+.simpleCopyButton:hover:not(:disabled) {
   background: rgba(0, 150, 255, 0.2);
   transform: scale(1.02);
   box-shadow: 0 0 25px rgba(0, 150, 255, 0.4);
+}
+
+.simpleCopyButton:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: #666;
+  color: #666;
 }
 
 .simpleShortcuts {
@@ -819,114 +824,89 @@
   text-align: center;
 }
 
-/* Simple Mode Responsive */
+/* Simple Mode Responsive - ULTRA SIMPLIFIED */
 @media (max-width: 768px) {
   .simpleMode {
-    height: calc(100vh - 100px);
-    gap: 15px;
+    height: 100vh;
+    gap: 0;
+    padding: 0;
   }
 
   .simpleTextArea {
-    min-height: 250px;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
   }
 
   .simpleTextbox {
-    font-size: 1rem;
-    padding: 15px;
-    line-height: 1.6;
+    font-size: 1.1rem;
+    padding: 20px;
+    line-height: 1.7;
+    border-left: none;
+    border-right: none;
+    border-top: none;
   }
 
+  /* HIDE live indicators on mobile */
   .liveIndicators {
-    top: 10px;
-    right: 10px;
-    padding: 8px 12px;
-    gap: 10px;
-    font-size: 0.7rem;
-  }
-
-  .liveIndicators span {
-    padding: 3px 6px;
+    display: none !important;
   }
 
   .simpleControls {
-    gap: 12px;
+    gap: 0;
+    flex-wrap: nowrap;
+    border-top: 2px solid rgba(0, 255, 65, 0.3);
   }
 
   .simpleRecordButton {
-    min-width: 150px;
-    padding: 18px 15px;
-    font-size: 1rem;
-    min-height: 56px;
+    flex: 2;
+    min-width: 0;
+    padding: 20px;
+    font-size: 1.1rem;
+    min-height: 70px;
+    border-radius: 0;
+    border: none;
+    border-right: 1px solid rgba(0, 255, 65, 0.3);
   }
 
   .simpleCopyButton {
-    padding: 18px 25px;
+    flex: 1;
+    padding: 20px;
     font-size: 1rem;
-    min-height: 56px;
+    min-height: 70px;
+    border-radius: 0;
+    border: none;
   }
 
+  /* HIDE shortcuts on mobile */
   .simpleShortcuts {
-    padding: 12px;
-    font-size: 0.75rem;
-    gap: 10px;
+    display: none !important;
   }
 
-  .simpleShortcuts span {
-    padding: 5px 10px;
+  /* Hide waveform on mobile */
+  .simpleMode > div:first-child {
+    display: none;
   }
 }
 
 @media (max-width: 480px) {
   .simpleMode {
-    height: calc(100vh - 80px);
-    gap: 12px;
-  }
-
-  .simpleTextArea {
-    min-height: 200px;
+    height: 100vh;
+    gap: 0;
   }
 
   .simpleTextbox {
-    font-size: 0.95rem;
-    padding: 12px;
-  }
-
-  .liveIndicators {
-    position: static;
-    margin-bottom: 10px;
-    padding: 6px 10px;
-    font-size: 0.65rem;
-    gap: 8px;
-  }
-
-  .simpleControls {
-    flex-direction: column;
-    gap: 10px;
+    font-size: 1rem;
+    padding: 15px;
   }
 
   .simpleRecordButton {
-    width: 100%;
-    min-width: unset;
-    padding: 16px;
-    font-size: 0.95rem;
-    min-height: 52px;
+    font-size: 1rem;
+    min-height: 65px;
   }
 
   .simpleCopyButton {
-    width: 100%;
-    padding: 16px;
-    font-size: 0.95rem;
-    min-height: 52px;
-  }
-
-  .simpleShortcuts {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 10px;
-    gap: 8px;
-  }
-
-  .simpleShortcuts span {
-    font-size: 0.7rem;
+    font-size: 0.9rem;
+    min-height: 65px;
   }
 }

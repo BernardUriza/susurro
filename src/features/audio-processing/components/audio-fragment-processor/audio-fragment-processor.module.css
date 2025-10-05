@@ -453,45 +453,160 @@
   .dashboardGrid {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr auto auto auto;
+    height: auto;
   }
 
   .transcriptionPanel {
     grid-column: 1;
     grid-row: 1;
-    min-height: 400px;
+    min-height: 50vh;
   }
 
   .controlPanel {
     grid-column: 1;
     grid-row: 2;
+    height: auto;
   }
 
   .visualizationPanel {
     grid-column: 1;
     grid-row: 3;
+    height: 250px;
   }
 
   .settingsPanel {
     grid-column: 1;
     grid-row: 4;
+    height: auto;
   }
 }
 
 @media (max-width: 768px) {
   .container {
-    padding: 10px;
+    padding: 8px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .title {
+    font-size: 1.2rem;
+  }
+
+  .dashboardGrid {
+    gap: 12px;
+    height: auto;
+  }
+
+  .transcriptionPanel {
+    min-height: 40vh;
+  }
+
+  .panel {
+    padding: 12px;
+  }
+
+  .panelTitle {
+    font-size: 0.85rem;
+  }
+
+  .recordingTimer {
+    font-size: 1.5rem;
+    margin: 15px 0;
+  }
+
+  .metricsGrid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .controlButtons {
+    gap: 12px;
+  }
+
+  .primaryButton {
+    padding: 18px;
+    font-size: 1rem;
+    min-height: 56px;
+  }
+
+  .secondaryButton {
+    padding: 14px;
+    min-height: 48px;
+  }
+
+  .searchBar {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .searchInput {
+    width: 100%;
+  }
+
+  .visualizationPanel {
+    height: 200px;
+  }
+
+  .transcriptionList {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 6px;
+  }
+
+  .header {
+    margin-bottom: 12px;
+  }
+
+  .title {
+    font-size: 1rem;
+    letter-spacing: 1px;
+  }
+
+  .backButton {
+    padding: 10px 14px;
+    font-size: 0.9rem;
   }
 
   .dashboardGrid {
     gap: 10px;
   }
 
-  .recordingTimer {
-    font-size: 1.5rem;
+  .panel {
+    padding: 10px;
   }
 
-  .metricsGrid {
-    grid-template-columns: 1fr;
+  .panelHeader {
+    margin-bottom: 10px;
+  }
+
+  .recordingTimer {
+    font-size: 1.3rem;
+  }
+
+  .primaryButton {
+    padding: 16px;
+    font-size: 0.95rem;
+  }
+
+  .metricValue {
+    font-size: 1rem;
+  }
+
+  .transcriptionEntry {
+    padding: 8px;
+    margin-bottom: 10px;
+  }
+
+  .transcriptionText {
+    font-size: 0.9rem;
   }
 }
 
@@ -548,13 +663,15 @@
 .simpleMode {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 150px);
-  gap: 20px;
+  height: calc(100vh - 200px); /* Increased to leave more space for bottom bar */
+  gap: 15px;
 }
 
 .simpleTextArea {
   position: relative;
   flex: 1;
+  min-height: 200px; /* Reduced from 300px */
+  max-height: 500px; /* Add max height to prevent covering buttons */
 }
 
 .simpleTextbox {
@@ -594,6 +711,7 @@
   gap: 15px;
   font-size: 0.75rem;
   box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+  z-index: 10;
 }
 
 .liveIndicators span {
@@ -605,10 +723,12 @@
 .simpleControls {
   display: flex;
   gap: 15px;
+  flex-wrap: wrap;
 }
 
 .simpleRecordButton {
   flex: 1;
+  min-width: 200px;
   background: rgba(0, 255, 65, 0.1);
   border: 3px solid #00ff41;
   color: #00ff41;
@@ -619,6 +739,7 @@
   transition: all 0.2s;
   font-family: 'Courier New', monospace;
   text-transform: uppercase;
+  min-height: 60px;
 }
 
 .simpleRecordButton:hover:not(:disabled) {
@@ -661,6 +782,7 @@
   transition: all 0.2s;
   font-family: 'Courier New', monospace;
   text-transform: uppercase;
+  min-height: 60px;
 }
 
 .simpleCopyButton:hover {
@@ -678,12 +800,14 @@
   padding: 15px;
   border-top: 1px solid rgba(0, 255, 65, 0.2);
   gap: 15px;
+  flex-wrap: wrap;
 }
 
 .simpleShortcuts span {
   padding: 6px 12px;
   background: rgba(0, 255, 65, 0.05);
   border: 1px solid rgba(0, 255, 65, 0.2);
+  white-space: nowrap;
 }
 
 .simpleError {
@@ -693,4 +817,116 @@
   padding: 15px;
   font-size: 0.9rem;
   text-align: center;
+}
+
+/* Simple Mode Responsive */
+@media (max-width: 768px) {
+  .simpleMode {
+    height: calc(100vh - 100px);
+    gap: 15px;
+  }
+
+  .simpleTextArea {
+    min-height: 250px;
+  }
+
+  .simpleTextbox {
+    font-size: 1rem;
+    padding: 15px;
+    line-height: 1.6;
+  }
+
+  .liveIndicators {
+    top: 10px;
+    right: 10px;
+    padding: 8px 12px;
+    gap: 10px;
+    font-size: 0.7rem;
+  }
+
+  .liveIndicators span {
+    padding: 3px 6px;
+  }
+
+  .simpleControls {
+    gap: 12px;
+  }
+
+  .simpleRecordButton {
+    min-width: 150px;
+    padding: 18px 15px;
+    font-size: 1rem;
+    min-height: 56px;
+  }
+
+  .simpleCopyButton {
+    padding: 18px 25px;
+    font-size: 1rem;
+    min-height: 56px;
+  }
+
+  .simpleShortcuts {
+    padding: 12px;
+    font-size: 0.75rem;
+    gap: 10px;
+  }
+
+  .simpleShortcuts span {
+    padding: 5px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .simpleMode {
+    height: calc(100vh - 80px);
+    gap: 12px;
+  }
+
+  .simpleTextArea {
+    min-height: 200px;
+  }
+
+  .simpleTextbox {
+    font-size: 0.95rem;
+    padding: 12px;
+  }
+
+  .liveIndicators {
+    position: static;
+    margin-bottom: 10px;
+    padding: 6px 10px;
+    font-size: 0.65rem;
+    gap: 8px;
+  }
+
+  .simpleControls {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .simpleRecordButton {
+    width: 100%;
+    min-width: unset;
+    padding: 16px;
+    font-size: 0.95rem;
+    min-height: 52px;
+  }
+
+  .simpleCopyButton {
+    width: 100%;
+    padding: 16px;
+    font-size: 0.95rem;
+    min-height: 52px;
+  }
+
+  .simpleShortcuts {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .simpleShortcuts span {
+    font-size: 0.7rem;
+  }
 }

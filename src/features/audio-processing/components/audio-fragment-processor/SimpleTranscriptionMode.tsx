@@ -181,16 +181,16 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
       {/* Waveform header - compact minimal design */}
       {isRecording && (
         <div style={{
-          padding: '4px 15px',
+          padding: '2px 15px',
           background: 'rgba(0, 0, 0, 0.3)',
           borderBottom: '1px solid rgba(0, 255, 65, 0.2)',
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
+          gap: '6px',
         }}>
-          <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>🎙️</span>
+          <span style={{ fontSize: '0.65rem', opacity: 0.6 }}>🎙️</span>
           {neural.currentStream ? (
-            <div style={{ flex: 1, height: '18px' }}>
+            <div style={{ flex: 1, height: '22px' }}>
               <SimpleWaveformAnalyzer
                 stream={neural.currentStream}
                 isActive={isRecording}
@@ -199,14 +199,14 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
           ) : (
             <div style={{
               flex: 1,
-              height: '18px',
+              height: '22px',
               background: 'rgba(255, 200, 0, 0.2)',
               border: '1px solid #ffc800',
-              borderRadius: '3px',
+              borderRadius: '2px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '0.65rem',
+              fontSize: '0.6rem',
               color: '#ffc800',
             }}>
               ⏳ Waiting...

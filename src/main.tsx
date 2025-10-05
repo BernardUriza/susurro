@@ -10,6 +10,7 @@ import './styles/reset.css';
 import './styles/tokens.css';
 import './styles/matrix-theme.css';
 import './styles/scroll-animations.css';
+import './styles/touch-optimized.css';
 
 // Note: HuggingFace models are loaded directly without tokens
 // Local Whisper models work without authentication

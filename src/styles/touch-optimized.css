@@ -1,0 +1,214 @@
+/**
+ * Touch-Optimized Styles for Mobile PWA
+ * Improves touch interactions and mobile usability
+ */
+
+/* Touch Target Sizing - WCAG AA minimum 44x44px */
+button,
+a,
+input[type="button"],
+input[type="submit"],
+input[type="checkbox"],
+input[type="radio"],
+select,
+.clickable {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Enhanced Touch Feedback */
+button:active,
+.clickable:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease;
+}
+
+/* Smooth Scrolling */
+* {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Prevent Text Selection on Double Tap */
+button,
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Allow Text Selection in Text Areas */
+textarea,
+input[type="text"],
+input[type="email"],
+input[type="search"],
+.selectable {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* Improve Touch Scrolling Performance */
+.scroll-container {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+/* Safe Area Insets for Notched Devices */
+@supports (padding: max(0px)) {
+  .safe-area-top {
+    padding-top: max(20px, env(safe-area-inset-top));
+  }
+
+  .safe-area-bottom {
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+
+  .safe-area-left {
+    padding-left: max(20px, env(safe-area-inset-left));
+  }
+
+  .safe-area-right {
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+}
+
+/* Optimize Font Rendering on Mobile */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Prevent Zoom on Input Focus (iOS) */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="search"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevents iOS zoom */
+  }
+}
+
+/* Better Touch Targets for Small Screens */
+@media (max-width: 480px) {
+  button,
+  a.button,
+  input[type="button"],
+  input[type="submit"] {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 12px 16px;
+  }
+}
+
+/* Active State Visual Feedback */
+.touch-feedback:active {
+  opacity: 0.7;
+  transition: opacity 0.1s ease;
+}
+
+/* Disable Pull-to-Refresh on Chrome Mobile */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Better Gesture Recognition */
+.swipeable {
+  touch-action: pan-y;
+}
+
+.pinch-zoomable {
+  touch-action: manipulation;
+}
+
+/* Landscape Orientation Adjustments */
+@media (max-width: 896px) and (orientation: landscape) {
+  .container {
+    padding: 8px;
+  }
+
+  .header {
+    min-height: 40px;
+  }
+
+  button {
+    min-height: 40px;
+    padding: 8px 12px;
+  }
+}
+
+/* Hover Effects Only on Non-Touch Devices */
+@media (hover: hover) and (pointer: fine) {
+  button:hover {
+    transform: translateY(-2px);
+  }
+}
+
+/* Remove Hover Effects on Touch Devices */
+@media (hover: none) and (pointer: coarse) {
+  button:hover {
+    transform: none;
+  }
+}
+
+/* Improve Contrast for Outdoor Viewing */
+@media (prefers-contrast: high) {
+  * {
+    border-width: 2px !important;
+  }
+}
+
+/* Reduce Motion for Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dark Mode Specific Touch Improvements */
+@media (prefers-color-scheme: dark) {
+  button:active {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* iOS Specific Fixes */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari */
+  input,
+  textarea {
+    -webkit-appearance: none;
+    border-radius: 0;
+  }
+
+  /* Fix iOS button rendering */
+  button,
+  input[type="button"],
+  input[type="submit"] {
+    -webkit-appearance: none;
+  }
+}
+
+/* Android Specific Fixes */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  select {
+    background-image: none;
+  }
+}
+
+/* High DPI Screens */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  /* Optimize for retina displays */
+  border-width: 0.5px;
+}

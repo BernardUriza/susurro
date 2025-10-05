@@ -48,9 +48,9 @@ export function useTranscriptionWorker(
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Event handler refs (mutable without re-creating worker)
-  const onChunkProcessedRef = useRef<((chunk: TranscriptionChunk) => void) | undefined>();
-  const onTextRefinedRef = useRef<((refinedText: string, webSpeechText: string, deepgramText: string) => void) | undefined>();
-  const onErrorRef = useRef<((error: string) => void) | undefined>();
+  const onChunkProcessedRef = useRef<((chunk: TranscriptionChunk) => void) | undefined>(undefined);
+  const onTextRefinedRef = useRef<((refinedText: string, webSpeechText: string, deepgramText: string) => void) | undefined>(undefined);
+  const onErrorRef = useRef<((error: string) => void) | undefined>(undefined);
 
   // Initialize worker
   useEffect(() => {
@@ -153,21 +153,24 @@ export function useTranscriptionWorker(
     });
   }, [isReady]);
 
-  return {
+  // Create object with mutable event handlers
+  const api = {
     isReady,
     isProcessing,
     processChunk,
     refineText,
     reset,
-
-    // Expose setters for event handlers
-    get onChunkProcessed() { return onChunkProcessedRef.current; },
-    set onChunkProcessed(handler) { onChunkProcessedRef.current = handler; },
-
-    get onTextRefined() { return onTextRefinedRef.current; },
-    set onTextRefined(handler) { onTextRefinedRef.current = handler; },
-
-    get onError() { return onErrorRef.current; },
-    set onError(handler) { onErrorRef.current = handler; },
+    onChunkProcessed: undefined as ((chunk: TranscriptionChunk) => void) | undefined,
+    onTextRefined: undefined as ((refinedText: string, webSpeechText: string, deepgramText: string) => void) | undefined,
+    onError: undefined as ((error: string) => void) | undefined,
   };
+
+  // Sync refs with object properties
+  useEffect(() => {
+    onChunkProcessedRef.current = api.onChunkProcessed;
+    onTextRefinedRef.current = api.onTextRefined;
+    onErrorRef.current = api.onError;
+  });
+
+  return api;
 }

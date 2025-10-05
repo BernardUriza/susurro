@@ -580,37 +580,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
         // Load Murmuraba processing utilities
         const { loadMurmubaraProcessing } = await import('../lib/dynamic-loaders');
-        const {
-          processFileWithMetrics,
-          getEngineStatus,
-          initializeAudioEngine: initProc,
-        } = await loadMurmubaraProcessing();
+        const { processFileWithMetrics } = await loadMurmubaraProcessing();
 
-        // Ensure processing engine is initialized
-        try {
-          const status = getEngineStatus?.() ?? 'uninitialized';
-          if (status === 'uninitialized' && initProc) {
-            await initProc({
-              noiseReductionLevel: options.engineConfig?.noiseReductionLevel ?? 'medium',
-              bufferSize: (options.engineConfig?.bufferSize ?? 2048) as
-                | 256
-                | 512
-                | 1024
-                | 2048
-                | 4096,
-              algorithm: 'rnnoise',
-              denoiseStrength: options.engineConfig?.denoiseStrength ?? 0.5,
-              logLevel: 'error',
-              autoCleanup: true,
-              useAudioWorklet: true,
-            });
-          }
-        } catch (initError) {
-          console.warn('[RNNoise] Engine initialization warning:', initError);
-          // Continue without RNNoise if initialization fails
-        }
-
-        // Process audio with RNNoise
+        // Process audio with RNNoise (engine already initialized by main Murmuraba instance)
         const processed = await processFileWithMetrics(arrayBuffer, () => {});
 
         // Convert processed buffer back to Blob
@@ -1044,28 +1016,9 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       const originalAudioUrl = URL.createObjectURL(file);
 
       const { loadMurmubaraProcessing } = await import('../lib/dynamic-loaders');
-      const {
-        processFileWithMetrics,
-        getEngineStatus,
-        initializeAudioEngine: initProc,
-      } = await loadMurmubaraProcessing();
+      const { processFileWithMetrics } = await loadMurmubaraProcessing();
 
-      try {
-        const status = getEngineStatus?.() ?? 'uninitialized';
-        if (status === 'uninitialized' && initProc) {
-          await initProc({
-            noiseReductionLevel: 'medium',
-            bufferSize: 1024,
-            algorithm: 'rnnoise',
-            logLevel: 'info',
-            autoCleanup: true,
-            useAudioWorklet: true,
-          });
-        }
-      } catch {
-        /* ignore */
-      }
-
+      // Process audio with RNNoise (engine already initialized by main Murmuraba instance)
       const processed = await processFileWithMetrics(originalBuffer, () => {});
       const processedBlob = new Blob([processed.processedBuffer], { type: 'audio/wav' });
       const processedAudioUrl = URL.createObjectURL(processedBlob);

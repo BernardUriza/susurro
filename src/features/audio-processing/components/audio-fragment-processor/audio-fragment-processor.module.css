@@ -302,8 +302,14 @@
   position: relative;
 }
 
-/* Scale down canvas to fit the shorter container using transform */
-.waveformContainer canvas {
+/* Scale down ANY element inside waveformContainer (including Murmuraba components) */
+.waveformContainer > * {
+  transform: scale(0.4) !important;
+  transform-origin: center center !important;
+}
+
+/* Also target canvas directly in case it's nested deeper */
+.visualizationPanel canvas {
   transform: scale(0.4) !important;
   transform-origin: center center !important;
 }

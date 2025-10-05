@@ -302,12 +302,10 @@
   position: relative;
 }
 
-/* Scale down canvas to fit the shorter container */
+/* Scale down canvas to fit the shorter container using transform */
 .waveformContainer canvas {
-  max-height: 100% !important;
-  height: 100% !important;
-  width: 100% !important;
-  object-fit: contain;
+  transform: scale(0.4) !important;
+  transform-origin: center center !important;
 }
 
 .streamInfo {

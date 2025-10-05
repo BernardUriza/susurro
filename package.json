@@ -22,7 +22,7 @@
     "dev:with-tests": "npm run copy:wasm && concurrently -n \"📦 SUSURRO,⚡ FRONTEND,🌊 DEEPGRAM,🧪 TESTS\" -c \"bgYellow.bold,bgGreen.bold,bgMagenta.bold,bgCyan.bold\" \"npm run dev:package\" \"npm run dev:vite\" \"npm run dev:deepgram\" \"npm run test:watch\"",
     "build": "npm run copy:wasm && npm run generate:icons && vite build",
     "build:package": "echo 'Package build skipped - no workspace found'",
-    "copy:wasm": "node -e \"const fs=require('fs');const path=require('path');const dir='public/wasm';if(!fs.existsSync(dir))fs.mkdirSync(dir,{recursive:true});fs.copyFileSync('node_modules/murmuraba/dist/rnnoise.wasm',path.join(dir,'rnnoise.wasm'))\"",
+    "copy:wasm": "node -e \"const fs=require('fs');const path=require('path');const dir='public/wasm';if(!fs.existsSync(dir))fs.mkdirSync(dir,{recursive:true});fs.copyFileSync('packages/murmuraba/packages/murmuraba/dist/rnnoise.wasm',path.join(dir,'rnnoise.wasm'))\"",
     "generate:icons": "node scripts/generate-icons.js",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
@@ -85,7 +85,7 @@
     "@susurro/core": "file:./packages/susurro",
     "eslint-config-prettier": "^10.1.8",
     "framer-motion": "^12.23.12",
-    "murmuraba": "^3.0.3",
+    "murmuraba": "file:./packages/murmuraba/packages/murmuraba",
     "react-virtuoso": "^4.13.0"
   },
   "devDependencies": {

@@ -85,7 +85,8 @@
       "Bash(cat:*)",
       "Bash(netstat:*)",
       "Bash(findstr:*)",
-      "Bash(magick:*)"
+      "Bash(magick:*)",
+      "Bash(npx vitest run:*)"
     ],
     "deny": []
   }

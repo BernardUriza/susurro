@@ -180,30 +180,35 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
       }
     );
 
-    // Debug: Check stream state after recording starts
-    setTimeout(() => {
-      const streamDebug = {
-        exists: !!neural.currentStream,
-        id: neural.currentStream?.id,
-        totalTracks: neural.currentStream?.getTracks().length || 0,
-        audioTracks: neural.currentStream?.getAudioTracks().length || 0,
-        videoTracks: neural.currentStream?.getVideoTracks().length || 0,
-        active: neural.currentStream?.active,
-        audioTrackEnabled: neural.currentStream?.getAudioTracks()[0]?.enabled,
-        audioTrackMuted: neural.currentStream?.getAudioTracks()[0]?.muted,
-        audioTrackReadyState: neural.currentStream?.getAudioTracks()[0]?.readyState,
-      };
-      console.log('🔍 [STREAM DEBUG]', streamDebug);
-    }, 100);
+    // Debug: Check stream state after recording starts (multiple checks)
+    [100, 500, 1000].forEach((delay) => {
+      setTimeout(() => {
+        const streamDebug = {
+          delay,
+          neuralStream: {
+            exists: !!neural.currentStream,
+            id: neural.currentStream?.id,
+            active: neural.currentStream?.active,
+            tracks: neural.currentStream?.getTracks().length || 0,
+          },
+          visualizerStream: {
+            exists: !!visualizerStream,
+            id: visualizerStream?.id,
+            active: visualizerStream?.active,
+            tracks: visualizerStream?.getTracks().length || 0,
+          },
+          isRecordingState: isRecording,
+          isRecordingRef: isRecordingRef.current,
+        };
+        console.log(`🔍 [STREAM DEBUG @ ${delay}ms]`, streamDebug);
+      }, delay);
+    });
 
     onLog?.('🎤 Recording started', 'success');
   }, [neural, dual, onLog, worker]);
 
   // Stop recording
   const stopRecording = useCallback(async () => {
-    // Immediately set ref to prevent race conditions
-    isRecordingRef.current = false;
-
     try {
       // PRESERVE BEST AVAILABLE TRANSCRIPTION BEFORE STOPPING
       // Priority: Claude refined > Deepgram > Web Speech
@@ -227,24 +232,25 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
         onLog?.('⚠️ No transcription to preserve', 'warning');
       }
 
-      // Update UI state immediately
-      setIsRecording(false);
-      setIsInitializing(false);
+      // CRITICAL: Stop services in correct order BEFORE updating UI state
+      // 1. Stop neural recording first (stops MediaRecorder and audio processing)
+      await neural.stopStreamingRecording();
 
-      // Stop and cleanup visualizer stream
+      // 2. Then stop transcription services
+      await dual.stopTranscription();
+
+      // 3. Cleanup visualizer stream
       if (visualizerStream) {
         visualizerStream.getTracks().forEach((track) => track.stop());
         setVisualizerStream(null);
         console.log('🧹 [Visualizer] Cleaned up raw microphone stream');
       }
 
-      // Stop transcription first
-      await dual.stopTranscription();
+      // 4. FINALLY update UI state after everything is stopped
+      isRecordingRef.current = false;
+      setIsRecording(false);
+      setIsInitializing(false);
 
-      // Stop streaming recording (this will stop MediaRecorder and release audio resources)
-      await neural.stopStreamingRecording();
-
-      // Don't clear deepgramChunksRef immediately - let UI update first
       onLog?.('✅ Recording stopped and resources released', 'success');
     } catch (error) {
       console.error('Error stopping recording:', error);

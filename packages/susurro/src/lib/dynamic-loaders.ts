@@ -41,7 +41,7 @@ export const loadTransformers = async () => {
  */
 export const loadMurmubaraProcessing = async () => {
   if (MODULE_CACHE.murmubaraProcessing) {
-    console.log('[loadMurmubaraProcessing] Using cached module');
+    // Reduced logging - only log on first load
     return MODULE_CACHE.murmubaraProcessing;
   }
 
@@ -51,8 +51,8 @@ export const loadMurmubaraProcessing = async () => {
     'murmuraba'
   );
 
-  console.log('[loadMurmubaraProcessing] Module loaded for first time, keys:', Object.keys(module));
-  console.log('[loadMurmubaraProcessing] murmubaraVAD type:', typeof module.murmubaraVAD);
+  // Reduced verbosity - only log on first load
+  // console.log('[loadMurmubaraProcessing] Module loaded');
 
   const processedModule = {
     processFileWithMetrics: module.processFileWithMetrics || module.processFile, // Use processFileWithMetrics first, fallback to processFile

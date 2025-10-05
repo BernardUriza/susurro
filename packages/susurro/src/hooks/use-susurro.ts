@@ -589,11 +589,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
         // Convert processed buffer back to Blob
         const processedBlob = new Blob([processed.processedBuffer], { type: 'audio/wav' });
 
-        console.log(
-          '[RNNoise] Audio processed:',
-          `${blob.size} → ${processedBlob.size} bytes`,
-          `(${((processedBlob.size / blob.size) * 100).toFixed(1)}%)`
-        );
+        // Reduced logging - only log significant changes or errors
+        // console.log('[RNNoise] Audio processed:', `${blob.size} → ${processedBlob.size} bytes`);
 
         return processedBlob;
       } catch (error) {
@@ -609,6 +606,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
   const transcribeWithWhisper = useCallback(
     async (blob: Blob): Promise<TranscriptionResult | null> => {
       if (!whisperReady) return null;
+
+      // GUARD: Don't process if we're not recording (prevents processing old chunks)
+      if (!isStreamingRecording && !recordingState?.isRecording) {
+        console.log('[Transcription] Skipped - not recording');
+        return null;
+      }
 
       const t0 = performance.now();
       let out: TranscriptionResult | null = null;
@@ -829,10 +832,23 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
 
     // Process new chunks for streaming
     newChunks.forEach(async (chunk, relativeIndex) => {
+      // GUARD: Check if we're still recording before processing
+      if (!isStreamingRecording) {
+        console.log('[STREAMING] Skipping chunk - recording stopped');
+        return;
+      }
+
       const absoluteIndex = lastProcessedChunkIndexRef.current + relativeIndex;
 
       try {
         const audioBlob = await urlToBlob(chunk.processedAudioUrl);
+
+        // GUARD: Check again after async operation
+        if (!isStreamingRecording) {
+          console.log('[STREAMING] Skipping chunk processing - recording stopped during fetch');
+          return;
+        }
+
         const vadScore = chunk.averageVad ?? 0;
         const isVoiceActive = vadScore > 0.3;
 
@@ -844,6 +860,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           } catch (error) {
             console.error('[STREAMING] Transcription error:', error);
           }
+        }
+
+        // GUARD: Final check before emitting
+        if (!isStreamingRecording) {
+          console.log('[STREAMING] Skipping chunk emit - recording stopped');
+          return;
         }
 
         const streamingChunk: StreamingSusurroChunk = {

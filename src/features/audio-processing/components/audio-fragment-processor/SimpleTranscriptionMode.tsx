@@ -197,42 +197,52 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
 
   // Stop recording
   const stopRecording = useCallback(async () => {
-    // PRESERVE TRANSCRIPTION BEFORE STOPPING
-    const currentText = refinedTextFromWorker || dual.deepgramText || dual.webSpeechText || '';
-    if (currentText) {
-      setFinalTranscription(currentText);
-      onLog?.(`💾 Preserved transcription: ${currentText.substring(0, 50)}...`, 'success');
+    try {
+      // PRESERVE TRANSCRIPTION BEFORE STOPPING
+      const currentText = refinedTextFromWorker || dual.deepgramText || dual.webSpeechText || '';
+      if (currentText) {
+        setFinalTranscription(currentText);
+        onLog?.(`💾 Preserved transcription: ${currentText.substring(0, 50)}...`, 'success');
+      }
+
+      // Stop and cleanup visualizer stream
+      if (visualizerStream) {
+        visualizerStream.getTracks().forEach((track) => track.stop());
+        setVisualizerStream(null);
+        console.log('🧹 [Visualizer] Cleaned up raw microphone stream');
+      }
+
+      setIsInitializing(false); // Clear any lingering initialization state
+
+      // Stop transcription first
+      await dual.stopTranscription();
+
+      // Stop streaming recording (this will stop MediaRecorder and release audio resources)
+      await neural.stopStreamingRecording();
+
+      // Wait a bit for cleanup to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Update state AFTER all cleanup is complete
+      setIsRecording(false);
+
+      // Don't clear deepgramChunksRef immediately - let UI update first
+      onLog?.('✅ Recording stopped and resources released', 'success');
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      // Even if there's an error, update the state
+      setIsRecording(false);
+      setIsInitializing(false);
+      onLog?.('⚠️ Recording stopped with errors', 'warning');
     }
-
-    // Stop and cleanup visualizer stream
-    if (visualizerStream) {
-      visualizerStream.getTracks().forEach((track) => track.stop());
-      setVisualizerStream(null);
-      console.log('🧹 [Visualizer] Cleaned up raw microphone stream');
-    }
-
-    setIsRecording(false);
-    setIsInitializing(false); // Clear any lingering initialization state
-
-    // Stop transcription first
-    await dual.stopTranscription();
-
-    // Stop streaming recording (this will stop MediaRecorder and release audio resources)
-    await neural.stopStreamingRecording();
-
-    // Wait a bit for cleanup to complete
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Don't clear deepgramChunksRef immediately - let UI update first
-    onLog?.('✅ Recording stopped and resources released', 'success');
   }, [neural, dual, onLog, refinedTextFromWorker, visualizerStream]);
 
   // Toggle recording
-  const toggleRecording = useCallback(() => {
+  const toggleRecording = useCallback(async () => {
     if (isRecording) {
-      stopRecording();
+      await stopRecording();
     } else {
-      startRecording();
+      await startRecording();
     }
   }, [isRecording, startRecording, stopRecording]);
 
@@ -335,8 +345,10 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
           <span style={{ fontSize: '0.5rem', opacity: 0.5 }}>🎙️</span>
           {/* Render SimpleWaveformAnalyzer with raw microphone stream */}
           {visualizerStream ? (
-            <div style={{ height: '12px', width: '120px' }}>
-              <SimpleWaveformAnalyzer stream={visualizerStream} isActive={isRecording} />
+            <div style={{ height: '12px', width: '120px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ transform: 'scale(0.06)', transformOrigin: 'center center', width: '2000px', height: '200px' }}>
+                <SimpleWaveformAnalyzer stream={visualizerStream} isActive={isRecording} />
+              </div>
             </div>
           ) : (
             <div

@@ -240,16 +240,25 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
     const allChunks = await stopStreamingRecording();
     setIsRecording(false);
 
+    // 🔧 FIX: Collect ALL text from allChunks, not just currentMessage
+    // This ensures we capture the last chunk that might not be in currentMessage yet
+    const allTranscriptions = allChunks
+      .filter(chunk => chunk.isVoiceActive && chunk.transcriptionText.trim())
+      .map(chunk => chunk.transcriptionText.trim())
+      .join(' ');
+
+    const finalMessage = allTranscriptions || currentMessage.trim();
+
     // Create final user message
-    if (currentMessage.trim()) {
+    if (finalMessage) {
       const userMessage: ChatConversation = {
         id: `user-${Date.now()}`,
         type: 'user',
-        content: currentMessage.trim(),
+        content: finalMessage,
         timestamp: Date.now(),
         vadScore:
-          recordingChunks.reduce((acc, chunk) => acc + chunk.vadScore, 0) / recordingChunks.length,
-        processingTime: recordingChunks.reduce((acc, chunk) => acc + chunk.duration, 0),
+          allChunks.reduce((acc, chunk) => acc + chunk.vadScore, 0) / allChunks.length,
+        processingTime: allChunks.reduce((acc, chunk) => acc + chunk.duration, 0),
       };
 
       setConversations((prev) => [...prev, userMessage]);
@@ -273,7 +282,7 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
         },
       ]);
     }
-  }, [stopStreamingRecording, currentMessage, recordingChunks, onChatEnd, generateAIResponse]);
+  }, [stopStreamingRecording, currentMessage, onChatEnd, generateAIResponse]);
 
   // Clear conversation
   const handleClearChat = useCallback(() => {

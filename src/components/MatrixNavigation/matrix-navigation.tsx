@@ -16,7 +16,7 @@ import type { MatrixNavigationProps as NavProps } from './types';
 // Style imports
 import styles from './matrix-navigation.module.css';
 
-export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tiny' }: NavProps) => {
+export const MatrixNavigation = ({ initialView = 'processor', initialModel = 'tiny' }: NavProps) => {
   const [currentView, setCurrentView] = useState(initialView);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -102,11 +102,6 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
   const views = useMemo(
     () =>
       ({
-        terminal: {
-          component: <NeuralMatrixTerminal />,
-          title: '[NEURAL_MATRIX_TERMINAL]',
-          key: 'F1',
-        },
         processor: {
           component: (
             <AudioFragmentProcessor
@@ -114,7 +109,12 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
               onLog={addWhisperLog}
             />
           ),
-          title: '[AUDIO_FRAGMENT_PROCESSOR]',
+          title: '[AUDIO_PROCESSOR]',
+          key: 'F1',
+        },
+        terminal: {
+          component: <NeuralMatrixTerminal />,
+          title: '[NEURAL_TERMINAL]',
           key: 'F2',
         },
         analytics: {
@@ -241,8 +241,8 @@ export const MatrixNavigation = ({ initialView = 'terminal', initialModel = 'tin
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       const keyMap = {
-        F1: 'terminal',
-        F2: 'processor',
+        F1: 'processor',
+        F2: 'terminal',
         F3: 'analytics',
         F4: 'settings',
         F5: 'export',

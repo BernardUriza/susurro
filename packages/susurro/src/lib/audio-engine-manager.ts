@@ -107,9 +107,28 @@ export class AudioEngineManager {
       return;
     }
 
-    // Don't allow initialization if currently destroying
+    // Don't allow initialization if currently destroying - wait for it to finish
     if (this.state === 'destroying') {
-      throw new Error('Cannot initialize while engine is being destroyed');
+      // Wait for destroy to complete before initializing
+      await new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (this.state !== 'destroying') {
+            clearInterval(checkInterval);
+            resolve(undefined);
+          }
+        }, 50);
+
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          resolve(undefined);
+        }, 5000);
+      });
+    }
+
+    // If still destroyed, reset to uninitialized
+    if (this.state === 'destroyed') {
+      this.state = 'uninitialized';
     }
 
     this.initPromise = this.performInitialization();
@@ -201,8 +220,20 @@ export class AudioEngineManager {
    * Destroy the engine properly - no more hoping it works
    */
   public async destroy(): Promise<void> {
+    // Already destroyed or destroying
     if (this.state === 'destroying' || this.state === 'destroyed') {
       return;
+    }
+
+    // Cannot destroy while initializing - wait for init to complete
+    if (this.state === 'initializing') {
+      if (this.initPromise) {
+        try {
+          await this.initPromise;
+        } catch {
+          // Ignore initialization errors, proceed with destroy
+        }
+      }
     }
 
     this.setState('destroying');
@@ -259,7 +290,19 @@ export class AudioEngineManager {
    * Reset the engine - proper recovery, not panic destruction
    */
   public async reset(): Promise<void> {
+    // Wait for any pending initialization to complete
+    if (this.initPromise) {
+      try {
+        await this.initPromise;
+      } catch {
+        // Ignore init errors during reset
+      }
+    }
+
     await this.destroy();
+
+    // Wait for destruction to complete
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Clear health metrics for fresh start
     this.healthMetrics = {
@@ -267,6 +310,9 @@ export class AudioEngineManager {
       consecutiveFailures: 0,
       isHealthy: false,
     };
+
+    // Reset state to allow re-initialization
+    this.state = 'uninitialized';
 
     await this.initialize();
   }

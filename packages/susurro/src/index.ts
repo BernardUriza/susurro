@@ -1,6 +1,18 @@
 // Main hook - now using useMurmubaraEngine directly from murmuraba
 export { useSusurro } from './hooks/use-susurro';
 
+// Dual transcription system - Web Speech + Deepgram + Claude
+export { useWebSpeech } from './hooks/use-web-speech';
+export { useDualTranscription } from './hooks/use-dual-transcription';
+export type { WebSpeechConfig, WebSpeechResult, UseWebSpeechReturn } from './hooks/use-web-speech';
+export type {
+  DualTranscriptionResult,
+  ClaudeRefinementConfig,
+  UseDualTranscriptionOptions,
+  UseDualTranscriptionReturn,
+  DualTranscriptionInstance
+} from './hooks/use-dual-transcription';
+
 // Audio engine management is now handled internally by useMurmubaraEngine
 // No need for separate engine management hooks
 

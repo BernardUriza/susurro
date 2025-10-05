@@ -18,22 +18,23 @@ const NeuralContext = createContext<NeuralContextType | null>(null);
 
 interface NeuralProviderProps {
   children: ReactNode;
-  initialModel?: 'tiny' | 'base' | 'small' | 'medium' | 'large';
   onNeuralProgressLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
-  defaultTranscriptionMethod?: 'backend'; // Always backend
 }
 
 export const NeuralProvider: React.FC<NeuralProviderProps> = ({
   children,
-  initialModel = 'base',
   onNeuralProgressLog,
-  defaultTranscriptionMethod = 'backend',
 }) => {
-  // Original useSusurro instance
   const susurroInstance = useSusurro({
     chunkDurationMs: 8000,
-    initialModel,
+    initialModel: 'deepgram',
     onWhisperProgressLog: onNeuralProgressLog,
+    engineConfig: {
+      bufferSize: 2048, // Aumentar buffer size para mejor captura
+      denoiseStrength: 0.3, // Reducir denoise para no eliminar tanto audio
+      noiseReductionLevel: 'low', // Cambiar a low para preservar más audio
+      enableMetrics: true,
+    },
   });
 
   // Backend integration state (simplified - always backend)

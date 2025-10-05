@@ -11,6 +11,9 @@ import {
   SettingsPanel,
 } from './panels';
 
+// Import Simple Mode component
+import { SimpleTranscriptionMode } from './SimpleTranscriptionMode';
+
 // Import styles
 import styles from './audio-fragment-processor.module.css';
 
@@ -56,6 +59,7 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
   const transcribingCountRef = useRef(0);
 
   // UI states
+  const [isSimpleMode, setIsSimpleMode] = useState(true); // Start in simple mode
   const [isSettingsCollapsed, setIsSettingsCollapsed] = useState(true);
   const [isStreamInfoVisible, setIsStreamInfoVisible] = useState(false);
   const [transcriptionFilter, setTranscriptionFilter] = useState('');
@@ -265,6 +269,12 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
     onLog?.('📥 Transcriptions exported', 'success');
   }, [transcriptions, onLog]);
 
+  // Toggle mode
+  const toggleMode = useCallback(() => {
+    setIsSimpleMode((prev) => !prev);
+    onLog?.(`🔄 Switched to ${isSimpleMode ? 'Advanced' : 'Simple'} mode`, 'info');
+  }, [isSimpleMode, onLog]);
+
   return (
     <ErrorBoundary>
       <div className={styles.container}>
@@ -274,11 +284,17 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
             ← Back
           </button>
           <h1 className={styles.title}>Audio Fragment Processor</h1>
-          <div style={{ width: '80px' }}></div> {/* Spacer for centering */}
+          <button onClick={toggleMode} className={styles.modeToggle}>
+            {isSimpleMode ? '⚡ Simple' : '🔧 Advanced'}
+          </button>
         </div>
 
-        {/* Main Dashboard Grid */}
-        <div className={styles.dashboardGrid}>
+        {/* SIMPLE MODE VIEW */}
+        {isSimpleMode ? (
+          <SimpleTranscriptionMode onLog={onLog} />
+        ) : (
+          /* ADVANCED MODE VIEW (current UI) */
+          <div className={styles.dashboardGrid}>
           {/* Transcription Panel - Main Focus */}
           <TranscriptionPanel
             transcriptions={transcriptions}
@@ -329,21 +345,22 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
             noiseReduction={noiseReduction}
             onNoiseReductionChange={setNoiseReduction}
           />
-        </div>
 
-        {/* File Upload Area (Hidden but functional) */}
-        <input
-          type="file"
-          accept="audio/*"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              handleFileUpload(file);
-            }
-          }}
-          style={{ display: 'none' }}
-          id="fileUpload"
-        />
+          {/* File Upload Area (Hidden but functional) */}
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                handleFileUpload(file);
+              }
+            }}
+            style={{ display: 'none' }}
+            id="fileUpload"
+          />
+        </div>
+        )}
       </div>
     </ErrorBoundary>
   );

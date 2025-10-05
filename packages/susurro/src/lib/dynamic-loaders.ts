@@ -3,8 +3,8 @@
 
 // Cache for loaded modules to prevent multiple loads
 const MODULE_CACHE = {
-  transformers: null as any,
-  murmubaraProcessing: null as any,
+  transformers: null as typeof import('@huggingface/transformers') | null,
+  murmubaraProcessing: null as typeof import('murmuraba') | null,
 };
 
 /**

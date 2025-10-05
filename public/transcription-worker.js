@@ -88,15 +88,16 @@ async function refineText(webSpeechText, deepgramText) {
   try {
     isProcessing = true;
 
-    // Call Claude API
+    // Call Claude API (use snake_case for Python backend)
     const response = await fetch(claudeConfig.apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        webSpeechText: webSpeechText || '',
-        deepgramText: deepgramText || '',
+        web_speech_text: webSpeechText || '',
+        deepgram_text: deepgramText || '',
+        language: 'es',  // Default to Spanish
       }),
     });
 
@@ -109,7 +110,7 @@ async function refineText(webSpeechText, deepgramText) {
     postMessage({
       type: ResponseTypes.TEXT_REFINED,
       data: {
-        refinedText: result.refinedText || result.text || deepgramText || webSpeechText,
+        refinedText: result.refined_text || result.refinedText || result.text || deepgramText || webSpeechText,
         webSpeechText,
         deepgramText,
       },

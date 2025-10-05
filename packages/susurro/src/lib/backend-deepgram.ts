@@ -21,22 +21,22 @@ export class DeepgramBackend {
     // Detect environment and use appropriate URLs
     let useRender = false;
     try {
-      useRender = typeof window !== 'undefined' &&
-                  (window as any).VITE_USE_RENDER === 'true';
+      useRender =
+        typeof window !== 'undefined' &&
+        (window as Record<string, unknown>).VITE_USE_RENDER === 'true';
     } catch (e) {
       useRender = false;
     }
 
-    const baseUrl = config.backendUrl || (useRender
-      ? 'https://susurro-deepgram-backend.onrender.com'
-      : 'http://localhost:8001'
-    );
+    const baseUrl =
+      config.backendUrl ||
+      (useRender ? 'https://susurro-deepgram-backend.onrender.com' : 'http://localhost:8001');
 
     this.backendUrl = baseUrl.replace('http', 'ws') + '/ws/transcribe';
     this.restUrl = baseUrl;
   }
 
-  async connect(onTranscription: (result: any) => void): Promise<void> {
+  async connect(onTranscription: (result: DeepgramTranscriptionResult) => void): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         this.ws = new WebSocket(this.backendUrl);
@@ -56,7 +56,7 @@ export class DeepgramBackend {
                 transcript: data.transcript,
                 confidence: data.confidence,
                 is_final: true,
-                model: 'deepgram'
+                model: 'deepgram',
               });
             } else if (data.type === 'error') {
               console.error('[DeepgramBackend] Error:', data.message);
@@ -76,17 +76,18 @@ export class DeepgramBackend {
           this.isConnected = false;
           this.attemptReconnect(onTranscription);
         };
-
       } catch (error) {
         reject(error);
       }
     });
   }
 
-  private attemptReconnect(onTranscription: (result: any) => void): void {
+  private attemptReconnect(onTranscription: (result: DeepgramTranscriptionResult) => void): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`[DeepgramBackend] Attempting reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
+      console.log(
+        `[DeepgramBackend] Attempting reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`
+      );
       setTimeout(() => {
         this.connect(onTranscription);
       }, 2000 * this.reconnectAttempts);
@@ -110,16 +111,18 @@ export class DeepgramBackend {
 
       const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
 
-      this.ws.send(JSON.stringify({
-        type: 'audio_chunk',
-        audio: base64
-      }));
+      this.ws.send(
+        JSON.stringify({
+          type: 'audio_chunk',
+          audio: base64,
+        })
+      );
     } catch (error) {
       console.error('[DeepgramBackend] Error sending audio chunk:', error);
     }
   }
 
-  async transcribeChunk(audioData: ArrayBuffer | Blob): Promise<any> {
+  async transcribeChunk(audioData: ArrayBuffer | Blob): Promise<DeepgramTranscriptionResult> {
     // Alternative REST API method for single chunk transcription
     const formData = new FormData();
 
@@ -132,7 +135,7 @@ export class DeepgramBackend {
     try {
       const response = await fetch(`${this.restUrl}/transcribe-chunk`, {
         method: 'POST',
-        body: formData
+        body: formData,
       });
 
       if (!response.ok) {
@@ -144,7 +147,7 @@ export class DeepgramBackend {
         transcript: result.transcript,
         confidence: result.confidence,
         is_final: true,
-        model: 'deepgram'
+        model: 'deepgram',
       };
     } catch (error) {
       console.error('[DeepgramBackend] Error transcribing chunk:', error);

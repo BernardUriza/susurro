@@ -15,11 +15,14 @@ export class BackendWhisperClient {
     this.config = {
       timeout: 30000,
       model: 'base',
-      ...config
+      ...config,
     };
   }
 
-  async transcribe(audioBlob: Blob, language: string = 'es'): Promise<{
+  async transcribe(
+    audioBlob: Blob,
+    language: string = 'es'
+  ): Promise<{
     text: string;
     segments?: Array<{
       start: number;
@@ -78,9 +81,11 @@ export class BackendWhisperClient {
     try {
       const response = await fetch(`${this.config.apiUrl}/health`, {
         method: 'GET',
-        headers: this.config.apiKey ? {
-          'Authorization': `Bearer ${this.config.apiKey}`
-        } : {},
+        headers: this.config.apiKey
+          ? {
+              Authorization: `Bearer ${this.config.apiKey}`,
+            }
+          : {},
       });
       return response.ok;
     } catch {

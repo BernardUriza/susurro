@@ -2,14 +2,10 @@ import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useNeural } from '../../../../contexts/NeuralContext';
 import { ErrorBoundary } from '../../../../components/ErrorBoundary';
 import type { StreamingSusurroChunk } from '@susurro/core';
+import { AUDIO_CONFIG } from '@susurro/core';
 
 // Import panels
-import {
-  TranscriptionPanel,
-  ControlPanel,
-  VisualizationPanel,
-  SettingsPanel,
-} from './panels';
+import { TranscriptionPanel, ControlPanel, VisualizationPanel, SettingsPanel } from './panels';
 
 // Import Simple Mode component
 import { SimpleTranscriptionMode } from './SimpleTranscriptionMode';
@@ -64,9 +60,11 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
   const [isStreamInfoVisible, setIsStreamInfoVisible] = useState(false);
   const [transcriptionFilter, setTranscriptionFilter] = useState('');
 
-  // Settings states
-  const [chunkDurationSeconds, setChunkDurationSeconds] = useState<number>(20); // Default to Murmuraba's official 20 seconds
-  const [vadThreshold, setVadThreshold] = useState<number>(0.2);
+  // Settings states - UNIFIED: All use 20 seconds minimum
+  const [chunkDurationSeconds, setChunkDurationSeconds] = useState<number>(
+    AUDIO_CONFIG.RECORDING.DEFAULT_CHUNK_DURATION_MS / 1000
+  ); // UNIFIED: 20 seconds for all chunks
+  const [vadThreshold, setVadThreshold] = useState<number>(AUDIO_CONFIG.RECORDING.VAD_CUT_THRESHOLD); // 0.0 - VAD=0 only
   const [noiseReduction, setNoiseReduction] = useState<boolean>(true);
 
   // Timer effect for recording duration
@@ -142,25 +140,28 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
         // Add placeholder message while transcribing
         const placeholderMessage = `[${timestamp}] Chunk ${chunkIdShort} - VAD: ${chunk.vadScore.toFixed(2)} - ${chunk.isVoiceActive ? '🔊' : '🔇'}\n⏳ Processing transcription...\n---`;
         setTranscriptions((prev) => [...prev, placeholderMessage]);
-        
+
         // Non-blocking transcription using setTimeout to free main thread
         if (chunk.audioBlob && chunk.audioBlob.size > 0) {
           // Track active transcriptions
           transcribingCountRef.current++;
           setIsTranscribing(true);
-          
+
           setTimeout(async () => {
             // This runs after the current call stack clears, preventing UI freeze
             try {
               // Process the audio chunk for transcription
-              const transcriptionResult = await processAndTranscribeFile(new File([chunk.audioBlob], 'chunk.wav', { type: 'audio/wav' }));
+              const transcriptionResult = await processAndTranscribeFile(
+                new File([chunk.audioBlob], 'chunk.wav', { type: 'audio/wav' })
+              );
               if (transcriptionResult?.transcriptionText) {
                 const finalMessage = `[${timestamp}] Chunk ${chunkIdShort} - VAD: ${chunk.vadScore.toFixed(2)} - 🔊\n📝 Transcription: "${transcriptionResult.transcriptionText}"\n---`;
-                
+
                 // Replace the placeholder with the actual transcription
-                setTranscriptions((prev) => 
-                  prev.map((msg) => 
-                    msg.includes(`Chunk ${chunkIdShort}`) && msg.includes('⏳ Processing transcription')
+                setTranscriptions((prev) =>
+                  prev.map((msg) =>
+                    msg.includes(`Chunk ${chunkIdShort}`) &&
+                    msg.includes('⏳ Processing transcription')
                       ? finalMessage
                       : msg
                   )
@@ -223,7 +224,10 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
       );
     } catch (error) {
       setIsRecording(false);
-      onLog?.(`❌ Stop recording failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
+      onLog?.(
+        `❌ Stop recording failed: ${error instanceof Error ? error.message : String(error)}`,
+        'error'
+      );
     }
   }, [stopStreamingRecording, recordingDuration, onLog]);
 
@@ -236,25 +240,34 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
       setChunksProcessed(0);
       onLog?.('✅ Audio engine reset successfully', 'success');
     } catch (error) {
-      onLog?.(`❌ Reset failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
+      onLog?.(
+        `❌ Reset failed: ${error instanceof Error ? error.message : String(error)}`,
+        'error'
+      );
     }
   }, [resetAudioEngine, onLog]);
 
   // Handle file upload
-  const handleFileUpload = useCallback(async (file: File) => {
-    onLog?.(`📁 Processing file: ${file.name}`, 'info');
-    try {
-      const result = await processAndTranscribeFile(file);
-      
-      // Add file transcription to the list
-      const fileTranscription = `\n========== FILE TRANSCRIPTION ==========\n📄 File: ${file.name}\n⏱️ Duration: ${result.metadata.duration.toFixed(2)}s\n📝 Text: "${result.transcriptionText}"\n========================================\n`;
-      setTranscriptions((prev) => [...prev, fileTranscription]);
-      
-      onLog?.(`✅ File processed successfully`, 'success');
-    } catch (error) {
-      onLog?.(`❌ File processing failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
-    }
-  }, [processAndTranscribeFile, onLog]);
+  const handleFileUpload = useCallback(
+    async (file: File) => {
+      onLog?.(`📁 Processing file: ${file.name}`, 'info');
+      try {
+        const result = await processAndTranscribeFile(file);
+
+        // Add file transcription to the list
+        const fileTranscription = `\n========== FILE TRANSCRIPTION ==========\n📄 File: ${file.name}\n⏱️ Duration: ${result.metadata.duration.toFixed(2)}s\n📝 Text: "${result.transcriptionText}"\n========================================\n`;
+        setTranscriptions((prev) => [...prev, fileTranscription]);
+
+        onLog?.(`✅ File processed successfully`, 'success');
+      } catch (error) {
+        onLog?.(
+          `❌ File processing failed: ${error instanceof Error ? error.message : String(error)}`,
+          'error'
+        );
+      }
+    },
+    [processAndTranscribeFile, onLog]
+  );
 
   // Handle export transcriptions
   const handleExportTranscriptions = useCallback(() => {
@@ -291,75 +304,75 @@ export const AudioFragmentProcessor: React.FC<AudioFragmentProcessorProps> = ({
 
         {/* SIMPLE MODE VIEW */}
         {isSimpleMode ? (
-          <SimpleTranscriptionMode onLog={onLog} />
+          <SimpleTranscriptionMode useWorkerForAudio={true} onLog={onLog} />
         ) : (
           /* ADVANCED MODE VIEW (current UI) */
           <div className={styles.dashboardGrid}>
-          {/* Transcription Panel - Main Focus */}
-          <TranscriptionPanel
-            transcriptions={transcriptions}
-            isRecording={isRecording}
-            filter={transcriptionFilter}
-            onFilterChange={setTranscriptionFilter}
-            onExport={handleExportTranscriptions}
-          />
+            {/* Transcription Panel - Main Focus */}
+            <TranscriptionPanel
+              transcriptions={transcriptions}
+              isRecording={isRecording}
+              filter={transcriptionFilter}
+              onFilterChange={setTranscriptionFilter}
+              onExport={handleExportTranscriptions}
+            />
 
-          {/* Control Panel - Compact Status & Controls */}
-          <ControlPanel
-            isRecording={isRecording}
-            recordingDuration={recordingDuration}
-            chunksProcessed={chunksProcessed}
-            engineStatus={{
-              isInitialized: isEngineInitialized,
-              isInitializing: isInitializingEngine,
-              error: engineError,
-            }}
-            whisperStatus={{
-              ready: whisperReady,
-              progress: whisperProgress,
-            }}
-            onStart={handleStartRecording}
-            onStop={handleStopRecording}
-            onReset={handleResetEngine}
-            isTranscribing={isTranscribing}
-          />
+            {/* Control Panel - Compact Status & Controls */}
+            <ControlPanel
+              isRecording={isRecording}
+              recordingDuration={recordingDuration}
+              chunksProcessed={chunksProcessed}
+              engineStatus={{
+                isInitialized: isEngineInitialized,
+                isInitializing: isInitializingEngine,
+                error: engineError,
+              }}
+              whisperStatus={{
+                ready: whisperReady,
+                progress: whisperProgress,
+              }}
+              onStart={handleStartRecording}
+              onStop={handleStopRecording}
+              onReset={handleResetEngine}
+              isTranscribing={isTranscribing}
+            />
 
-          {/* Visualization Panel - Waveform & Stream Info */}
-          <VisualizationPanel
-            currentStream={currentStream}
-            isRecording={isRecording}
-            engineReady={isEngineInitialized}
-            showStreamInfo={isStreamInfoVisible}
-            onToggleStreamInfo={setIsStreamInfoVisible}
-          />
+            {/* Visualization Panel - Waveform & Stream Info */}
+            <VisualizationPanel
+              currentStream={currentStream}
+              isRecording={isRecording}
+              engineReady={isEngineInitialized}
+              showStreamInfo={isStreamInfoVisible}
+              onToggleStreamInfo={setIsStreamInfoVisible}
+            />
 
-          {/* Settings Panel - Collapsible Configuration */}
-          <SettingsPanel
-            isCollapsed={isSettingsCollapsed}
-            onToggle={setIsSettingsCollapsed}
-            chunkDuration={chunkDurationSeconds}
-            onChunkDurationChange={setChunkDurationSeconds}
-            isRecording={isRecording}
-            vadThreshold={vadThreshold}
-            onVadThresholdChange={setVadThreshold}
-            noiseReduction={noiseReduction}
-            onNoiseReductionChange={setNoiseReduction}
-          />
+            {/* Settings Panel - Collapsible Configuration */}
+            <SettingsPanel
+              isCollapsed={isSettingsCollapsed}
+              onToggle={setIsSettingsCollapsed}
+              chunkDuration={chunkDurationSeconds}
+              onChunkDurationChange={setChunkDurationSeconds}
+              isRecording={isRecording}
+              vadThreshold={vadThreshold}
+              onVadThresholdChange={setVadThreshold}
+              noiseReduction={noiseReduction}
+              onNoiseReductionChange={setNoiseReduction}
+            />
 
-          {/* File Upload Area (Hidden but functional) */}
-          <input
-            type="file"
-            accept="audio/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                handleFileUpload(file);
-              }
-            }}
-            style={{ display: 'none' }}
-            id="fileUpload"
-          />
-        </div>
+            {/* File Upload Area (Hidden but functional) */}
+            <input
+              type="file"
+              accept="audio/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  handleFileUpload(file);
+                }
+              }}
+              style={{ display: 'none' }}
+              id="fileUpload"
+            />
+          </div>
         )}
       </div>
     </ErrorBoundary>

@@ -39,5 +39,5 @@
     "es2024": true,
     "node": true
   },
-  "ignorePatterns": ["dist", "build", "node_modules", "*.js", "config/", "vitest.config.ts", "vite.config.ts"]
+  "ignorePatterns": ["dist", "build", "node_modules", "*.js", "config/", "vitest.config.ts", "vite.config.ts", "netlify/"]
 }

@@ -5,20 +5,26 @@ export { useSusurro } from './hooks/use-susurro';
 export { useWebSpeech } from './hooks/use-web-speech';
 export { useDualTranscription } from './hooks/use-dual-transcription';
 export { useTranscriptionWorker } from './hooks/use-transcription-worker';
+export { useAudioWorker } from './hooks/use-audio-worker';
 export type { WebSpeechConfig, WebSpeechResult, UseWebSpeechReturn } from './hooks/use-web-speech';
 export type {
   DualTranscriptionResult,
   ClaudeRefinementConfig,
   UseDualTranscriptionOptions,
   UseDualTranscriptionReturn,
-  DualTranscriptionInstance
+  DualTranscriptionInstance,
 } from './hooks/use-dual-transcription';
 export type {
   TranscriptionWorkerConfig,
   TranscriptionChunk,
   TranscriptionWorkerState,
-  UseTranscriptionWorkerReturn
+  UseTranscriptionWorkerReturn,
 } from './hooks/use-transcription-worker';
+export type {
+  AudioWorkerConfig,
+  ProcessedAudioChunk,
+  UseAudioWorkerReturn,
+} from './hooks/use-audio-worker';
 
 // Audio engine management is now handled internally by useMurmubaraEngine
 // No need for separate engine management hooks

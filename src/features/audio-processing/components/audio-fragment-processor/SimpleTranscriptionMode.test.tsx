@@ -52,9 +52,7 @@ describe('SimpleTranscriptionMode', () => {
   it('should render with initial placeholder', () => {
     renderWithProviders(<SimpleTranscriptionMode />);
 
-    expect(
-      screen.getByPlaceholderText('Press SPACE to start recording')
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Press SPACE to start recording')).toBeInTheDocument();
   });
 
   it('should display record button', () => {
@@ -141,10 +139,7 @@ describe('SimpleTranscriptionMode', () => {
     fireEvent.click(recordButton);
 
     await waitFor(() => {
-      expect(onLog).toHaveBeenCalledWith(
-        expect.stringContaining('Recording started'),
-        'success'
-      );
+      expect(onLog).toHaveBeenCalledWith(expect.stringContaining('Recording started'), 'success');
     });
   });
 

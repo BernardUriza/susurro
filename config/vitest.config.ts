@@ -15,6 +15,11 @@ export default defineConfig({
       'test/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/**/tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'
     ],
+    exclude: [
+      'test/e2e/**', // E2E tests obsolete - app now uses Deepgram backend only
+      'node_modules/**',
+      'dist/**'
+    ],
   },
   resolve: {
     alias: {

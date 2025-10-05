@@ -5,17 +5,37 @@
 
 import React, { useCallback, useState, useEffect } from 'react';
 import type { StreamingSusurroChunk } from '@susurro/core';
-import { useDualTranscription, useTranscriptionWorker } from '@susurro/core';
+import {
+  useDualTranscription,
+  useTranscriptionWorker,
+  useAudioWorker,
+  AUDIO_CONFIG,
+} from '@susurro/core';
 import { SimpleWaveformAnalyzer } from 'murmuraba';
 import { useNeural } from '../../../../contexts/NeuralContext';
 import styles from './audio-fragment-processor.module.css';
 
 interface SimpleTranscriptionModeProps {
   onLog?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
+  useWorkerForAudio?: boolean; // EXPERIMENTAL: Move RNNoise to worker to prevent UI blocking
 }
 
-export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = ({ onLog }) => {
+export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = ({
+  onLog,
+  useWorkerForAudio = false, // Disabled by default - enable with useWorkerForAudio={true}
+}) => {
   const neural = useNeural();
+
+  // Separate stream for waveform visualization (raw microphone audio)
+  const [visualizerStream, setVisualizerStream] = useState<MediaStream | null>(null);
+
+  // EXPERIMENTAL: Audio worker for non-blocking RNNoise processing
+  const audioWorker = useAudioWorker({
+    sampleRate: 48000,
+    channelCount: 1,
+    denoiseStrength: 0.3,
+    vadThreshold: 0.2,
+  });
 
   // Web Worker for non-blocking chunk processing
   const worker = useTranscriptionWorker({
@@ -47,7 +67,10 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
   } | null>(null);
   const deepgramChunksRef = React.useRef<string[]>([]);
 
-  // Setup worker event handlers
+  // NEW: Preserve final transcription when stopping
+  const [finalTranscription, setFinalTranscription] = useState('');
+
+  // Setup transcription worker event handlers
   useEffect(() => {
     if (!worker.isReady) return;
 
@@ -62,9 +85,30 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
     };
 
     worker.onError = (error) => {
-      onLog?.(`Worker error: ${error}`, 'error');
+      onLog?.(`Transcription worker error: ${error}`, 'error');
     };
   }, [worker.isReady, onLog]);
+
+  // Setup audio worker event handlers (if enabled)
+  useEffect(() => {
+    if (!useWorkerForAudio || !audioWorker.isReady) return;
+
+    audioWorker.onAudioProcessed = (chunk) => {
+      // Audio processed in worker - no UI blocking!
+      // This is where we'd handle processed audio chunks
+      console.log('[AudioWorker] Processed chunk:', {
+        vadScore: chunk.vadScore,
+        isVoiceActive: chunk.isVoiceActive,
+        rms: chunk.rms,
+      });
+    };
+
+    audioWorker.onError = (error) => {
+      onLog?.(`Audio worker error: ${error}`, 'error');
+    };
+
+    onLog?.('⚡ Audio worker ready - RNNoise will not block UI', 'success');
+  }, [useWorkerForAudio, audioWorker.isReady, onLog]);
 
   // Start recording with dual transcription
   const startRecording = useCallback(async () => {
@@ -77,15 +121,30 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
 
     setIsRecording(true);
     deepgramChunksRef.current = [];
+    setFinalTranscription(''); // Clear previous session
     dual.resetTranscription();
     dual.startTranscription();
+
+    // Create separate stream for waveform visualizer (raw microphone audio)
+    try {
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false, // Raw audio for visualization
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
+      setVisualizerStream(micStream);
+      console.log('🎨 [Visualizer] Created raw microphone stream for waveform');
+    } catch (err) {
+      console.warn('⚠️ [Visualizer] Failed to create visualizer stream:', err);
+    }
 
     // Clear initializing state after a short delay (Web Speech should have started by then)
     setTimeout(() => setIsInitializing(false), 500);
 
     await neural.startStreamingRecording(
       async (chunk: StreamingSusurroChunk) => {
-
         // Send ALL chunks to Deepgram, not just voice-active ones
         if (chunk.transcriptionText?.trim()) {
           deepgramChunksRef.current.push(chunk.transcriptionText);
@@ -109,25 +168,56 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
         }
       },
       {
-        chunkDuration: 3, // Aumentar a 3 segundos para chunks más grandes
-        vadThreshold: 0.1, // Reducir threshold para capturar más audio
+        // UNIFIED: 20 seconds minimum, cut at first VAD=0 after 20 sec
+        chunkDuration: AUDIO_CONFIG.RECORDING.DEFAULT_CHUNK_DURATION_MS / 1000, // 20 segundos
+        vadThreshold: AUDIO_CONFIG.RECORDING.VAD_CUT_THRESHOLD, // 0.0 - solo silencio total
         enableRealTimeTranscription: true,
-        enableNoiseReduction: false, // DESHABILITAR noise reduction temporalmente
+        enableNoiseReduction: true,
       }
     );
 
+    // Debug: Check stream state after recording starts
+    setTimeout(() => {
+      const streamDebug = {
+        exists: !!neural.currentStream,
+        id: neural.currentStream?.id,
+        totalTracks: neural.currentStream?.getTracks().length || 0,
+        audioTracks: neural.currentStream?.getAudioTracks().length || 0,
+        videoTracks: neural.currentStream?.getVideoTracks().length || 0,
+        active: neural.currentStream?.active,
+        audioTrackEnabled: neural.currentStream?.getAudioTracks()[0]?.enabled,
+        audioTrackMuted: neural.currentStream?.getAudioTracks()[0]?.muted,
+        audioTrackReadyState: neural.currentStream?.getAudioTracks()[0]?.readyState,
+      };
+      console.log('🔍 [STREAM DEBUG]', streamDebug);
+    }, 100);
+
     onLog?.('🎤 Recording started', 'success');
-  }, [neural, dual, onLog]);
+  }, [neural, dual, onLog, worker]);
 
   // Stop recording
   const stopRecording = useCallback(async () => {
+    // PRESERVE TRANSCRIPTION BEFORE STOPPING
+    const currentText = refinedTextFromWorker || dual.deepgramText || dual.webSpeechText || '';
+    if (currentText) {
+      setFinalTranscription(currentText);
+      onLog?.(`💾 Preserved transcription: ${currentText.substring(0, 50)}...`, 'success');
+    }
+
+    // Stop and cleanup visualizer stream
+    if (visualizerStream) {
+      visualizerStream.getTracks().forEach((track) => track.stop());
+      setVisualizerStream(null);
+      console.log('🧹 [Visualizer] Cleaned up raw microphone stream');
+    }
+
     setIsRecording(false);
     setIsInitializing(false); // Clear any lingering initialization state
     await neural.stopStreamingRecording();
     await dual.stopTranscription();
-    deepgramChunksRef.current = [];
+    // Don't clear deepgramChunksRef immediately - let UI update first
     onLog?.('✅ Recording stopped', 'success');
-  }, [neural, dual, onLog]);
+  }, [neural, dual, onLog, refinedTextFromWorker, visualizerStream]);
 
   // Toggle recording
   const toggleRecording = useCallback(() => {
@@ -139,13 +229,16 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
   }, [isRecording, startRecording, stopRecording]);
 
   // Copy to clipboard
-  const copyToClipboard = useCallback((text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      onLog?.('📋 Copied to clipboard', 'success');
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }, [onLog]);
+  const copyToClipboard = useCallback(
+    (text: string) => {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true);
+        onLog?.('📋 Copied to clipboard', 'success');
+        setTimeout(() => setCopied(false), 2000);
+      });
+    },
+    [onLog]
+  );
 
   // Keyboard shortcuts
   React.useEffect(() => {
@@ -190,17 +283,22 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
     }
   }, [dual.refinedText]);
 
+  // REAL-TIME TEXT FLOW:
+  // 1. Web Speech appears instantly (yellow/gold color)
+  // 2. Deepgram refines it after processing (blue color)
+  // 3. Claude polishes both (green color)
+  // 4. After STOP: show final preserved text
 
-  // Current text display - REFINED text from worker (confirmed)
-  const confirmedText = refinedTextFromWorker || '';
+  const liveText = isRecording ? dual.webSpeechText || '' : ''; // Real-time Web Speech
+  const confirmedText = isRecording ? refinedTextFromWorker || '' : finalTranscription; // Claude refined
+  const deepgramPending = isRecording ? dual.deepgramText || '' : ''; // Deepgram processing
 
-  // Pending text - what's being processed (shown in gray)
-  const pendingText = isRecording
-    ? (dual.deepgramText || dual.webSpeechText || '')
-    : '';
-
-  // Show pending only if different from confirmed
-  const showPending = pendingText && pendingText !== confirmedText && !confirmedText.includes(pendingText);
+  // Show refinement status (reserved for future use)
+  // const showDeepgramDiff =
+  //   deepgramPending &&
+  //   liveText &&
+  //   deepgramPending !== liveText &&
+  //   !deepgramPending.includes(liveText);
 
   // Show processing indicator when worker is refining
   const isRefining = worker.isProcessing;
@@ -209,73 +307,75 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
   const placeholderText = isInitializing
     ? 'Iniciando reconocimiento...'
     : isRecording
-    ? 'Escuchando... habla ahora'
-    : 'Presiona SPACE para grabar';
+      ? 'Escuchando... habla ahora'
+      : 'Presiona SPACE para grabar';
 
   return (
     <div className={styles.simpleMode}>
-      {/* Waveform header - compact minimal design */}
+      {/* Waveform header - ultra-compact minimal design */}
       {isRecording && (
-        <div style={{
-          padding: '2px 15px',
-          background: 'rgba(0, 0, 0, 0.3)',
-          borderBottom: '1px solid rgba(0, 255, 65, 0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-        }}>
-          <span style={{ fontSize: '0.65rem', opacity: 0.6 }}>🎙️</span>
-          {neural.currentStream ? (
-            <div style={{ flex: 1, height: '22px' }}>
-              <SimpleWaveformAnalyzer
-                stream={neural.currentStream}
-                isActive={isRecording}
-              />
+        <div
+          style={{
+            padding: '1px 8px',
+            background: 'rgba(0, 0, 0, 0.2)',
+            borderBottom: '1px solid rgba(0, 255, 65, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
+          <span style={{ fontSize: '0.5rem', opacity: 0.5 }}>🎙️</span>
+          {/* Render SimpleWaveformAnalyzer with raw microphone stream */}
+          {visualizerStream ? (
+            <div style={{ height: '12px', width: '120px' }}>
+              <SimpleWaveformAnalyzer stream={visualizerStream} isActive={isRecording} />
             </div>
           ) : (
-            <div style={{
-              flex: 1,
-              height: '22px',
-              background: 'rgba(255, 200, 0, 0.2)',
-              border: '1px solid #ffc800',
-              borderRadius: '2px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.6rem',
-              color: '#ffc800',
-            }}>
-              ⏳ Waiting...
+            <div
+              style={{
+                height: '12px',
+                width: '120px',
+                background: 'rgba(0, 0, 0, 0.3)',
+                borderRadius: '2px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.45rem',
+                color: '#ffc800',
+                opacity: 0.5,
+              }}
+            >
+              ⏳ Loading...
             </div>
           )}
         </div>
       )}
 
       <div className={styles.simpleTextArea}>
-        {/* Text display with confirmed + pending preview */}
+        {/* Real-time text display */}
         <div className={styles.simpleTextbox}>
-          {confirmedText || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{placeholderText}</span>}
-
-          {/* Pending text preview in gray */}
-          {showPending && (
-            <span style={{
-              color: '#888',
-              opacity: 0.6,
-              fontStyle: 'italic',
-              marginLeft: confirmedText ? '0.5ch' : '0'
-            }}>
-              {pendingText}
-            </span>
+          {/* Priority: Claude refined > Web Speech live > Saved final text > Placeholder */}
+          {confirmedText ? (
+            // Show Claude refined text (green) when available
+            <span style={{ color: '#00ff41' }}>{confirmedText}</span>
+          ) : liveText ? (
+            // Show Web Speech live text (yellow/gold) during recording
+            <span style={{ color: '#ffc800' }}>{liveText}</span>
+          ) : (
+            // Placeholder when not recording and no saved text
+            <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{placeholderText}</span>
           )}
 
-          {/* Processing indicator */}
-          {isRecording && !pendingText && confirmedText && (
-            <span style={{
-              color: '#00ff41',
-              opacity: 0.5,
-              animation: 'pulse 1.5s infinite',
-              marginLeft: '0.5ch'
-            }}>
+          {/* Recording indicator */}
+          {isRecording && (liveText || confirmedText) && (
+            <span
+              style={{
+                color: '#00ff41',
+                opacity: 0.5,
+                animation: 'pulse 1.5s infinite',
+                marginLeft: '0.5ch',
+              }}
+            >
               ●
             </span>
           )}
@@ -283,50 +383,67 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
 
         {/* Live indicators - HIDDEN ON MOBILE, only show recording status */}
         {(isRecording || isInitializing) && (
-          <div className={styles.liveIndicators} style={{
-            display: window.innerWidth <= 768 ? 'none' : 'flex'
-          }}>
+          <div
+            className={styles.liveIndicators}
+            style={{
+              display: window.innerWidth <= 768 ? 'none' : 'flex',
+            }}
+          >
             {/* Initialization indicator */}
             {isInitializing && !dual.webSpeechText && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '8px 12px',
-                background: 'rgba(255, 200, 0, 0.2)',
-                border: '1px solid #ffc800',
-                borderRadius: '4px',
-              }}>
-                <span style={{ fontSize: '0.8rem', color: '#ffc800' }}>⏳ Initializing Web Speech...</span>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '8px 12px',
+                  background: 'rgba(255, 200, 0, 0.2)',
+                  border: '1px solid #ffc800',
+                  borderRadius: '4px',
+                }}
+              >
+                <span style={{ fontSize: '0.8rem', color: '#ffc800' }}>
+                  ⏳ Initializing Web Speech...
+                </span>
               </div>
             )}
 
             {/* System status */}
             <div style={{ display: 'flex', gap: '10px', fontSize: '0.75rem' }}>
-              <span style={{
-                padding: '4px 8px',
-                background: dual.webSpeechText ? 'rgba(255, 200, 0, 0.2)' : 'rgba(100, 100, 100, 0.2)',
-                border: `1px solid ${dual.webSpeechText ? '#ffc800' : '#666'}`,
-                color: dual.webSpeechText ? '#ffc800' : '#666',
-              }}>
+              <span
+                style={{
+                  padding: '4px 8px',
+                  background: dual.webSpeechText
+                    ? 'rgba(255, 200, 0, 0.2)'
+                    : 'rgba(100, 100, 100, 0.2)',
+                  border: `1px solid ${dual.webSpeechText ? '#ffc800' : '#666'}`,
+                  color: dual.webSpeechText ? '#ffc800' : '#666',
+                }}
+              >
                 🎤 Web Speech {dual.webSpeechText ? '✓' : isInitializing ? '⏳' : '○'}
               </span>
-              <span style={{
-                padding: '4px 8px',
-                background: dual.deepgramText ? 'rgba(0, 150, 255, 0.2)' : 'rgba(100, 100, 100, 0.2)',
-                border: `1px solid ${dual.deepgramText ? '#0096ff' : '#666'}`,
-                color: dual.deepgramText ? '#0096ff' : '#666',
-              }}>
+              <span
+                style={{
+                  padding: '4px 8px',
+                  background: dual.deepgramText
+                    ? 'rgba(0, 150, 255, 0.2)'
+                    : 'rgba(100, 100, 100, 0.2)',
+                  border: `1px solid ${dual.deepgramText ? '#0096ff' : '#666'}`,
+                  color: dual.deepgramText ? '#0096ff' : '#666',
+                }}
+              >
                 🌐 Deepgram {dual.deepgramText ? '✓' : '○'}
               </span>
               {dual.isRefining && (
-                <span style={{
-                  padding: '4px 8px',
-                  background: 'rgba(0, 255, 65, 0.2)',
-                  border: '1px solid #00ff41',
-                  color: '#00ff41',
-                  animation: 'pulse 2s infinite',
-                }}>
+                <span
+                  style={{
+                    padding: '4px 8px',
+                    background: 'rgba(0, 255, 65, 0.2)',
+                    border: '1px solid #00ff41',
+                    color: '#00ff41',
+                    animation: 'pulse 2s infinite',
+                  }}
+                >
                   🧠 Claude ⚙️
                 </span>
               )}
@@ -336,21 +453,25 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
 
         {/* Last update indicator */}
         {lastUpdate && isRecording && (
-          <div style={{
-            position: 'absolute',
-            bottom: '15px',
-            left: '15px',
-            padding: '8px 12px',
-            background: 'rgba(0, 0, 0, 0.9)',
-            border: '1px solid rgba(0, 255, 65, 0.3)',
-            fontSize: '0.7rem',
-            opacity: 0.8,
-          }}>
-            Last update: {
-              lastUpdate.source === 'web-speech' ? '🎤 Web Speech' :
-              lastUpdate.source === 'deepgram' ? '🌐 Deepgram' :
-              '🧠 Claude'
-            } • {new Date(lastUpdate.timestamp).toLocaleTimeString()}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '15px',
+              left: '15px',
+              padding: '8px 12px',
+              background: 'rgba(0, 0, 0, 0.9)',
+              border: '1px solid rgba(0, 255, 65, 0.3)',
+              fontSize: '0.7rem',
+              opacity: 0.8,
+            }}
+          >
+            Last update:{' '}
+            {lastUpdate.source === 'web-speech'
+              ? '🎤 Web Speech'
+              : lastUpdate.source === 'deepgram'
+                ? '🌐 Deepgram'
+                : '🧠 Claude'}{' '}
+            • {new Date(lastUpdate.timestamp).toLocaleTimeString()}
           </div>
         )}
       </div>
@@ -366,9 +487,9 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
           ) : isRecording ? (
             <>
               ⏹ PARAR
-              {(showPending || isRefining) && (
+              {(deepgramPending || isRefining) && (
                 <span style={{ fontSize: '0.75rem', marginLeft: '6px', opacity: 0.8 }}>
-                  ● {isRefining ? 'Claude...' : 'Procesando...'}
+                  ● {isRefining ? 'Claude...' : 'Deepgram...'}
                 </span>
               )}
             </>
@@ -392,9 +513,7 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
         <span>⚡ Simple mode - instant transcription with dual verification</span>
       </div>
 
-      {dual.error && (
-        <div className={styles.simpleError}>⚠️ {dual.error}</div>
-      )}
+      {dual.error && <div className={styles.simpleError}>⚠️ {dual.error}</div>}
     </div>
   );
 };

@@ -18,12 +18,45 @@ export const AUDIO_CONFIG = {
     POST_SPEECH_PAD_FRAMES: 1,
   },
 
-  // Recording Configuration
+  // Recording Configuration - UNIFIED ARCHITECTURE
+  // All chunks are MINIMUM 20 seconds, cut only at first VAD=0 after 20 sec
   RECORDING: {
-    DEFAULT_CHUNK_DURATION_MS: 8000,
-    STREAMING_CHUNK_DURATION_MS: 3000,
-    MIN_CHUNK_DURATION_MS: 1000,
-    MAX_CHUNK_DURATION_MS: 30000,
+    // UNIFIED: Single chunk duration for entire app
+    DEFAULT_CHUNK_DURATION_MS: 20000, // 20 seconds MINIMUM
+    MIN_CHUNK_DURATION_MS: 20000, // Hard minimum - no shorter chunks
+    MAX_CHUNK_DURATION_MS: 60000, // Maximum if no VAD=0 found (1 minute)
+
+    // VAD-based smart cutting
+    VAD_CUT_THRESHOLD: 0.0, // Only cut when VAD=0 (complete silence)
+    VAD_EVAL_START_MS: 20000, // Start looking for VAD=0 after 20 seconds
+  },
+
+  // Legacy presets removed - using single unified chunk duration
+  // All components use RECORDING.DEFAULT_CHUNK_DURATION_MS (20 seconds)
+
+  // Engine Configuration Presets
+  ENGINE_PRESETS: {
+    // Low latency, real-time
+    LOW_LATENCY: {
+      bufferSize: 1024 as 256 | 512 | 1024 | 2048 | 4096,
+      denoiseStrength: 0.3,
+      noiseReductionLevel: 'low' as const,
+      algorithm: 'rnnoise' as const,
+    },
+    // Balanced quality and performance
+    BALANCED: {
+      bufferSize: 2048 as 256 | 512 | 1024 | 2048 | 4096,
+      denoiseStrength: 0.5,
+      noiseReductionLevel: 'medium' as const,
+      algorithm: 'rnnoise' as const,
+    },
+    // Maximum quality
+    HIGH_QUALITY: {
+      bufferSize: 4096 as 256 | 512 | 1024 | 2048 | 4096,
+      denoiseStrength: 0.7,
+      noiseReductionLevel: 'high' as const,
+      algorithm: 'rnnoise' as const,
+    },
   },
 
   // Timeouts

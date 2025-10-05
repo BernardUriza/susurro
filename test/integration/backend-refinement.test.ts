@@ -62,22 +62,19 @@ async function isBackendAvailable(): Promise<boolean> {
 }
 
 describe('Backend Integration Tests', () => {
+  let backendAvailable = false;
+
   beforeAll(async () => {
-    const available = await isBackendAvailable();
-    if (!available) {
+    backendAvailable = await isBackendAvailable();
+    if (!backendAvailable) {
       console.warn(`⚠️  Backend not available at ${BACKEND_URL}`);
       console.warn('   Start backend with: cd backend-deepgram && python server.py');
+      console.warn('   These tests will be skipped.');
     }
   });
 
   describe('Health Check', () => {
-    it('should return healthy status', async () => {
-      const available = await isBackendAvailable();
-      if (!available) {
-        console.log('Skipping: Backend not available');
-        return;
-      }
-
+    it.skipIf(() => !backendAvailable)('should return healthy status', async () => {
       const response = await fetch(`${BACKEND_URL}/health`);
       expect(response.ok).toBe(true);
 
@@ -88,13 +85,7 @@ describe('Backend Integration Tests', () => {
   });
 
   describe('Deepgram Transcription', () => {
-    it('should transcribe WAV audio chunk', async () => {
-      const available = await isBackendAvailable();
-      if (!available) {
-        console.log('Skipping: Backend not available');
-        return;
-      }
-
+    it.skipIf(() => !backendAvailable)('should transcribe WAV audio chunk', async () => {
       const wavData = createTestWavFile();
       const blob = new Blob([wavData], { type: 'audio/wav' });
 
@@ -115,13 +106,7 @@ describe('Backend Integration Tests', () => {
       expect(data.model).toBe('deepgram-nova-2');
     });
 
-    it('should handle invalid audio gracefully', async () => {
-      const available = await isBackendAvailable();
-      if (!available) {
-        console.log('Skipping: Backend not available');
-        return;
-      }
-
+    it.skipIf(() => !backendAvailable)('should handle invalid audio gracefully', async () => {
       const invalidData = new Blob([new Uint8Array([1, 2, 3, 4])], {
         type: 'audio/wav',
       });
@@ -140,13 +125,7 @@ describe('Backend Integration Tests', () => {
   });
 
   describe('Claude AI Refinement', () => {
-    it('should refine dual transcriptions', async () => {
-      const available = await isBackendAvailable();
-      if (!available) {
-        console.log('Skipping: Backend not available');
-        return;
-      }
-
+    it.skipIf(() => !backendAvailable)('should refine dual transcriptions', async () => {
       const requestBody = {
         web_speech_text: 'hola esto es una prueba',
         deepgram_text: 'Hola, esto es una prueba.',
@@ -170,13 +149,7 @@ describe('Backend Integration Tests', () => {
       expect(data.refined_text.length).toBeGreaterThan(0);
     });
 
-    it('should fallback gracefully when Claude fails', async () => {
-      const available = await isBackendAvailable();
-      if (!available) {
-        console.log('Skipping: Backend not available');
-        return;
-      }
-
+    it.skipIf(() => !backendAvailable)('should fallback gracefully when Claude fails', async () => {
       const requestBody = {
         web_speech_text: '',
         deepgram_text: 'Fallback text',
@@ -202,13 +175,7 @@ describe('Backend Integration Tests', () => {
       }
     });
 
-    it('should validate required fields', async () => {
-      const available = await isBackendAvailable();
-      if (!available) {
-        console.log('Skipping: Backend not available');
-        return;
-      }
-
+    it.skipIf(() => !backendAvailable)('should validate required fields', async () => {
       // Missing required fields
       const response = await fetch(`${BACKEND_URL}/refine`, {
         method: 'POST',
@@ -224,13 +191,7 @@ describe('Backend Integration Tests', () => {
       expect(response.status).toBe(422); // Unprocessable Entity
     });
 
-    it('should handle different languages', async () => {
-      const available = await isBackendAvailable();
-      if (!available) {
-        console.log('Skipping: Backend not available');
-        return;
-      }
-
+    it.skipIf(() => !backendAvailable)('should handle different languages', async () => {
       const languages = ['es', 'en', 'fr'];
 
       for (const lang of languages) {
@@ -257,58 +218,49 @@ describe('Backend Integration Tests', () => {
   });
 
   describe('Complete Workflow', () => {
-    it('should handle full transcription + refinement flow', async () => {
-      const available = await isBackendAvailable();
-      if (!available) {
-        console.log('Skipping: Backend not available');
-        return;
+    it.skipIf(() => !backendAvailable)(
+      'should handle full transcription + refinement flow',
+      async () => {
+        // Step 1: Transcribe audio with Deepgram
+        const wavData = createTestWavFile();
+        const blob = new Blob([wavData], { type: 'audio/wav' });
+        const formData = new FormData();
+        formData.append('file', blob, 'test.wav');
+
+        const transcribeResponse = await fetch(`${BACKEND_URL}/transcribe-chunk`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        expect(transcribeResponse.ok).toBe(true);
+        const transcribeData = await transcribeResponse.json();
+
+        // Step 2: Refine with Claude (using mock web speech text)
+        const refineRequest = {
+          web_speech_text: 'mock web speech text',
+          deepgram_text: transcribeData.transcript || '',
+          language: 'es',
+        };
+
+        const refineResponse = await fetch(`${BACKEND_URL}/refine`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(refineRequest),
+        });
+
+        expect(refineResponse.ok).toBe(true);
+        const refineData = await refineResponse.json();
+
+        expect(refineData).toHaveProperty('refined_text');
+        expect(refineData).toHaveProperty('confidence');
       }
-
-      // Step 1: Transcribe audio with Deepgram
-      const wavData = createTestWavFile();
-      const blob = new Blob([wavData], { type: 'audio/wav' });
-      const formData = new FormData();
-      formData.append('file', blob, 'test.wav');
-
-      const transcribeResponse = await fetch(`${BACKEND_URL}/transcribe-chunk`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      expect(transcribeResponse.ok).toBe(true);
-      const transcribeData = await transcribeResponse.json();
-
-      // Step 2: Refine with Claude (using mock web speech text)
-      const refineRequest = {
-        web_speech_text: 'mock web speech text',
-        deepgram_text: transcribeData.transcript || '',
-        language: 'es',
-      };
-
-      const refineResponse = await fetch(`${BACKEND_URL}/refine`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(refineRequest),
-      });
-
-      expect(refineResponse.ok).toBe(true);
-      const refineData = await refineResponse.json();
-
-      expect(refineData).toHaveProperty('refined_text');
-      expect(refineData).toHaveProperty('confidence');
-    });
+    );
   });
 
   describe('Performance', () => {
-    it('should transcribe within reasonable time', async () => {
-      const available = await isBackendAvailable();
-      if (!available) {
-        console.log('Skipping: Backend not available');
-        return;
-      }
-
+    it.skipIf(() => !backendAvailable)('should transcribe within reasonable time', async () => {
       const wavData = createTestWavFile();
       const blob = new Blob([wavData], { type: 'audio/wav' });
       const formData = new FormData();
@@ -328,13 +280,7 @@ describe('Backend Integration Tests', () => {
       expect(duration).toBeLessThan(5000); // Should complete within 5 seconds
     });
 
-    it('should refine within reasonable time', async () => {
-      const available = await isBackendAvailable();
-      if (!available) {
-        console.log('Skipping: Backend not available');
-        return;
-      }
-
+    it.skipIf(() => !backendAvailable)('should refine within reasonable time', async () => {
       const requestBody = {
         web_speech_text: 'test',
         deepgram_text: 'Test.',

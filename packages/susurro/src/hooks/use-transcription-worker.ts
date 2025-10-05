@@ -49,7 +49,9 @@ export function useTranscriptionWorker(
 
   // Event handler refs (mutable without re-creating worker)
   const onChunkProcessedRef = useRef<((chunk: TranscriptionChunk) => void) | undefined>(undefined);
-  const onTextRefinedRef = useRef<((refinedText: string, webSpeechText: string, deepgramText: string) => void) | undefined>(undefined);
+  const onTextRefinedRef = useRef<
+    ((refinedText: string, webSpeechText: string, deepgramText: string) => void) | undefined
+  >(undefined);
   const onErrorRef = useRef<((error: string) => void) | undefined>(undefined);
 
   // Initialize worker
@@ -112,35 +114,42 @@ export function useTranscriptionWorker(
       workerRef.current = null;
       setIsReady(false);
     };
-  }, [config?.claudeConfig?.enabled, config?.claudeConfig?.apiUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Process chunk (non-blocking)
-  const processChunk = useCallback((chunk: TranscriptionChunk) => {
-    if (!workerRef.current || !isReady) {
-      console.warn('[TranscriptionWorker] Worker not ready');
-      return;
-    }
+  const processChunk = useCallback(
+    (chunk: TranscriptionChunk) => {
+      if (!workerRef.current || !isReady) {
+        console.warn('[TranscriptionWorker] Worker not ready');
+        return;
+      }
 
-    workerRef.current.postMessage({
-      type: 'process_chunk',
-      data: chunk,
-    });
-  }, [isReady]);
+      workerRef.current.postMessage({
+        type: 'process_chunk',
+        data: chunk,
+      });
+    },
+    [isReady]
+  );
 
   // Refine text with Claude (heavy operation in worker)
-  const refineText = useCallback((webSpeechText: string, deepgramText: string) => {
-    if (!workerRef.current || !isReady) {
-      console.warn('[TranscriptionWorker] Worker not ready');
-      return;
-    }
+  const refineText = useCallback(
+    (webSpeechText: string, deepgramText: string) => {
+      if (!workerRef.current || !isReady) {
+        console.warn('[TranscriptionWorker] Worker not ready');
+        return;
+      }
 
-    setIsProcessing(true);
+      setIsProcessing(true);
 
-    workerRef.current.postMessage({
-      type: 'refine_text',
-      data: { webSpeechText, deepgramText },
-    });
-  }, [isReady]);
+      workerRef.current.postMessage({
+        type: 'refine_text',
+        data: { webSpeechText, deepgramText },
+      });
+    },
+    [isReady]
+  );
 
   // Reset worker state
   const reset = useCallback(() => {
@@ -161,7 +170,9 @@ export function useTranscriptionWorker(
     refineText,
     reset,
     onChunkProcessed: undefined as ((chunk: TranscriptionChunk) => void) | undefined,
-    onTextRefined: undefined as ((refinedText: string, webSpeechText: string, deepgramText: string) => void) | undefined,
+    onTextRefined: undefined as
+      | ((refinedText: string, webSpeechText: string, deepgramText: string) => void)
+      | undefined,
     onError: undefined as ((error: string) => void) | undefined,
   };
 

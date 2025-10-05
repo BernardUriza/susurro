@@ -16,7 +16,10 @@ import type { MatrixNavigationProps as NavProps } from './types';
 // Style imports
 import styles from './matrix-navigation.module.css';
 
-export const MatrixNavigation = ({ initialView = 'processor', initialModel = 'tiny' }: NavProps) => {
+export const MatrixNavigation = ({
+  initialView = 'processor',
+  initialModel = 'tiny',
+}: NavProps) => {
   const [currentView, setCurrentView] = useState(initialView);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -75,7 +78,9 @@ export const MatrixNavigation = ({ initialView = 'processor', initialModel = 'ti
   useEffect(() => {
     // Only log at specific milestones: 0%, 25%, 50%, 75%, 100%
     const milestones = [0, 25, 50, 75, 100];
-    const currentMilestone = milestones.find(m => whisperProgress >= m && lastLoggedProgressRef.current < m);
+    const currentMilestone = milestones.find(
+      (m) => whisperProgress >= m && lastLoggedProgressRef.current < m
+    );
 
     if (currentMilestone !== undefined) {
       lastLoggedProgressRef.current = currentMilestone;

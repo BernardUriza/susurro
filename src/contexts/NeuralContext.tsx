@@ -1,10 +1,17 @@
-import React, { createContext, useContext, ReactNode, useState, useCallback, useEffect } from 'react';
-import { useSusurro } from '@susurro/core';
+import React, {
+  createContext,
+  useContext,
+  ReactNode,
+  useState,
+  useCallback,
+  useEffect,
+} from 'react';
+import { useSusurro, AUDIO_CONFIG } from '@susurro/core';
 import type { UseSusurroReturn } from '@susurro/core';
 import {
   whisperBackend,
   type BackendHealthStatus,
-  WhisperBackendError
+  WhisperBackendError,
 } from '../services/whisper-backend';
 
 interface NeuralContextType extends UseSusurroReturn {
@@ -26,19 +33,19 @@ export const NeuralProvider: React.FC<NeuralProviderProps> = ({
   onNeuralProgressLog,
 }) => {
   const susurroInstance = useSusurro({
-    chunkDurationMs: 8000,
+    chunkDurationMs: AUDIO_CONFIG.RECORDING.DEFAULT_CHUNK_DURATION_MS, // 20000ms - UNIFIED chunk size
     initialModel: 'deepgram',
     onWhisperProgressLog: onNeuralProgressLog,
     engineConfig: {
-      bufferSize: 2048, // Aumentar buffer size para mejor captura
-      denoiseStrength: 0.3, // Reducir denoise para no eliminar tanto audio
-      noiseReductionLevel: 'low', // Cambiar a low para preservar más audio
+      ...AUDIO_CONFIG.ENGINE_PRESETS.BALANCED, // Balanced quality preset
       enableMetrics: true,
     },
   });
 
   // Backend integration state (simplified - always backend)
-  const [backendStatus, setBackendStatus] = useState<'unknown' | 'available' | 'unavailable' | 'checking'>('unknown');
+  const [backendStatus, setBackendStatus] = useState<
+    'unknown' | 'available' | 'unavailable' | 'checking'
+  >('unknown');
   const [backendHealth, setBackendHealth] = useState<BackendHealthStatus | null>(null);
 
   // Check backend health
@@ -49,24 +56,15 @@ export const NeuralProvider: React.FC<NeuralProviderProps> = ({
       setBackendHealth(health);
       setBackendStatus('available');
 
-      onNeuralProgressLog?.(
-        `🌐 Backend Neural disponible (${health.model_size} model)`,
-        'success'
-      );
+      onNeuralProgressLog?.(`🌐 Backend Neural disponible (${health.model_size} model)`, 'success');
     } catch (error) {
       setBackendHealth(null);
       setBackendStatus('unavailable');
 
       if (error instanceof WhisperBackendError) {
-        onNeuralProgressLog?.(
-          `🌐 Backend no disponible: ${error.message}`,
-          'warning'
-        );
+        onNeuralProgressLog?.(`🌐 Backend no disponible: ${error.message}`, 'warning');
       } else {
-        onNeuralProgressLog?.(
-          '🌐 Backend Neural no disponible',
-          'warning'
-        );
+        onNeuralProgressLog?.('🌐 Backend Neural no disponible', 'warning');
       }
     }
   }, [onNeuralProgressLog]);
@@ -75,7 +73,6 @@ export const NeuralProvider: React.FC<NeuralProviderProps> = ({
   useEffect(() => {
     checkBackendHealth();
   }, [checkBackendHealth]);
-
 
   const contextValue: NeuralContextType = {
     // Original useSusurro functionality
@@ -87,11 +84,7 @@ export const NeuralProvider: React.FC<NeuralProviderProps> = ({
     checkBackendHealth,
   };
 
-  return (
-    <NeuralContext.Provider value={contextValue}>
-      {children}
-    </NeuralContext.Provider>
-  );
+  return <NeuralContext.Provider value={contextValue}>{children}</NeuralContext.Provider>;
 };
 
 // Custom hook to use the Neural context

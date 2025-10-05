@@ -29,13 +29,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onWhisperModelChange,
 }) => {
   return (
-    <div className={`${styles.panel} ${styles.settingsPanel} ${isCollapsed ? styles.collapsed : ''}`}>
+    <div
+      className={`${styles.panel} ${styles.settingsPanel} ${isCollapsed ? styles.collapsed : ''}`}
+    >
       <div className={styles.panelHeader}>
         <h3 className={styles.panelTitle}>⚙️ Settings</h3>
-        <button
-          onClick={() => onToggle(!isCollapsed)}
-          className={styles.toggleButton}
-        >
+        <button onClick={() => onToggle(!isCollapsed)} className={styles.toggleButton}>
           {isCollapsed ? '▶ Expand' : '▼ Collapse'}
         </button>
       </div>
@@ -61,9 +60,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 disabled={isRecording}
                 className={styles.settingInput}
               />
-              <span style={{ color: '#888', fontSize: '0.8rem' }}>
-                {chunkDuration}s
-              </span>
+              <span style={{ color: '#888', fontSize: '0.8rem' }}>{chunkDuration}s</span>
               {chunkDuration !== 20 && (
                 <button
                   onClick={() => onChunkDurationChange(20)}
@@ -121,9 +118,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 />
                 <span>🔇 Noise Reduction</span>
               </label>
-              <div className={styles.helpText}>
-                Reduces background noise in recordings
-              </div>
+              <div className={styles.helpText}>Reduces background noise in recordings</div>
             </div>
           )}
 
@@ -146,9 +141,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 <option value="medium">Medium (769M) - Good</option>
                 <option value="large">Large (1550M) - Best</option>
               </select>
-              <div className={styles.helpText}>
-                Larger models are more accurate but slower
-              </div>
+              <div className={styles.helpText}>Larger models are more accurate but slower</div>
             </div>
           )}
 
@@ -156,7 +149,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <div className={styles.settingRow}>
             <h4 style={{ margin: '10px 0', color: '#00ff41' }}>Export Options</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button 
+              <button
                 className={styles.secondaryButton}
                 onClick={() => {
                   // Export transcriptions as text
@@ -165,7 +158,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               >
                 📄 Export as TXT
               </button>
-              <button 
+              <button
                 className={styles.secondaryButton}
                 onClick={() => {
                   // Export transcriptions as JSON
@@ -174,7 +167,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               >
                 📋 Export as JSON
               </button>
-              <button 
+              <button
                 className={styles.secondaryButton}
                 onClick={() => {
                   // Export transcriptions as SRT
@@ -190,17 +183,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <div className={styles.settingRow}>
             <h4 style={{ margin: '10px 0', color: '#00ff41' }}>Debug</h4>
             <label className={styles.settingLabel}>
-              <input
-                type="checkbox"
-                style={{ marginRight: '10px' }}
-              />
+              <input type="checkbox" style={{ marginRight: '10px' }} />
               <span>Show console logs</span>
             </label>
             <label className={styles.settingLabel}>
-              <input
-                type="checkbox"
-                style={{ marginRight: '10px' }}
-              />
+              <input type="checkbox" style={{ marginRight: '10px' }} />
               <span>Show VAD scores</span>
             </label>
           </div>

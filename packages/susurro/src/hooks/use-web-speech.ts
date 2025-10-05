@@ -43,7 +43,8 @@ export function useWebSpeech(config: WebSpeechConfig = {}): UseWebSpeechReturn {
   } = config;
 
   // Check browser support
-  const isSupported = typeof window !== 'undefined' &&
+  const isSupported =
+    typeof window !== 'undefined' &&
     ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
 
   // State
@@ -65,7 +66,6 @@ export function useWebSpeech(config: WebSpeechConfig = {}): UseWebSpeechReturn {
       return;
     }
 
-    // @ts-ignore - webkitSpeechRecognition for Safari/Chrome
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognitionAPI();
 
@@ -75,18 +75,18 @@ export function useWebSpeech(config: WebSpeechConfig = {}): UseWebSpeechReturn {
     recognition.maxAlternatives = maxAlternatives;
 
     recognition.onstart = () => {
-      console.log('[WebSpeech] ✅ Started listening - INDEPENDENT microphone access');
+      console.log('🎤 [WebSpeech] STARTED - listening for speech');
       setIsListening(true);
       setError(null);
     };
 
     recognition.onend = () => {
-      console.log('[WebSpeech] Stopped listening');
+      console.log('⏹️  [WebSpeech] ENDED');
       setIsListening(false);
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error('[WebSpeech] Error:', event.error);
+      console.error('❌ [WebSpeech] ERROR:', event.error);
       setError(`Error de reconocimiento: ${event.error}`);
       setIsListening(false);
     };
@@ -112,7 +112,9 @@ export function useWebSpeech(config: WebSpeechConfig = {}): UseWebSpeechReturn {
           };
           setLastResult(webSpeechResult);
 
-          console.log('[WebSpeech] 🎯 FINAL:', transcriptText, 'Confidence:', confidence);
+          console.log(
+            `✅ [WebSpeech] FINAL: "${transcriptText}" (confidence: ${(confidence * 100).toFixed(0)}%)`
+          );
         } else {
           interimText += transcriptText;
 
@@ -125,7 +127,12 @@ export function useWebSpeech(config: WebSpeechConfig = {}): UseWebSpeechReturn {
           };
           setLastResult(webSpeechResult);
 
-          console.log('[WebSpeech] ⚡ INTERIM (real-time):', transcriptText);
+          // Only log every 5th interim to reduce noise
+          if (i % 5 === 0) {
+            console.log(
+              `⚡ [WebSpeech] INTERIM: "${transcriptText.substring(0, 50)}${transcriptText.length > 50 ? '...' : ''}"`
+            );
+          }
         }
       }
 

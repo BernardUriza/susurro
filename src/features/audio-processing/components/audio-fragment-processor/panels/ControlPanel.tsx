@@ -66,45 +66,53 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           <span className={getStatusDotClass()}></span>
           <span>{getStatusText()}</span>
           {isTranscribing && (
-            <span style={{ 
-              marginLeft: '10px',
-              color: '#ffaa00', 
-              fontSize: '0.85rem',
-              animation: 'pulse 1s infinite' 
-            }}>
+            <span
+              style={{
+                marginLeft: '10px',
+                color: '#ffaa00',
+                fontSize: '0.85rem',
+                animation: 'pulse 1s infinite',
+              }}
+            >
               🔄 Transcribing...
             </span>
           )}
         </div>
-        
+
         {/* Whisper Progress Bar */}
         {!whisperStatus.ready && whisperStatus.progress > 0 && (
-          <div style={{ 
-            marginTop: '10px',
-            background: 'rgba(0, 255, 65, 0.1)',
-            border: '1px solid rgba(0, 255, 65, 0.3)',
-            height: '20px',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: `${whisperStatus.progress}%`,
-              background: 'linear-gradient(90deg, #00ff41 0%, #00cc33 100%)',
-              transition: 'width 0.3s ease'
-            }}></div>
-            <span style={{
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-              fontSize: '0.8rem',
-              color: '#fff',
-              textShadow: '1px 1px 2px rgba(0,0,0,0.5)'
-            }}>
+          <div
+            style={{
+              marginTop: '10px',
+              background: 'rgba(0, 255, 65, 0.1)',
+              border: '1px solid rgba(0, 255, 65, 0.3)',
+              height: '20px',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: `${whisperStatus.progress}%`,
+                background: 'linear-gradient(90deg, #00ff41 0%, #00cc33 100%)',
+                transition: 'width 0.3s ease',
+              }}
+            ></div>
+            <span
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+                fontSize: '0.8rem',
+                color: '#fff',
+                textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
+              }}
+            >
               {whisperStatus.progress}%
             </span>
           </div>
@@ -113,16 +121,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
       {/* Recording Timer */}
       {isRecording && (
-        <div className={styles.recordingTimer}>
-          {formatDuration(recordingDuration)}
-        </div>
+        <div className={styles.recordingTimer}>{formatDuration(recordingDuration)}</div>
       )}
 
       {/* Control Buttons */}
       <div className={styles.controlButtons}>
         <button
           onClick={isRecording ? onStop : onStart}
-          disabled={!engineStatus.isInitialized || !!engineStatus.error || engineStatus.isInitializing}
+          disabled={
+            !engineStatus.isInitialized || !!engineStatus.error || engineStatus.isInitializing
+          }
           className={`${styles.primaryButton} ${isRecording ? styles.stop : ''}`}
         >
           {isRecording ? '■ STOP' : '● START RECORDING'}

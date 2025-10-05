@@ -57,10 +57,10 @@ describe('Whisper Pipeline E2E Test', () => {
   });
 
   it('should load the application and initialize Whisper worker', async () => {
-    console.log('📍 Navigating to http://localhost:3002...');
+    console.log('📍 Navigating to http://localhost:5173...');
 
     // Navigate to the app
-    await page.goto('http://localhost:3002', {
+    await page.goto('http://localhost:5173', {
       waitUntil: 'networkidle2',
       timeout: 30000,
     });

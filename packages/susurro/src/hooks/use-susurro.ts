@@ -90,9 +90,10 @@ async function ensureASR(model: string, quantized: boolean, onProgress: (p: numb
           if (p?.progress !== undefined) {
             const percent = p.progress <= 1 ? Math.round(p.progress * 100) : Math.round(p.progress);
             // Adjust progress for retry attempts
-            const adjustedPercent = attempt > 1
-              ? Math.min(100, Math.max(0, percent * 0.9 + (attempt - 1) * 10))
-              : percent;
+            const adjustedPercent =
+              attempt > 1
+                ? Math.min(100, Math.max(0, percent * 0.9 + (attempt - 1) * 10))
+                : percent;
             onProgress(Math.min(100, Math.max(0, adjustedPercent)));
           } else if (p?.status) {
             // Log status updates
@@ -125,7 +126,7 @@ async function ensureASR(model: string, quantized: boolean, onProgress: (p: numb
       if (attempt < RETRY_CONFIG.maxAttempts) {
         const delay = RETRY_CONFIG.delayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt - 1);
         console.log(`[ensureASR] Waiting ${delay}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
@@ -173,7 +174,13 @@ async function transcribeBlobWith(asr: CallableFunction, blob: Blob, language: s
 
   // Whisper expects the audio directly as the first parameter
   // Build options based on what the model supports
-  const options: any = {
+  const options: {
+    return_timestamps: boolean;
+    chunk_length_s: number;
+    stride_length_s: number;
+    language?: string;
+    task?: string;
+  } = {
     return_timestamps: true,
     chunk_length_s: 30,
     stride_length_s: 5,
@@ -189,11 +196,12 @@ async function transcribeBlobWith(asr: CallableFunction, blob: Blob, language: s
     });
     console.log('[transcribeBlobWith] Transcription successful with language:', language || 'es');
     return processTranscriptionResult(out);
-  } catch (error: any) {
-    console.warn('[transcribeBlobWith] First attempt failed:', error?.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.warn('[transcribeBlobWith] First attempt failed:', errorMessage);
 
     // If error mentions English-only model, retry without language/task
-    if (error?.message?.includes('English-only') || error?.message?.includes('Cannot specify')) {
+    if (errorMessage?.includes('English-only') || errorMessage?.includes('Cannot specify')) {
       console.log('[transcribeBlobWith] Retrying for English-only model...');
       const out = await asr(audioArray, options);
       return processTranscriptionResult(out);
@@ -204,7 +212,10 @@ async function transcribeBlobWith(asr: CallableFunction, blob: Blob, language: s
   }
 }
 
-function processTranscriptionResult(out: any): TranscriptionResult {
+function processTranscriptionResult(out: {
+  text?: string;
+  chunks?: Array<{ timestamp?: [number, number]; text?: string }>;
+}): TranscriptionResult {
   const result: TranscriptionResult = {
     text: out?.text ?? '',
     chunkIndex: 0,
@@ -325,8 +336,8 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     chunkDurationMs: chunkDurationMs,
     autoCleanup: true,
     useAudioWorklet: true,
-    logLevel: 'error' as const,  // Changed from 'info' to 'error' to reduce logs
-    enableDebugLogs: false,  // Explicitly disable debug logs
+    logLevel: 'error' as const, // Changed from 'info' to 'error' to reduce logs
+    enableDebugLogs: false, // Explicitly disable debug logs
   };
 
   const {
@@ -560,6 +571,67 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
     setConversationalChunks([]);
   }, []);
 
+  // — RNNoise processing for audio blobs —
+  const processAudioBlobWithRNNoise = useCallback(
+    async (blob: Blob): Promise<Blob> => {
+      try {
+        // Convert blob to ArrayBuffer
+        const arrayBuffer = await blob.arrayBuffer();
+
+        // Load Murmuraba processing utilities
+        const { loadMurmubaraProcessing } = await import('../lib/dynamic-loaders');
+        const {
+          processFileWithMetrics,
+          getEngineStatus,
+          initializeAudioEngine: initProc,
+        } = await loadMurmubaraProcessing();
+
+        // Ensure processing engine is initialized
+        try {
+          const status = getEngineStatus?.() ?? 'uninitialized';
+          if (status === 'uninitialized' && initProc) {
+            await initProc({
+              noiseReductionLevel: options.engineConfig?.noiseReductionLevel ?? 'medium',
+              bufferSize: (options.engineConfig?.bufferSize ?? 2048) as
+                | 256
+                | 512
+                | 1024
+                | 2048
+                | 4096,
+              algorithm: 'rnnoise',
+              denoiseStrength: options.engineConfig?.denoiseStrength ?? 0.5,
+              logLevel: 'error',
+              autoCleanup: true,
+              useAudioWorklet: true,
+            });
+          }
+        } catch (initError) {
+          console.warn('[RNNoise] Engine initialization warning:', initError);
+          // Continue without RNNoise if initialization fails
+        }
+
+        // Process audio with RNNoise
+        const processed = await processFileWithMetrics(arrayBuffer, () => {});
+
+        // Convert processed buffer back to Blob
+        const processedBlob = new Blob([processed.processedBuffer], { type: 'audio/wav' });
+
+        console.log(
+          '[RNNoise] Audio processed:',
+          `${blob.size} → ${processedBlob.size} bytes`,
+          `(${((processedBlob.size / blob.size) * 100).toFixed(1)}%)`
+        );
+
+        return processedBlob;
+      } catch (error) {
+        console.error('[RNNoise] Processing error, using original audio:', error);
+        // Fallback to original blob if processing fails
+        return blob;
+      }
+    },
+    [options.engineConfig]
+  );
+
   // — Whisper/Deepgram transcription call —
   const transcribeWithWhisper = useCallback(
     async (blob: Blob): Promise<TranscriptionResult | null> => {
@@ -569,9 +641,12 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       let out: TranscriptionResult | null = null;
 
       if (isDeepgram && deepgramBackendRef.current) {
-        // Use Deepgram backend
+        // Use Deepgram backend with RNNoise preprocessing
         try {
-          const result = await deepgramBackendRef.current.transcribeChunk(blob);
+          // Apply RNNoise processing to blob before sending to Deepgram
+          const processedBlob = await processAudioBlobWithRNNoise(blob);
+
+          const result = await deepgramBackendRef.current.transcribeChunk(processedBlob);
           out = {
             text: result.transcript || '',
             chunkIndex: 0,
@@ -600,7 +675,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       });
       return out;
     },
-    [whisperReady, whisperLanguage, recordMetrics, isDeepgram]
+    [whisperReady, whisperLanguage, recordMetrics, isDeepgram, processAudioBlobWithRNNoise]
   );
 
   // — VAD / metadata vía murmuraba processing helpers —
@@ -885,7 +960,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
       });
 
       for (let i = 0; i < chunks.length; i++) {
-        setProcessingStatus((p: any) => ({ ...p, currentChunk: i + 1 }));
+        setProcessingStatus((p) => ({ ...p, currentChunk: i + 1 }));
         const id = chunks[i].id;
         const processedUrl = processedAudioUrls.current.get(id);
         if (!processedUrl) continue;
@@ -893,10 +968,7 @@ export function useSusurro(options: UseSusurroOptions = {}): UseSusurroReturn {
           const blob = await urlToBlob(processedUrl);
           const r = await transcribeWithWhisper(blob);
           if (r) {
-            setTranscriptions((prev: any[]) => [
-              ...prev,
-              { ...r, chunkIndex: i, timestamp: Date.now() },
-            ]);
+            setTranscriptions((prev) => [...prev, { ...r, chunkIndex: i, timestamp: Date.now() }]);
             chunkTranscriptions.current.set(id, r.text);
             await tryEmitChunk(chunks[i]);
           }

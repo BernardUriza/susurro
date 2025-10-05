@@ -10,18 +10,12 @@ const getBackendUrls = () => {
   const useRender = import.meta.env.VITE_USE_RENDER === 'true';
 
   return {
-    whisper: useRender
-      ? 'https://susurro-whisper-backend.onrender.com'
-      : 'http://localhost:8000',
-    deepgram: useRender
-      ? 'https://susurro-deepgram-backend.onrender.com'
-      : 'http://localhost:8001'
+    whisper: useRender ? 'https://susurro-whisper-backend.onrender.com' : 'http://localhost:8000',
+    deepgram: useRender ? 'https://susurro-deepgram-backend.onrender.com' : 'http://localhost:8001',
   };
 };
 
-export const BackendStatus: React.FC<BackendStatusProps> = ({
-  selectedModel
-}) => {
+export const BackendStatus: React.FC<BackendStatusProps> = ({ selectedModel }) => {
   const [status, setStatus] = useState<'checking' | 'online' | 'offline' | 'error'>('checking');
   const [implementation, setImplementation] = useState<string>('');
 
@@ -36,7 +30,7 @@ export const BackendStatus: React.FC<BackendStatusProps> = ({
           const response = await fetch(`${urls.deepgram}/health`, {
             method: 'GET',
             mode: 'cors',
-            signal: AbortSignal.timeout(3000)
+            signal: AbortSignal.timeout(3000),
           });
 
           if (response.ok) {
@@ -55,7 +49,7 @@ export const BackendStatus: React.FC<BackendStatusProps> = ({
         const response = await fetch(`${backendUrl}/health`, {
           method: 'GET',
           mode: 'cors',
-          signal: AbortSignal.timeout(3000)
+          signal: AbortSignal.timeout(3000),
         });
 
         if (response.ok) {
@@ -81,10 +75,14 @@ export const BackendStatus: React.FC<BackendStatusProps> = ({
 
   const getStatusColor = () => {
     switch (status) {
-      case 'online': return '#00ff00';
-      case 'offline': return '#ff0000';
-      case 'checking': return '#ffff00';
-      default: return '#808080';
+      case 'online':
+        return '#00ff00';
+      case 'offline':
+        return '#ff0000';
+      case 'checking':
+        return '#ffff00';
+      default:
+        return '#808080';
     }
   };
 
@@ -94,20 +92,21 @@ export const BackendStatus: React.FC<BackendStatusProps> = ({
     }
 
     switch (status) {
-      case 'online': return `Backend: ${implementation}`;
-      case 'offline': return 'Backend: Offline';
-      case 'checking': return 'Backend: Checking...';
-      default: return 'Backend: Unknown';
+      case 'online':
+        return `Backend: ${implementation}`;
+      case 'offline':
+        return 'Backend: Offline';
+      case 'checking':
+        return 'Backend: Checking...';
+      default:
+        return 'Backend: Unknown';
     }
   };
 
   return (
     <div className={styles.container}>
       <div className={styles.indicator}>
-        <span
-          className={styles.dot}
-          style={{ backgroundColor: getStatusColor() }}
-        />
+        <span className={styles.dot} style={{ backgroundColor: getStatusColor() }} />
         <span className={styles.text}>{getStatusText()}</span>
       </div>
     </div>

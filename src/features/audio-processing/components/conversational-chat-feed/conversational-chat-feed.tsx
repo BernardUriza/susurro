@@ -56,7 +56,7 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
   const [currentMessage, setCurrentMessage] = useState('');
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [recordingChunks, setRecordingChunks] = useState<StreamingSusurroChunk[]>([]);
+  const [, setRecordingChunks] = useState<StreamingSusurroChunk[]>([]);
   const audioUrlsRef = useRef<Set<string>>(new Set());
 
   // Add system welcome message
@@ -74,9 +74,10 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
 
   // Cleanup audio URLs on unmount
   useEffect(() => {
+    const audioUrls = audioUrlsRef.current;
     return () => {
-      audioUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
-      audioUrlsRef.current.clear();
+      audioUrls.forEach((url) => URL.revokeObjectURL(url));
+      audioUrls.clear();
     };
   }, []);
 
@@ -243,8 +244,8 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
     // 🔧 FIX: Collect ALL text from allChunks, not just currentMessage
     // This ensures we capture the last chunk that might not be in currentMessage yet
     const allTranscriptions = allChunks
-      .filter(chunk => chunk.isVoiceActive && chunk.transcriptionText.trim())
-      .map(chunk => chunk.transcriptionText.trim())
+      .filter((chunk) => chunk.isVoiceActive && chunk.transcriptionText.trim())
+      .map((chunk) => chunk.transcriptionText.trim())
       .join(' ');
 
     const finalMessage = allTranscriptions || currentMessage.trim();
@@ -256,8 +257,7 @@ export const ConversationalChatFeed: React.FC<ConversationalChatFeedProps> = ({
         type: 'user',
         content: finalMessage,
         timestamp: Date.now(),
-        vadScore:
-          allChunks.reduce((acc, chunk) => acc + chunk.vadScore, 0) / allChunks.length,
+        vadScore: allChunks.reduce((acc, chunk) => acc + chunk.vadScore, 0) / allChunks.length,
         processingTime: allChunks.reduce((acc, chunk) => acc + chunk.duration, 0),
       };
 

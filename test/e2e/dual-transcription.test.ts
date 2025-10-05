@@ -3,6 +3,11 @@
  * Tests the complete flow: Web Speech + Deepgram + Claude refinement
  *
  * This test validates the entire user journey from recording to refined transcription.
+ *
+ * NOTE: This test requires @playwright/test and should be run separately with:
+ * npx playwright test
+ *
+ * It is excluded from Vitest runs.
  */
 
 import { test, expect, Page } from '@playwright/test';
@@ -135,10 +140,7 @@ test.describe('Dual Transcription E2E', () => {
 
     // Look for Claude indicator when refining
     // Note: This appears only when Claude is actively refining
-    const claudeIndicator = page.locator('text=Claude');
-
-    // Claude indicator may or may not be visible depending on timing
-    // Just checking it exists in the DOM
+    // (Intentionally not checking - just demonstrating it exists in the DOM)
   });
 
   test('should handle backend unavailable gracefully', async ({ page }) => {
@@ -195,8 +197,8 @@ test.describe('Dual Transcription E2E', () => {
     // Test different viewport sizes
     const sizes = [
       { width: 1920, height: 1080 }, // Desktop
-      { width: 1024, height: 768 },  // Tablet
-      { width: 375, height: 667 },   // Mobile
+      { width: 1024, height: 768 }, // Tablet
+      { width: 375, height: 667 }, // Mobile
     ];
 
     for (const size of sizes) {

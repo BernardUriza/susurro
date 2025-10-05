@@ -122,10 +122,12 @@ export function useModelCache(): UseModelCacheReturn {
 
           if (models.length > 0) {
             const totalSize = models.reduce(
-              (sum: number, model: any) => sum + (model.size || 0),
+              (sum: number, model: { size?: number }) => sum + (model.size || 0),
               0
             );
-            const lastUpdated = new Date(Math.max(...models.map((m: any) => m.timestamp || 0)));
+            const lastUpdated = new Date(
+              Math.max(...models.map((m: { timestamp?: number }) => m.timestamp || 0))
+            );
 
             setCacheStatus({
               hasCache: true,

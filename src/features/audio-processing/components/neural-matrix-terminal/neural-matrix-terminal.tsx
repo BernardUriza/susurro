@@ -181,7 +181,8 @@ export const NeuralMatrixTerminal = () => {
       // Call handleFileProcess directly without dependency to prevent loops
       handleFileProcess(file);
     }
-  }, [whisperReady]); // Remove handleFileProcess dependency to prevent infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [whisperReady]); // handleFileProcess intentionally excluded to prevent infinite loops
 
   const loadExampleAudio = async () => {
     try {

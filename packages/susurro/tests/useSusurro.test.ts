@@ -36,7 +36,7 @@ describe('useSusurro', () => {
       expect(result.current.transcriptions).toEqual([]);
       expect(result.current.audioChunks).toEqual([]);
       expect(result.current.averageVad).toBe(0);
-      expect(result.current.whisperReady).toBe(true);
+      expect(result.current.whisperReady).toBe(false); // Starts false until model loads
     });
 
     it('should accept options', () => {

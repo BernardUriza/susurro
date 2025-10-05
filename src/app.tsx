@@ -11,8 +11,6 @@ export function App() {
       >
         {/* Always use Deepgram backend for best performance */}
         <NeuralProvider
-          initialModel="base"
-          defaultTranscriptionMethod="backend"
           onNeuralProgressLog={(message, type) => {
             console.log(`[Neural ${type}] ${message}`);
           }}

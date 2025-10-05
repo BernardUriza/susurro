@@ -32,9 +32,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
   // Filter transcriptions
   useEffect(() => {
     if (filter) {
-      const filtered = transcriptions.filter(t => 
-        t.toLowerCase().includes(filter.toLowerCase())
-      );
+      const filtered = transcriptions.filter((t) => t.toLowerCase().includes(filter.toLowerCase()));
       setFilteredTranscriptions(filtered);
     } else {
       setFilteredTranscriptions(transcriptions);
@@ -77,46 +75,50 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
   // Copy all transcriptions concatenated
   const copyAllTranscriptions = () => {
     const allText = transcriptions
-      .filter(t => t.includes('📝 Transcription:'))
-      .map(t => {
+      .filter((t) => t.includes('📝 Transcription:'))
+      .map((t) => {
         const match = t.match(/📝 Transcription:\s*"([^"]+)"/);
         return match ? match[1] : '';
       })
-      .filter(text => text.length > 0)
+      .filter((text) => text.length > 0)
       .join(' ');
-    
+
     if (allText.length === 0) {
       return;
     }
-    
-    navigator.clipboard.writeText(allText).then(() => {
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    }).catch(() => {
-      // Fallback for browsers without clipboard API
-      const textArea = document.createElement('textarea');
-      textArea.value = allText;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    });
+
+    navigator.clipboard
+      .writeText(allText)
+      .then(() => {
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      })
+      .catch(() => {
+        // Fallback for browsers without clipboard API
+        const textArea = document.createElement('textarea');
+        textArea.value = allText;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      });
   };
 
   // Get transcription statistics
   const getStats = () => {
-    const transcribedEntries = transcriptions.filter(t => t.includes('📝 Transcription:'));
+    const transcribedEntries = transcriptions.filter((t) => t.includes('📝 Transcription:'));
     const totalChars = transcribedEntries.reduce((acc, t) => {
       const match = t.match(/📝 Transcription:\s*"([^"]+)"/);
       return acc + (match ? match[1].length : 0);
     }, 0);
-    
+
     return {
       count: transcribedEntries.length,
       totalChars,
-      avgCharsPerEntry: transcribedEntries.length > 0 ? Math.round(totalChars / transcribedEntries.length) : 0
+      avgCharsPerEntry:
+        transcribedEntries.length > 0 ? Math.round(totalChars / transcribedEntries.length) : 0,
     };
   };
 
@@ -124,7 +126,8 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
     <div className={`${styles.panel} ${styles.transcriptionPanel}`}>
       <div className={styles.panelHeader}>
         <h3 className={styles.panelTitle}>
-          📝 Transcriptions {isRecording && <span className={styles.recordingIndicator}>● LIVE</span>}
+          📝 Transcriptions{' '}
+          {isRecording && <span className={styles.recordingIndicator}>● LIVE</span>}
         </h3>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {!autoScroll && (
@@ -137,7 +140,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             </button>
           )}
           {onExport && (
-            <button 
+            <button
               onClick={onExport}
               className={styles.secondaryButton}
               style={{ padding: '4px 8px', fontSize: '0.8rem' }}
@@ -158,7 +161,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
           onChange={(e) => onFilterChange?.(e.target.value)}
         />
         {filter && (
-          <button 
+          <button
             onClick={() => onFilterChange?.('')}
             className={styles.secondaryButton}
             style={{ padding: '0 12px' }}
@@ -170,16 +173,18 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
 
       {/* Copy and Stats Bar */}
       {transcriptions.length > 0 && (
-        <div style={{ 
-          display: 'flex', 
-          gap: '10px', 
-          alignItems: 'center',
-          marginBottom: '10px',
-          padding: '8px',
-          background: 'rgba(0, 255, 65, 0.05)',
-          border: '1px solid rgba(0, 255, 65, 0.3)',
-          borderRadius: '4px'
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'center',
+            marginBottom: '10px',
+            padding: '8px',
+            background: 'rgba(0, 255, 65, 0.05)',
+            border: '1px solid rgba(0, 255, 65, 0.3)',
+            borderRadius: '4px',
+          }}
+        >
           <button
             onClick={copyAllTranscriptions}
             className={styles.primaryButton}
@@ -191,13 +196,15 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
           >
             {copySuccess ? '✅ COPIED!' : '📋 COPY TEXT'}
           </button>
-          
-          <div style={{ 
-            color: '#00ff41', 
-            fontSize: '0.85rem',
-            marginLeft: 'auto',
-            opacity: 0.8
-          }}>
+
+          <div
+            style={{
+              color: '#00ff41',
+              fontSize: '0.85rem',
+              marginLeft: 'auto',
+              opacity: 0.8,
+            }}
+          >
             {(() => {
               const stats = getStats();
               return `📊 ${stats.count} entries • ${stats.totalChars} chars • ~${stats.avgCharsPerEntry} avg`;
@@ -206,11 +213,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
         </div>
       )}
 
-      <div 
-        ref={listRef}
-        className={styles.transcriptionList}
-        onScroll={handleScroll}
-      >
+      <div ref={listRef} className={styles.transcriptionList} onScroll={handleScroll}>
         {filteredTranscriptions.length === 0 ? (
           <div className={styles.loading}>
             {isRecording ? (
@@ -225,26 +228,28 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
         ) : (
           filteredTranscriptions.map((entry, index) => {
             const parsed = parseTranscription(entry);
-            const vadClass = parsed.vadScore > 0.5 
-              ? styles.highVad 
-              : parsed.vadScore > 0.2 
-                ? '' 
-                : styles.lowVad;
+            const vadClass =
+              parsed.vadScore > 0.5 ? styles.highVad : parsed.vadScore > 0.2 ? '' : styles.lowVad;
 
             if (parsed.isSummary) {
               return (
-                <div key={index} style={{ 
-                  padding: '15px', 
-                  margin: '10px 0',
-                  border: '2px solid #00ff41',
-                  background: 'rgba(0, 255, 65, 0.1)'
-                }}>
-                  <pre style={{ 
-                    color: '#00ff41', 
-                    margin: 0,
-                    whiteSpace: 'pre-wrap',
-                    fontFamily: 'inherit'
-                  }}>
+                <div
+                  key={index}
+                  style={{
+                    padding: '15px',
+                    margin: '10px 0',
+                    border: '2px solid #00ff41',
+                    background: 'rgba(0, 255, 65, 0.1)',
+                  }}
+                >
+                  <pre
+                    style={{
+                      color: '#00ff41',
+                      margin: 0,
+                      whiteSpace: 'pre-wrap',
+                      fontFamily: 'inherit',
+                    }}
+                  >
                     {entry}
                   </pre>
                 </div>
@@ -252,10 +257,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             }
 
             return (
-              <div 
-                key={index} 
-                className={`${styles.transcriptionEntry} ${vadClass}`}
-              >
+              <div key={index} className={`${styles.transcriptionEntry} ${vadClass}`}>
                 {parsed.timestamp && (
                   <div className={styles.transcriptionTimestamp}>
                     {parsed.timestamp}
@@ -267,9 +269,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                     {parsed.isVoiceActive && ' 🔊'}
                   </div>
                 )}
-                <div className={styles.transcriptionText}>
-                  {parsed.text}
-                </div>
+                <div className={styles.transcriptionText}>{parsed.text}</div>
               </div>
             );
           })

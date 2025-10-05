@@ -13,7 +13,7 @@ export const AudioChunkPlayer: React.FC<AudioChunkPlayerProps> = ({
   duration,
   vadScore,
   chunkId: _chunkId, // Keep for future use
-  color = '#00ff41'
+  color = '#00ff41',
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -50,7 +50,7 @@ export const AudioChunkPlayer: React.FC<AudioChunkPlayerProps> = ({
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play().catch(err => {
+      audioRef.current.play().catch((err) => {
         console.error('Failed to play audio:', err);
       });
     }
@@ -150,7 +150,7 @@ export const AudioChunkPlayer: React.FC<AudioChunkPlayerProps> = ({
         )}
         {duration && (
           <div style={{ opacity: 0.7 }}>
-            {(currentTime).toFixed(1)}s / {(duration / 1000).toFixed(1)}s
+            {currentTime.toFixed(1)}s / {(duration / 1000).toFixed(1)}s
           </div>
         )}
       </div>

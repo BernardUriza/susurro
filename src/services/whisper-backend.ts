@@ -23,13 +23,16 @@ export interface BackendTranscriptionResult {
 export interface BackendModelInfo {
   current_model: string;
   available_models: string[];
-  model_info: Record<string, {
-    size: string;
-    parameters: string;
-    relative_speed: string;
-    english_only: boolean;
-    multilingual: boolean;
-  }>;
+  model_info: Record<
+    string,
+    {
+      size: string;
+      parameters: string;
+      relative_speed: string;
+      english_only: boolean;
+      multilingual: boolean;
+    }
+  >;
 }
 
 export interface BackendHealthStatus {
@@ -45,7 +48,7 @@ export class WhisperBackendError extends Error {
   constructor(
     message: string,
     public status?: number,
-    public details?: any
+    public details?: unknown
   ) {
     super(message);
     this.name = 'WhisperBackendError';
@@ -62,10 +65,10 @@ export class WhisperBackendService {
   ) {
     // Get backend URL based on environment
     const useRender = import.meta.env.VITE_USE_RENDER === 'true';
-    this.baseUrl = (baseUrl || (useRender
-      ? 'https://susurro-whisper-backend.onrender.com'
-      : 'http://localhost:8000'
-    )).replace(/\/$/, ''); // Remove trailing slash
+    this.baseUrl = (
+      baseUrl ||
+      (useRender ? 'https://susurro-whisper-backend.onrender.com' : 'http://localhost:8000')
+    ).replace(/\/$/, ''); // Remove trailing slash
     this.timeout = timeout;
   }
 
@@ -81,8 +84,8 @@ export class WhisperBackendService {
         method: 'GET',
         signal: controller.signal,
         headers: {
-          'Accept': 'application/json',
-        }
+          Accept: 'application/json',
+        },
       });
 
       clearTimeout(timeoutId);
@@ -121,8 +124,8 @@ export class WhisperBackendService {
         method: 'GET',
         signal: controller.signal,
         headers: {
-          'Accept': 'application/json',
-        }
+          Accept: 'application/json',
+        },
       });
 
       clearTimeout(timeoutId);
@@ -211,7 +214,7 @@ export class WhisperBackendService {
       if (responseFormat === 'text') {
         return {
           text: result.text || '',
-          segments: []
+          segments: [],
         };
       }
 
@@ -221,9 +224,8 @@ export class WhisperBackendService {
         language: result.language,
         language_probability: result.language_probability,
         duration: result.duration,
-        model: result.model
+        model: result.model,
       };
-
     } catch (error) {
       if (error instanceof WhisperBackendError) throw error;
 
@@ -252,15 +254,18 @@ export class WhisperBackendService {
   /**
    * Get backend service information
    */
-  async getInfo(): Promise<any> {
+  async getInfo(): Promise<Record<string, unknown>> {
     try {
       const response = await fetch(`${this.baseUrl}/`, {
         method: 'GET',
-        headers: { 'Accept': 'application/json' }
+        headers: { Accept: 'application/json' },
       });
 
       if (!response.ok) {
-        throw new WhisperBackendError(`Failed to get info: ${response.statusText}`, response.status);
+        throw new WhisperBackendError(
+          `Failed to get info: ${response.statusText}`,
+          response.status
+        );
       }
 
       return await response.json();
@@ -298,13 +303,13 @@ export async function transcribeAudio(
     responseFormat?: 'text' | 'detailed';
     onProgress?: (progress: number) => void;
     useBackend?: boolean;
-    clientTranscriber?: (blob: Blob) => Promise<any>;
+    clientTranscriber?: (blob: Blob) => Promise<BackendTranscriptionResult>;
   } = {}
 ): Promise<BackendTranscriptionResult> {
   const { useBackend, clientTranscriber, ...transcribeOptions } = options;
 
   // Determine transcription method
-  const shouldUseBackendService = useBackend ?? await shouldUseBackend();
+  const shouldUseBackendService = useBackend ?? (await shouldUseBackend());
 
   if (shouldUseBackendService) {
     try {
@@ -318,7 +323,7 @@ export async function transcribeAudio(
         const result = await clientTranscriber(audioBlob);
         return {
           text: result.text || '',
-          segments: result.segments || []
+          segments: result.segments || [],
         };
       }
 
@@ -334,7 +339,7 @@ export async function transcribeAudio(
     const result = await clientTranscriber(audioBlob);
     return {
       text: result.text || '',
-      segments: result.segments || []
+      segments: result.segments || [],
     };
   }
 }

@@ -11,7 +11,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWebSpeech } from './use-web-speech';
-import type { WebSpeechResult } from './use-web-speech';
 import type { StreamingSusurroChunk } from '../lib/types';
 
 export interface DualTranscriptionResult {
@@ -70,12 +69,7 @@ export interface UseDualTranscriptionReturn {
 export function useDualTranscription(
   options: UseDualTranscriptionOptions = {}
 ): UseDualTranscriptionReturn {
-  const {
-    language = 'es-ES',
-    onResult,
-    claudeConfig = {},
-    autoRefine = true,
-  } = options;
+  const { language = 'es-ES', onResult, claudeConfig = {}, autoRefine = true } = options;
 
   // Web Speech hook
   const webSpeech = useWebSpeech({
@@ -204,20 +198,18 @@ export function useDualTranscription(
     onResult?.(result);
 
     return result;
-  }, [
-    webSpeech,
-    webSpeechText,
-    deepgramText,
-    autoRefine,
-    refineWithClaude,
-    onResult,
-  ]);
+  }, [webSpeech, webSpeechText, deepgramText, autoRefine, refineWithClaude, onResult]);
 
   // Update Web Speech text from hook - USE TRANSCRIPT FOR REAL-TIME (includes interim)
   useEffect(() => {
-    if (isTranscribing) {
+    if (isTranscribing && webSpeech.transcript) {
       // Use 'transcript' instead of 'finalTranscript' for real-time updates
-      setWebSpeechText(webSpeech.transcript);
+      const newText = webSpeech.transcript;
+      setWebSpeechText(newText);
+
+      console.log(
+        `📝 [DualTranscription] Web Speech updated: "${newText.substring(0, 60)}${newText.length > 60 ? '...' : ''}" (${newText.length} chars)`
+      );
 
       if (webSpeech.lastResult?.confidence) {
         webSpeechConfidenceRef.current = webSpeech.lastResult.confidence;
@@ -232,6 +224,10 @@ export function useDualTranscription(
       deepgramChunksRef.current.push(chunk.transcriptionText);
       const combined = deepgramChunksRef.current.join(' ').trim();
       setDeepgramText(combined);
+
+      console.log(
+        `🌐 [DualTranscription] Deepgram chunk added: "${chunk.transcriptionText}" | Total: ${deepgramChunksRef.current.length} chunks, ${combined.length} chars`
+      );
 
       // Estimate confidence from VAD score
       if (chunk.vadScore) {

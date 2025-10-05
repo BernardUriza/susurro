@@ -19,7 +19,6 @@ export const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
 }) => {
   const [streamInfo, setStreamInfo] = useState<string>('No stream active');
 
-
   // Update stream info
   useEffect(() => {
     if (currentStream) {
@@ -28,7 +27,7 @@ export const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
         const track = audioTracks[0];
         const settings = track.getSettings();
         // const constraints = track.getConstraints();
-        
+
         const info = `
 Stream ID: ${currentStream.id}
 Active: ${currentStream.active}
@@ -41,7 +40,7 @@ Track Settings:
 - Noise Suppression: ${settings.noiseSuppression || 'N/A'}
 - Auto Gain Control: ${settings.autoGainControl || 'N/A'}
 - Sample Size: ${settings.sampleSize || 'N/A'} bits
-- Latency: ${(settings as any).latency || 'N/A'} ms
+- Latency: ${(settings as MediaTrackSettings & { latency?: number }).latency || 'N/A'} ms
 
 Track State:
 - Enabled: ${track.enabled}
@@ -49,7 +48,7 @@ Track State:
 - Ready State: ${track.readyState}
 - Label: ${track.label || 'Default Microphone'}
         `.trim();
-        
+
         setStreamInfo(info);
       }
     } else {
@@ -77,32 +76,33 @@ Track State:
           </div>
         )}
         {engineReady && !isRecording && (
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            height: '100%',
-            color: '#888'
-          }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              color: '#888',
+            }}
+          >
             Start recording to see waveform
           </div>
         )}
         {engineReady && isRecording && currentStream && (
-          <SimpleWaveformAnalyzer
-            stream={currentStream}
-            isActive={isRecording}
-          />
+          <SimpleWaveformAnalyzer stream={currentStream} isActive={isRecording} />
         )}
       </div>
 
       {showStreamInfo && (
         <div className={styles.streamInfo}>
-          <pre style={{ 
-            margin: 0, 
-            fontFamily: 'inherit',
-            fontSize: 'inherit',
-            color: 'inherit'
-          }}>
+          <pre
+            style={{
+              margin: 0,
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+              color: 'inherit',
+            }}
+          >
             {streamInfo}
           </pre>
         </div>

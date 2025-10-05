@@ -26,7 +26,7 @@ global.AudioContext = vi.fn().mockImplementation(() => ({
     getChannelData: vi.fn().mockReturnValue(new Float32Array(44100)),
   }),
   close: vi.fn(),
-})) as any;
+})) as unknown as typeof AudioContext;
 
 global.MediaRecorder = vi.fn().mockImplementation(() => ({
   start: vi.fn(),
@@ -41,7 +41,7 @@ global.MediaRecorder = vi.fn().mockImplementation(() => ({
       },
     ],
   },
-})) as any;
+})) as unknown as typeof MediaRecorder;
 
 // Mock IndexedDB
 const mockDB = {

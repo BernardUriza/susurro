@@ -1,247 +1,145 @@
-# CLAUDE.md
+# CLAUDE.md - Susurro Audio Transcription System
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## CLI Commands
 
-## Build and Development Commands
-
-### Primary Development
 ```bash
-# Install dependencies
-npm install
-
-# Development - runs package, vite, backends AND tests in watch mode
-npm run dev
-
-# Development with tests only (no Whisper backend)
-npm run dev:with-tests
-
-# Simple development mode (Vite only, no tests)
-npm run dev:simple
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+npm i && npm run dev          # Full stack: Vite + backends + tests (watch)
+npm run dev:simple            # Vite only
+npm test / test:all           # CI validation
+npm run lint:fix && npm run type-check && npm test:all  # Pre-commit
 ```
 
-**IMPORTANT: `npm run dev` now includes test watch mode by default!**
-- Tests run automatically when you save files
-- Instant feedback on breaking changes
-- Minimal output with dot reporter
-- Tests are shown in cyan 🧪 TESTS panel
+## Architecture
 
-### Testing
-```bash
-# Run all tests once (for CI/pre-commit)
-npm test
-
-# Watch mode - tests run on file changes (runs in dev by default)
-npm run test:watch
-
-# Run unit tests only
-npm run test:unit
-
-# Watch unit tests
-npm run test:unit:watch
-
-# Run integration tests (requires backend on port 8001)
-npm run test:integration
-
-# Run E2E tests
-npm run test:e2e
-
-# Run ALL tests (unit + integration + E2E)
-npm run test:all
-
-# Run tests with UI (interactive)
-npm run test:ui
-
-# Run tests with coverage report
-npm run coverage
-```
-
-**Best Practice**: `npm run dev` already includes test watch mode, so you get instant feedback while coding!
-
-### Code Quality
-```bash
-# Lint code - check for issues
-npm run lint
-
-# Fix linting issues automatically
-npm run lint:fix
-
-# Type checking
-npm run type-check
-
-# Strict type checking
-npm run type-check:strict
-
-# Analyze project structure
-npm run analyze
-
-# Dead code detection
-npm run analyze:dead-code
-```
-
-### Package Management
-```bash
-# Build library for publishing
-npm run build-lib
-
-# Clean build artifacts (Windows)
-npm run clean
-
-# Copy WASM files (auto-run with dev/build)
-npm run copy:wasm
-```
-
-## Architecture Overview
-
-### Core Architecture Pattern
-This project uses a **singleton audio engine architecture** managed through React Context to prevent multiple audio engine instances. Direct usage of `useSusurro` hook is forbidden - all components must use `useNeural()` from NeuralProvider.
-
-### Key Technologies
-- **Deepgram**: Primary transcription engine (default backend)
-- **Murmuraba v3**: Neural audio processing engine
-- **Neural AI**: Unified transcription system (formerly Whisper)
-- **React 19 + Vite 7**: Modern build system with optimized chunking
+### Core Pattern: Singleton Audio Engine
+- **Access**: `useNeural()` from NeuralContext (NEVER direct `useSusurro` import)
+- **State Machine**: uninitialized→initializing→ready→error→destroying→destroyed
+- **Engine**: Murmuraba v3 (RNNoise, VAD, real-time processing)
+- **Transcription**: Deepgram (default), Whisper (fallback), Claude AI (refinement)
+- **Stack**: React 19, Vite 7, TypeScript, Vitest
 
 ### Project Structure
 ```
-susurro/
-├── packages/susurro/        # Core NPM package (@susurro/core)
-│   ├── src/
-│   │   ├── hooks/          # React hooks (useSusurro, useLatencyMonitor, etc.)
-│   │   ├── lib/            # Core libraries (audio-engine-manager, types, middleware)
-│   │   └── index.ts        # Package exports
-│   └── tests/              # Unit tests for package
-├── src/                     # Demo application
-│   ├── app.tsx             # Main app component
-│   ├── contexts/           # NeuralContext (required wrapper)
-│   ├── components/         # UI components
-│   └── features/           # Feature modules
-│       ├── audio-processing/
-│       └── visualization/
-└── test/                    # E2E tests
+packages/susurro/          # @susurro/core NPM package
+  src/hooks/               # useSusurro, useDualTranscription, useLatencyMonitor
+  src/lib/                 # audio-engine-manager, types, middleware
+  tests/                   # Unit tests (60s timeout for model loading)
+src/                       # Demo app
+  contexts/NeuralContext   # Singleton wrapper (REQUIRED)
+  features/                # Feature modules
+test/                      # E2E (Playwright)
 ```
-
-### Critical Architectural Rules
-
-1. **Audio Engine Singleton Pattern**: The AudioEngineManager ensures only ONE Murmuraba engine instance exists. Multiple instances cause "Audio engine is already initialized" errors.
-
-2. **Context-Based Access**: All components MUST access audio functionality through `useNeural()` from NeuralContext, never directly import `useSusurro`.
-
-3. **Model Loading**: Deepgram backend handles transcription by default. Local models are loaded dynamically when needed.
-
-4. **WebGPU Configuration**: Requires CORS headers (configured in vite.config.ts) for WebGPU acceleration.
 
 ### Key Components
 
-#### AudioEngineManager (`packages/susurro/src/lib/audio-engine-manager.ts`)
-- Singleton pattern for Murmuraba engine
-- State machine: uninitialized → initializing → ready → error → destroying → destroyed
-- Health monitoring with automatic recovery
-- Circuit breaker pattern for error resilience
+**AudioEngineManager** (`lib/audio-engine-manager.ts`)
+- Singleton Murmuraba instance, health monitoring, circuit breaker
+- Error: "Audio engine already initialized" → Check for duplicate `useSusurro` imports
 
-#### NeuralContext (`src/contexts/NeuralContext.tsx`)
-- Provides single audio engine instance to entire app
-- Manages Neural/Deepgram model loading and transcription
-- Handles conversational mode with real-time chunks
+**NeuralContext** (`contexts/NeuralContext.tsx`)
+- Global audio engine instance, model loading, conversational mode
 
-#### useSusurro Hook (`packages/susurro/src/hooks/use-susurro.ts`)
-- Core hook with Murmuraba integration
-- Supports conversational mode with SusurroChunk emissions
-- Real-time VAD (Voice Activity Detection)
-- <300ms latency target
+**useSusurro** (`hooks/use-susurro.ts`)
+- Murmuraba integration, VAD, streaming chunks, <300ms latency target
 
-### Common Issues and Solutions
+### Performance
+- Dynamic imports (Transformers.js, Murmuraba on-demand)
+- Code splitting (vendor chunks: react, transformers, murmuraba <1400KB)
+- 4-bit quantization (q4 dtype), WebGPU acceleration (6x faster)
 
-1. **"Audio engine is already initialized"**: Components are importing useSusurro directly. Use useNeural() from NeuralContext instead.
+## Testing Strategy
 
-2. **Model loading failures**: Check network connection and ensure transformers.js can download from Hugging Face.
+**TDD Workflow**: `npm run dev` → auto-watch tests (cyan 🧪 panel) → instant feedback
+- Unit: Individual hooks/utilities
+- Integration: Backend API (port 8001)
+- E2E: Full pipeline (Playwright)
 
-3. **WASM loading errors**: Run `npm run copy:wasm` to ensure rnnoise.wasm is in public/wasm/.
+**Coverage**:
+- `packages/susurro/tests/use-dual-transcription.test.ts` (unit)
+- `src/features/.../SimpleTranscriptionMode.test.tsx` (UI)
+- `test/e2e/dual-transcription.test.ts` (E2E)
+- `test/integration/backend-refinement.test.ts` (API)
 
-4. **Type errors in build**: Run `npm run type-check` before committing. Use `npm run lint:fix` for automatic fixes.
+## Best Practices (2025)
 
-### Performance Optimizations
+### MediaStream Lifecycle
+```ts
+// ✅ Cleanup pattern
+useEffect(() => {
+  let stream: MediaStream | null = null;
+  (async () => {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  })();
+  return () => stream?.getTracks().forEach(t => t.stop());
+}, []);
 
-- **Dynamic imports**: Transformers.js and Murmuraba loaded on-demand
-- **Code splitting**: Vendor chunks for react, transformers, murmuraba
-- **4-bit quantization**: Uses q4 dtype for optimal model size/quality
-- **WebGPU acceleration**: 6x faster transcription when available
-- **Chunk size limit**: 1400KB warning threshold for vendor libraries
-
-### Testing Strategy
-
-- **Unit tests**: Test individual hooks and utilities
-- **E2E tests**: Test full transcription pipeline with Puppeteer
-- **Vitest configuration**: 60s timeout for model loading
-- **Happy-dom environment**: Fast DOM testing environment
-
-### Development Workflow
-
-**IMPORTANT: Before making any code changes, always run tests to ensure nothing breaks!**
-
-#### Pre-commit Checklist
-```bash
-# Tests are already running in watch mode if you used 'npm run dev'
-# Just verify they're all passing before committing
-
-# If you didn't use watch mode, run:
-npm run test:all           # Run all tests (unit + integration + E2E)
-
-# Check code quality
-npm run lint               # Check for linting issues
-npm run type-check         # Verify TypeScript types
-
-# Fix issues automatically
-npm run lint:fix           # Auto-fix linting issues
-
-# Quick pre-commit validation
-npm run lint:fix && npm run type-check && npm run test:all
+// ❌ Anti-patterns
+stream.removeTrack(track);           // Camera stays on
+useState<MediaStream>(...)           // Missing cleanup → memory leak
 ```
 
-#### When Making Changes
+**Rule**: `getTracks().forEach(t => t.stop())` on unmount/cleanup. AudioContext: `close()`. MediaRecorder: `stop()` + null reference.
 
-1. **Modern Development Workflow (2025 Best Practices)**:
-   - Start dev with: `npm run dev` - Tests run automatically in watch mode 🧪
-   - Make your changes - tests re-run on every save
-   - See instant feedback in the cyan TESTS panel
-   - All tests must pass before committing
+### React Hooks: exhaustive-deps
+```ts
+// ✅ Include all deps
+useCallback(() => console.log(userId), [userId])
 
-2. **Test Coverage**:
-   - `packages/susurro/tests/use-dual-transcription.test.ts` - Dual transcription hook (unit)
-   - `src/features/.../SimpleTranscriptionMode.test.tsx` - UI component (unit)
-   - `test/e2e/dual-transcription.test.ts` - Complete user workflow (E2E)
-   - `test/integration/backend-refinement.test.ts` - Backend API (integration)
+// ✅ setState callback (no dep on state)
+useCallback(() => setCount(p => p+1), [])
 
-3. **Test Commands**:
-   ```bash
-   # During development (automatic)
-   npm run dev              # Includes test watch mode
+// ✅ Move fn inside effect
+useEffect(() => {
+  const fetch = async () => api.get(userId);
+  fetch();
+}, [userId]);
 
-   # Manual testing
-   npm run test:unit        # Quick unit tests only
-   npm run test:integration # Backend integration tests
-   npm run test:e2e        # Full E2E workflow
-   npm run test:all        # Everything (pre-commit)
+// ✅ Legitimate ignore (document reason)
+useEffect(() => {
+  someFunction();  // Including would cause ∞ loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [dep]);
 
-   # Interactive debugging
-   npm run test:ui         # Visual test debugging
-   ```
+// ❌ Silent bugs
+useEffect(() => doSomething(userId), []) // userId changes ignored!
+```
 
-4. **Critical Rules**:
-   - Use the NeuralProvider wrapper in all demo components
-   - Monitor browser console for audio engine state changes
-   - Deepgram is the default backend - always use backend transcription
-   - Ensure WASM files are copied when starting development
-   - **NEVER skip tests when making changes to core functionality**
-   - Watch mode gives instant feedback - use it!
+**Safe omissions**: Redux `dispatch`, `setState` (stable), `window.scrollTo` (DOM API).
+**Solutions**: (1) Move fn inside effect, (2) `useCallback`, (3) Destructure props, (4) `useRef` for non-reactive values.
 
-5. **Backend Testing**:
-   - Start backend: `cd backend-deepgram && python server.py`
-   - Integration tests require backend running on port 8001
-   - Tests will skip gracefully if backend unavailable
-   - Backend runs automatically with `npm run dev`
+### TypeScript
+```ts
+// ✅ Type safety
+unknown → type guard
+Record<string, unknown>
+typeof import('module') | null
+<T,>(data: T): T
+
+// ❌ Avoid
+any → breaks type system
+var → use const/let
+@ts-ignore → use @ts-expect-error (fails if error fixed)
+```
+
+### Code Quality
+- Console: `// eslint-disable-next-line no-console` (debugging only)
+- Unused vars: `const _unused = ...` or comment
+- Memory leaks: Always cleanup streams, contexts, timers
+- State updates: Use callback form `setState(prev => ...)` to avoid deps
+
+## Critical Rules
+1. NeuralProvider wrapper REQUIRED for all components
+2. Deepgram default backend (Whisper fallback)
+3. WASM files: `npm run copy:wasm` before dev
+4. Tests MUST pass before commit
+5. Monitor browser console for engine state transitions
+6. Backend integration: `cd backend-deepgram && python server.py` (port 8001)
+
+## Troubleshooting
+| Issue | Solution |
+|-------|----------|
+| "Audio engine already initialized" | Remove direct `useSusurro` imports → use `useNeural()` |
+| Model loading fails | Check network, Hugging Face access |
+| WASM errors | `npm run copy:wasm` |
+| Type errors | `npm run type-check`, `npm run lint:fix` |
+| Memory leaks | Verify stream cleanup in DevTools Memory Profiler |

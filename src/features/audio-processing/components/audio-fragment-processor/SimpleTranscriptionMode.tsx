@@ -70,6 +70,9 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
   // NEW: Preserve final transcription when stopping
   const [finalTranscription, setFinalTranscription] = useState('');
 
+  // Ref to track recording state immediately (prevents race conditions)
+  const isRecordingRef = React.useRef(false);
+
   // Setup transcription worker event handlers
   useEffect(() => {
     if (!worker.isReady) return;
@@ -119,6 +122,7 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
       await neural.initializeAudioEngine();
     }
 
+    isRecordingRef.current = true;
     setIsRecording(true);
     deepgramChunksRef.current = [];
     setFinalTranscription(''); // Clear previous session
@@ -197,13 +201,35 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
 
   // Stop recording
   const stopRecording = useCallback(async () => {
+    // Immediately set ref to prevent race conditions
+    isRecordingRef.current = false;
+
     try {
-      // PRESERVE TRANSCRIPTION BEFORE STOPPING
-      const currentText = refinedTextFromWorker || dual.deepgramText || dual.webSpeechText || '';
+      // PRESERVE BEST AVAILABLE TRANSCRIPTION BEFORE STOPPING
+      // Priority: Claude refined > Deepgram > Web Speech
+      const currentText =
+        refinedTextFromWorker || dual.deepgramText || dual.webSpeechText || '';
+
+      console.log('🛑 [Stop] Preserving text:', {
+        refined: refinedTextFromWorker?.length || 0,
+        deepgram: dual.deepgramText?.length || 0,
+        webSpeech: dual.webSpeechText?.length || 0,
+        final: currentText.length,
+      });
+
       if (currentText) {
         setFinalTranscription(currentText);
-        onLog?.(`💾 Preserved transcription: ${currentText.substring(0, 50)}...`, 'success');
+        onLog?.(
+          `💾 Preserved ${currentText.length} chars: ${currentText.substring(0, 50)}...`,
+          'success'
+        );
+      } else {
+        onLog?.('⚠️ No transcription to preserve', 'warning');
       }
+
+      // Update UI state immediately
+      setIsRecording(false);
+      setIsInitializing(false);
 
       // Stop and cleanup visualizer stream
       if (visualizerStream) {
@@ -212,25 +238,18 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
         console.log('🧹 [Visualizer] Cleaned up raw microphone stream');
       }
 
-      setIsInitializing(false); // Clear any lingering initialization state
-
       // Stop transcription first
       await dual.stopTranscription();
 
       // Stop streaming recording (this will stop MediaRecorder and release audio resources)
       await neural.stopStreamingRecording();
 
-      // Wait a bit for cleanup to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Update state AFTER all cleanup is complete
-      setIsRecording(false);
-
       // Don't clear deepgramChunksRef immediately - let UI update first
       onLog?.('✅ Recording stopped and resources released', 'success');
     } catch (error) {
       console.error('Error stopping recording:', error);
-      // Even if there's an error, update the state
+      // Even if there's an error, ensure state is updated
+      isRecordingRef.current = false;
       setIsRecording(false);
       setIsInitializing(false);
       onLog?.('⚠️ Recording stopped with errors', 'warning');
@@ -308,8 +327,10 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
   // 4. After STOP: show final preserved text
 
   const liveText = isRecording ? dual.webSpeechText || '' : ''; // Real-time Web Speech
-  const confirmedText = isRecording ? refinedTextFromWorker || '' : finalTranscription; // Claude refined
-  const deepgramPending = isRecording ? dual.deepgramText || '' : ''; // Deepgram processing
+  const deepgramText = isRecording ? dual.deepgramText || '' : ''; // Deepgram in real-time
+  const confirmedText = isRecording
+    ? refinedTextFromWorker || deepgramText || dual.webSpeechText || ''
+    : finalTranscription; // Best available text
 
   // Show refinement status (reserved for future use)
   // const showDeepgramDiff =
@@ -374,10 +395,21 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
       <div className={styles.simpleTextArea}>
         {/* Real-time text display */}
         <div className={styles.simpleTextbox}>
-          {/* Priority: Claude refined > Web Speech live > Saved final text > Placeholder */}
+          {/* Priority: Claude refined > Deepgram > Web Speech live > Saved final text > Placeholder */}
           {confirmedText ? (
-            // Show Claude refined text (green) when available
-            <span style={{ color: '#00ff41' }}>{confirmedText}</span>
+            // Show best available text
+            <>
+              {refinedTextFromWorker ? (
+                // Claude refined (green)
+                <span style={{ color: '#00ff41' }}>{refinedTextFromWorker}</span>
+              ) : deepgramText ? (
+                // Deepgram processed (blue)
+                <span style={{ color: '#0096ff' }}>{deepgramText}</span>
+              ) : (
+                // Web Speech or fallback (gold)
+                <span style={{ color: '#ffc800' }}>{confirmedText}</span>
+              )}
+            </>
           ) : liveText ? (
             // Show Web Speech live text (yellow/gold) during recording
             <span style={{ color: '#ffc800' }}>{liveText}</span>
@@ -507,7 +539,7 @@ export const SimpleTranscriptionMode: React.FC<SimpleTranscriptionModeProps> = (
           ) : isRecording ? (
             <>
               ⏹ PARAR
-              {(deepgramPending || isRefining) && (
+              {(deepgramText || isRefining) && (
                 <span style={{ fontSize: '0.75rem', marginLeft: '6px', opacity: 0.8 }}>
                   ● {isRefining ? 'Claude...' : 'Deepgram...'}
                 </span>

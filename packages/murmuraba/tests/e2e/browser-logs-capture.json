@@ -1,0 +1,105 @@
+{
+  "console": [
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2025-07-23T20:05:19.476Z",
+      "location": {
+        "url": "webpack-internal:///./node_modules/react-dom/cjs/react-dom.development.js",
+        "lineNumber": 29889,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "log",
+      "text": "[HMR] connected",
+      "timestamp": "2025-07-23T20:05:22.221Z",
+      "location": {
+        "url": "webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/websocket.js",
+        "lineNumber": 45,
+        "columnNumber": 27
+      }
+    },
+    {
+      "type": "log",
+      "text": "Engine not ready (uninitialized), waiting...",
+      "timestamp": "2025-07-23T20:05:22.741Z",
+      "location": {
+        "url": "webpack-internal:///./components/AudioDemo.tsx",
+        "lineNumber": 149,
+        "columnNumber": 32
+      }
+    },
+    {
+      "type": "log",
+      "text": "🌟 [LIFECYCLE] Component mounted, setting up cleanup handler",
+      "timestamp": "2025-07-23T20:05:22.742Z",
+      "location": {
+        "url": "webpack-internal:///./packages/murmuraba/dist/index.esm.js",
+        "lineNumber": 6936,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "log",
+      "text": "👋 [LIFECYCLE] Component unmounting, cleaning up...",
+      "timestamp": "2025-07-23T20:05:22.752Z",
+      "location": {
+        "url": "webpack-internal:///./packages/murmuraba/dist/index.esm.js",
+        "lineNumber": 6941,
+        "columnNumber": 20
+      }
+    },
+    {
+      "type": "log",
+      "text": "Engine not ready (uninitialized), waiting...",
+      "timestamp": "2025-07-23T20:05:22.752Z",
+      "location": {
+        "url": "webpack-internal:///./components/AudioDemo.tsx",
+        "lineNumber": 149,
+        "columnNumber": 32
+      }
+    },
+    {
+      "type": "log",
+      "text": "🌟 [LIFECYCLE] Component mounted, setting up cleanup handler",
+      "timestamp": "2025-07-23T20:05:22.752Z",
+      "location": {
+        "url": "webpack-internal:///./packages/murmuraba/dist/index.esm.js",
+        "lineNumber": 6936,
+        "columnNumber": 16
+      }
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "network": [],
+  "performance": [],
+  "engineStatus": [
+    {
+      "type": "log",
+      "text": "Engine not ready (uninitialized), waiting...",
+      "timestamp": "2025-07-23T20:05:22.741Z",
+      "location": {
+        "url": "webpack-internal:///./components/AudioDemo.tsx",
+        "lineNumber": 149,
+        "columnNumber": 32
+      }
+    },
+    {
+      "type": "log",
+      "text": "Engine not ready (uninitialized), waiting...",
+      "timestamp": "2025-07-23T20:05:22.752Z",
+      "location": {
+        "url": "webpack-internal:///./components/AudioDemo.tsx",
+        "lineNumber": 149,
+        "columnNumber": 32
+      }
+    },
+    {
+      "status": "uninitialized",
+      "timestamp": "2025-07-23T20:05:26.664Z"
+    }
+  ],
+  "audioProcessing": []
+}

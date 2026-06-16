@@ -1,0 +1,104 @@
+{
+  "name": "murmuraba",
+  "version": "3.0.3",
+  "type": "module",
+  "description": "Real-time audio noise reduction with advanced chunked processing for web applications",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.esm.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "audio",
+    "noise-reduction",
+    "rnnoise",
+    "webassembly",
+    "real-time",
+    "audio-processing",
+    "react",
+    "typescript",
+    "chunks",
+    "streaming",
+    "voice",
+    "noise-suppression"
+  ],
+  "author": "Bernard",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BernardUriza/murmuraba"
+  },
+  "scripts": {
+    "build": "npm run clean && npm run build:ts && npm run build:rollup && npm run copy:wasm",
+    "build:unsafe": "npm run clean && npm run build:ts && npm run build:rollup && npm run copy:wasm",
+    "copy:wasm": "cp ../../node_modules/@jitsi/rnnoise-wasm/dist/rnnoise.wasm dist/ || true",
+    "build:ts": "tsc",
+    "build:rollup": "rollup -c",
+    "clean": "rimraf dist",
+    "quality:gate": "node scripts/check-coverage.js",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts,.tsx",
+    "watch": "npm run build:ts -- --watch",
+    "dev": "npm-run-all --parallel watch:*",
+    "watch:ts": "tsc --watch",
+    "watch:rollup": "rollup -c --watch"
+  },
+  "peerDependencies": {
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
+    "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^11.1.5",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@types/glob": "^7.2.0",
+    "@types/react": "^19.1.9",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "@vitest/ui": "^3.2.4",
+    "eslint": "^8.54.0",
+    "glob": "^11.0.3",
+    "happy-dom": "^18.0.1",
+    "npm-run-all": "^4.1.5",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "rimraf": "^5.0.5",
+    "rollup": "^4.6.0",
+    "rollup-plugin-copy": "^3.5.0",
+    "rollup-plugin-postcss": "^4.0.2",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.0",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "@jitsi/rnnoise-wasm": "^0.2.1",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react-dom": "^19.1.7",
+    "jszip": "^3.10.1",
+    "lamejs": "^1.2.1",
+    "recharts": "^3.1.0"
+  }
+}

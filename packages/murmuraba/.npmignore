@@ -1,0 +1,12 @@
+src/
+tsconfig.json
+rollup.config.js
+.eslintrc.js
+jest.config.js
+*.test.ts
+*.test.tsx
+coverage/
+.DS_Store
+*.log
+.vscode/
+.idea/

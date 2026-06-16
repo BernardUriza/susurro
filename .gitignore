@@ -7,6 +7,11 @@ node_modules/
 dist/
 build/
 
+# Exception: rnnoise-wasm ships a committed prebuilt WASM artifact (no emscripten
+# build runs in the monorepo); keep its dist tracked.
+!packages/rnnoise-wasm/dist/
+!packages/rnnoise-wasm/dist/**
+
 # Testing
 coverage/
 

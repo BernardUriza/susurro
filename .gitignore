@@ -69,3 +69,4 @@ env/
 !api/*.py
 !api/requirements.txt
 !api/Dockerfile
+api/static/

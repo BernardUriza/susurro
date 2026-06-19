@@ -86,6 +86,7 @@
     "eslint-config-prettier": "^10.1.8",
     "framer-motion": "^12.23.12",
     "murmuraba": "file:./packages/murmuraba",
+    "react-router-dom": "^7.18.0",
     "react-virtuoso": "^4.13.0"
   },
   "devDependencies": {

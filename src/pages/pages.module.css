@@ -1,0 +1,304 @@
+.page {
+  position: relative;
+  min-height: 100vh;
+  background: #000000;
+  color: #00ff41;
+  font-family: 'Courier New', monospace;
+  padding: 2rem 1.5rem 4rem;
+  box-sizing: border-box;
+}
+
+.inner {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.homeLink {
+  color: #00ff41;
+  text-decoration: none;
+  border: 1px solid rgba(0, 255, 65, 0.4);
+  padding: 0.5rem 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.homeLink:hover {
+  background: rgba(0, 255, 65, 0.1);
+  box-shadow: 0 0 16px rgba(0, 255, 65, 0.3);
+}
+
+.title {
+  font-size: 2rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin: 0;
+  text-shadow: 0 0 16px rgba(0, 255, 65, 0.5);
+}
+
+.subtitle {
+  color: rgba(0, 255, 65, 0.7);
+  margin: 0.5rem 0 2rem;
+  line-height: 1.5;
+}
+
+.section {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(0, 17, 0, 0.9));
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 255, 65, 0.04);
+}
+
+.sectionTitle {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin: 0 0 1rem;
+  color: #00ff41;
+}
+
+.tokenBox {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: rgba(0, 255, 65, 0.06);
+  border: 1px solid #00ff41;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  word-break: break-all;
+}
+
+.tokenValue {
+  font-family: 'Courier New', monospace;
+  font-size: 0.95rem;
+  color: #00ff41;
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+}
+
+.callout {
+  border-left: 3px solid #00ff41;
+  background: rgba(0, 255, 65, 0.05);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.callout strong {
+  color: #ffffff;
+}
+
+.endpointMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.method {
+  border: 1px solid #00ff41;
+  border-radius: 4px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.url {
+  color: rgba(0, 255, 65, 0.85);
+  word-break: break-all;
+}
+
+.codeBlockWrap {
+  position: relative;
+  margin: 0.75rem 0;
+}
+
+.codeLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(0, 255, 65, 0.6);
+  margin-bottom: 0.35rem;
+}
+
+.codeBlock {
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid rgba(0, 255, 65, 0.4);
+  border-radius: 6px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #00ff41;
+  white-space: pre;
+  margin: 0;
+}
+
+.copyButton {
+  background: linear-gradient(135deg, rgba(0, 255, 65, 0.1), transparent);
+  border: 1px solid #00ff41;
+  color: #00ff41;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-radius: 4px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.copyButton:hover {
+  background: rgba(0, 255, 65, 0.2);
+  box-shadow: 0 0 14px rgba(0, 255, 65, 0.3);
+}
+
+.codeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(0, 255, 65, 0.7);
+}
+
+.input {
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(0, 255, 65, 0.4);
+  color: #00ff41;
+  padding: 0.6rem 0.8rem;
+  font-family: 'Courier New', monospace;
+  border-radius: 4px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #00ff41;
+  box-shadow: 0 0 0 2px rgba(0, 255, 65, 0.2), 0 0 16px rgba(0, 255, 65, 0.3);
+}
+
+.row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.button {
+  background: linear-gradient(135deg, rgba(0, 255, 65, 0.12), transparent);
+  border: 1px solid #00ff41;
+  color: #00ff41;
+  padding: 0.6rem 1.25rem;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.button:hover {
+  background: rgba(0, 255, 65, 0.22);
+  box-shadow: 0 0 18px rgba(0, 255, 65, 0.35);
+}
+
+.buttonDanger {
+  border-color: #ff0041;
+  color: #ff0041;
+  background: linear-gradient(135deg, rgba(255, 0, 65, 0.1), transparent);
+}
+
+.buttonDanger:hover {
+  background: rgba(255, 0, 65, 0.2);
+  box-shadow: 0 0 18px rgba(255, 0, 65, 0.35);
+}
+
+.errorBox {
+  border: 1px solid #ff0041;
+  background: rgba(255, 0, 65, 0.1);
+  color: #ff0041;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+}
+
+.notice {
+  color: rgba(0, 255, 65, 0.7);
+  font-style: italic;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.table th,
+.table td {
+  border: 1px solid rgba(0, 255, 65, 0.25);
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table th {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  color: rgba(0, 255, 65, 0.8);
+  background: rgba(0, 255, 65, 0.05);
+}
+
+.rowInactive {
+  opacity: 0.4;
+}
+
+.newKeyBox {
+  border: 1px solid #00ff41;
+  background: rgba(0, 255, 65, 0.08);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 0 24px rgba(0, 255, 65, 0.2);
+}
+
+.newKeyWarning {
+  color: #ffffff;
+  font-weight: bold;
+  margin-bottom: 0.75rem;
+}

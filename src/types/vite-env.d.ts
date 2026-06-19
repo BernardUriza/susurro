@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_USE_RENDER?: string;
-  // add more env variables here as needed
+  readonly VITE_SUSURRO_GATEWAY?: string;
 }
 
 interface ImportMeta {

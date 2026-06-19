@@ -63,3 +63,9 @@ env/
 
 # WASM files are needed
 !public/wasm/rnnoise.wasm
+
+# Susurro Voice Gateway (api/) — force-track despite the repo-wide *.py ignore
+!api/
+!api/*.py
+!api/requirements.txt
+!api/Dockerfile

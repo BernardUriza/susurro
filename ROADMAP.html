@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Susurro — Roadmap</title>
+<style>
+  :root {
+    --bg:       #0d0d0d;
+    --surface:  #161616;
+    --border:   #2a2a2a;
+    --muted:    #555;
+    --text:     #d4d4d4;
+    --head:     #f0f0f0;
+    --green:    #4ade80;
+    --amber:    #fbbf24;
+    --blue:     #60a5fa;
+    --red:      #f87171;
+    --purple:   #a78bfa;
+    --mono:     'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --sans:     -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.65;
+    padding: 48px 24px 96px;
+  }
+  .page { max-width: 860px; margin: 0 auto; }
+
+  /* Header */
+  .hero { margin-bottom: 56px; }
+  .hero h1 { font-family: var(--mono); font-size: 2rem; color: var(--head); letter-spacing: -0.5px; }
+  .hero h1 span { color: var(--green); }
+  .hero .sub { margin-top: 10px; font-size: 1rem; color: var(--muted); max-width: 560px; }
+  .hero .truth {
+    margin-top: 20px; padding: 14px 18px;
+    background: #1a1a1a; border-left: 3px solid var(--amber);
+    font-size: 0.9rem; color: var(--text); border-radius: 0 4px 4px 0;
+  }
+  .hero .truth strong { color: var(--amber); }
+
+  /* Gateway fact box */
+  .fact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 56px; }
+  .fact {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 16px 18px; border-radius: 8px;
+  }
+  .fact .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 6px; }
+  .fact .value { font-family: var(--mono); font-size: 0.85rem; color: var(--head); }
+  .fact .value.ok { color: var(--green); }
+  .fact .value.pending { color: var(--amber); }
+
+  /* Phases */
+  .phase { margin-bottom: 48px; }
+  .phase-header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+  .badge {
+    font-family: var(--mono); font-size: 0.7rem; font-weight: 700;
+    padding: 3px 10px; border-radius: 20px; white-space: nowrap;
+  }
+  .badge.done    { background: #14532d; color: var(--green); }
+  .badge.next    { background: #451a03; color: var(--amber); }
+  .badge.later   { background: #1e1b4b; color: var(--blue); }
+  .badge.someday { background: #1a1a1a; color: var(--muted); }
+  .phase-header h2 { font-size: 1.15rem; color: var(--head); font-weight: 600; }
+  .phase-header .phase-num { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+
+  .items { display: flex; flex-direction: column; gap: 10px; }
+  .item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 18px;
+    display: grid; grid-template-columns: 20px 1fr; gap: 12px; align-items: start;
+  }
+  .item .bullet { padding-top: 2px; }
+  .item .title { color: var(--head); font-size: 0.92rem; font-weight: 500; }
+  .item .why { color: var(--muted); font-size: 0.83rem; margin-top: 3px; }
+  .item .file { font-family: var(--mono); font-size: 0.75rem; color: var(--blue); margin-top: 5px; }
+  .done-dot  { color: var(--green); }
+  .next-dot  { color: var(--amber); }
+  .later-dot { color: var(--blue); }
+  .some-dot  { color: var(--muted); }
+
+  /* What it is NOT */
+  .not-section { margin-bottom: 48px; }
+  .not-section h2 { font-size: 1.15rem; color: var(--head); margin-bottom: 16px; font-weight: 600; }
+  .not-list { display: flex; flex-direction: column; gap: 8px; }
+  .not-item {
+    background: var(--surface); border: 1px solid #3a1a1a;
+    border-radius: 8px; padding: 12px 16px;
+    display: flex; gap: 12px; align-items: start; font-size: 0.88rem;
+  }
+  .not-item .x { color: var(--red); flex-shrink: 0; }
+  .not-item .text { color: var(--text); }
+  .not-item .why-not { color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
+
+  /* Web app vision */
+  .vision {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 24px 28px; margin-bottom: 48px;
+  }
+  .vision h2 { font-size: 1.1rem; color: var(--head); margin-bottom: 16px; font-weight: 600; }
+  .vision p { font-size: 0.9rem; color: var(--text); margin-bottom: 12px; }
+  .vision p:last-child { margin-bottom: 0; }
+  .vision .callout {
+    background: #0f2617; border-left: 3px solid var(--green);
+    padding: 12px 16px; border-radius: 0 6px 6px 0;
+    font-size: 0.88rem; color: var(--text); margin-top: 16px;
+  }
+
+  /* Endpoint ref */
+  .endpoints { margin-bottom: 48px; }
+  .endpoints h2 { font-size: 1.15rem; color: var(--head); margin-bottom: 16px; font-weight: 600; }
+  .ep-grid { display: grid; gap: 10px; }
+  .ep {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 18px;
+    display: flex; gap: 16px; align-items: start; flex-wrap: wrap;
+  }
+  .ep .method { font-family: var(--mono); font-size: 0.75rem; background: #1a2a1a; color: var(--green); padding: 2px 8px; border-radius: 4px; white-space: nowrap; align-self: center; }
+  .ep .path { font-family: var(--mono); font-size: 0.85rem; color: var(--head); align-self: center; }
+  .ep .desc { font-size: 0.82rem; color: var(--muted); align-self: center; }
+
+  /* Consumer table */
+  .table-wrap { overflow-x: auto; margin-bottom: 48px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 500; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 1px; }
+  td { padding: 10px 14px; border-bottom: 1px solid #1e1e1e; color: var(--text); font-family: var(--mono); font-size: 0.8rem; vertical-align: top; }
+  td.label-col { font-family: var(--sans); font-size: 0.85rem; color: var(--head); }
+  .status-ok     { color: var(--green); }
+  .status-broken { color: var(--red); }
+  .status-next   { color: var(--amber); }
+
+  /* Footer */
+  footer { border-top: 1px solid var(--border); padding-top: 24px; margin-top: 64px; font-size: 0.8rem; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  footer a { color: var(--blue); text-decoration: none; }
+
+  @media (max-width: 600px) {
+    body { padding: 24px 16px 64px; }
+    .hero h1 { font-size: 1.5rem; }
+    .fact-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HERO -->
+  <div class="hero">
+    <h1><span>susurro</span> — roadmap</h1>
+    <p class="sub">Un gateway de voz propio. STT + TTS para todas las apps de Bernard, con llave solo suya. El vendor (Azure hoy, self-hosted después) es un detalle de implementación.</p>
+    <div class="truth">
+      <strong>Verdad sin marketing:</strong> el backend está listo y es el activo real. El frontend web hasta ahora era un experimento de Matrix que no transcribía nada en producción. Este roadmap declara lo que susurro <em>debe</em> ser: una herramienta, no un demo.
+    </div>
+  </div>
+
+  <!-- GATEWAY LIVE STATUS -->
+  <div class="fact-grid">
+    <div class="fact">
+      <div class="label">Gateway</div>
+      <div class="value ok">LIVE en Azure</div>
+    </div>
+    <div class="fact">
+      <div class="label">Motor de voz</div>
+      <div class="value ok">susurro-openai (dedicado)</div>
+    </div>
+    <div class="fact">
+      <div class="label">Metering</div>
+      <div class="value ok">Azure Tables (por llave)</div>
+    </div>
+    <div class="fact">
+      <div class="label">Auth</div>
+      <div class="value ok">Bearer SUSURRO_KEY</div>
+    </div>
+    <div class="fact">
+      <div class="label">Admin UI</div>
+      <div class="value ok">/admin (live)</div>
+    </div>
+    <div class="fact">
+      <div class="label">Docs / Discovery</div>
+      <div class="value ok">/docs + /v1/discovery</div>
+    </div>
+    <div class="fact">
+      <div class="label">discord-bot voz</div>
+      <div class="value pending">ROTO (migración pendiente)</div>
+    </div>
+    <div class="fact">
+      <div class="label">videopipe TTS</div>
+      <div class="value pending">aún en Azure directo</div>
+    </div>
+  </div>
+
+  <!-- WHAT IT IS NOT -->
+  <div class="not-section">
+    <h2>Lo que susurro NO es (y nunca debió ser el SLA principal)</h2>
+    <div class="not-list">
+      <div class="not-item">
+        <span class="x">✗</span>
+        <div>
+          <div class="text">Un "AI Transcription Studio" con Matrix rain y terminal de NORAD</div>
+          <div class="why-not">Era un demo de Whisper in-browser de un pivot anterior. Cargaba 2.69 MB de ML para mostrar tres cards que decían "Not active". No era el producto.</div>
+        </div>
+      </div>
+      <div class="not-item">
+        <span class="x">✗</span>
+        <div>
+          <div class="text">El experimento de Murmuraba / in-browser Whisper como feature central</div>
+          <div class="why-not">Sin COOP/COEP en prod, SharedArrayBuffer era undefined — el motor de audio nunca arrancó en Azure. Era un cartel de funciones que nadie podía usar.</div>
+        </div>
+      </div>
+      <div class="not-item">
+        <span class="x">✗</span>
+        <div>
+          <div class="text">Un competidor de Deepgram / ElevenLabs con features de ML propias</div>
+          <div class="why-not">El valor es el GATEWAY propio: llave tuya, metering tuyo, motor intercambiable. No el motor en sí mismo (hoy Azure, mañana self-hosted). No hay que reinventar el STT/TTS.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VISION WEB -->
+  <div class="vision">
+    <h2>Lo que la web SÍ debe ser</h2>
+    <p>Una herramienta de tres páginas, sin cosplay de terminal:</p>
+    <p><strong style="color:var(--head)">/</strong> → Onboarding y docs. Para que tus agentes (y cualquier dev) aprendan a usar susurro en 30 segundos. Token de onboarding visible, ejemplos curl/JS/Python copy-paste. Ya existe y funciona.</p>
+    <p><strong style="color:var(--head)">/admin</strong> → Dashboard de llaves: qué proyecto usa qué, cuánto consumen, crear/revocar. Ya existe y funciona.</p>
+    <p><strong style="color:var(--head)">/playground</strong> (pendiente) → Un micrograbador real: microfono → /v1/stt → muestra el texto. Cuadro de texto → /v1/tts → reproduce el audio. Usa el token de onboarding desde /v1/discovery, ningún hardcode. Sin ML in-browser, sin canvas, sin WASM. Funciona porque llama a tu gateway real como cualquier consumer.</p>
+    <div class="callout">
+      El playground prueba el contrato del gateway, no el motor. Es la demostración honesta: si el gateway está vivo, el playground funciona. Si el motor cambia (Azure → self-hosted), el playground no se toca.
+    </div>
+  </div>
+
+  <!-- ENDPOINTS REF -->
+  <div class="endpoints">
+    <h2>Contrato del gateway (estable, los consumers lo hornean)</h2>
+    <div class="ep-grid">
+      <div class="ep">
+        <span class="method">GET</span>
+        <span class="path">/health</span>
+        <span class="desc">Liveness — no requiere auth. Container Apps probe.</span>
+      </div>
+      <div class="ep">
+        <span class="method">GET</span>
+        <span class="path">/ready</span>
+        <span class="desc">Prueba real TTS de 1 char al upstream. Se pone 503 cuando el motor está caído.</span>
+      </div>
+      <div class="ep">
+        <span class="method">GET</span>
+        <span class="path">/v1/discovery</span>
+        <span class="desc">Machine-readable: devuelve el onboarding token + instrucciones de uso. Tus agentes lo leen para auto-onboardearse.</span>
+      </div>
+      <div class="ep">
+        <span class="method">POST</span>
+        <span class="path">/v1/stt?language=es</span>
+        <span class="desc">Audio bytes → { transcript, engine }. Bearer requerido. engine=whisper (default) o engine=deepgram.</span>
+      </div>
+      <div class="ep">
+        <span class="method">POST</span>
+        <span class="path">/v1/tts</span>
+        <span class="desc">{ input, voice?, format? } → audio bytes (mp3 default). Bearer requerido.</span>
+      </div>
+      <div class="ep">
+        <span class="method">POST</span>
+        <span class="path">/v1/refine</span>
+        <span class="desc">{ web_speech_text, deepgram_text } → { refined } — Claude elige la mejor transcripción.</span>
+      </div>
+      <div class="ep">
+        <span class="method">GET</span>
+        <span class="path">/admin/keys</span>
+        <span class="desc">Lista llaves + consumo. Admin Bearer requerido.</span>
+      </div>
+      <div class="ep">
+        <span class="method">POST</span>
+        <span class="path">/admin/keys</span>
+        <span class="desc">Crea llave. { name, daily_limit }. Admin Bearer requerido.</span>
+      </div>
+      <div class="ep">
+        <span class="method">POST</span>
+        <span class="path">/admin/keys/:token/revoke</span>
+        <span class="desc">Revoca una llave. Admin Bearer requerido.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONSUMER TABLE -->
+  <div class="table-wrap">
+    <h2 style="color:var(--head);font-size:1.15rem;margin-bottom:16px;font-weight:600">Consumers que deben pasar por el gateway</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Consumer</th>
+          <th>Archivo</th>
+          <th>Qué usa</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="label-col">discord-bot — TTS</td>
+          <td>khimeras_shared/tts.py</td>
+          <td>Azure OpenAI tts directo</td>
+          <td class="status-broken">ROTO — Azure borrado</td>
+        </tr>
+        <tr>
+          <td class="label-col">discord-bot — STT</td>
+          <td>personas/insult/core/transcribe.py</td>
+          <td>Azure OpenAI whisper directo</td>
+          <td class="status-broken">ROTO — Azure borrado</td>
+        </tr>
+        <tr>
+          <td class="label-col">picturelock — TTS</td>
+          <td>gen-voiceover-tts.mjs</td>
+          <td>Azure OpenAI tts directo</td>
+          <td class="status-broken">ROTO — Azure borrado</td>
+        </tr>
+        <tr>
+          <td class="label-col">picturelock — STT</td>
+          <td>transcribe.py, mix_audio.py</td>
+          <td>faster-whisper local (OK)</td>
+          <td class="status-ok">OK — no requiere gateway</td>
+        </tr>
+        <tr>
+          <td class="label-col">CC–VH-lite</td>
+          <td>cc_voice_lite.py</td>
+          <td>macOS say (local)</td>
+          <td class="status-ok">OK — no requiere gateway</td>
+        </tr>
+        <tr>
+          <td class="label-col">artcollection</td>
+          <td>ttsChunking.js</td>
+          <td>por verificar</td>
+          <td class="status-next">verificar</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PHASES -->
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-num">P0</span>
+      <span class="badge done">DONE ✓</span>
+      <h2>El gateway vive</h2>
+    </div>
+    <div class="items">
+      <div class="item">
+        <span class="bullet done-dot">✓</span>
+        <div>
+          <div class="title">FastAPI gateway en Azure Container Apps</div>
+          <div class="why">/v1/stt, /v1/tts, /v1/refine + Bearer auth por llave, metering en Azure Tables</div>
+          <div class="file">api/main.py — insult-rg/susurro-gateway</div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="bullet done-dot">✓</span>
+        <div>
+          <div class="title">Recurso Azure OpenAI dedicado a susurro</div>
+          <div class="why">susurro-openai (susurro-rg) con sus propios tts+whisper. La llave solo la tiene el gateway. insult-openai quedó limpio.</div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="bullet done-dot">✓</span>
+        <div>
+          <div class="title">Admin dashboard + public docs</div>
+          <div class="why">/admin: llaves activas, consumo, crear/revocar. /docs + /v1/discovery: onboarding para agentes humanos y AI. Per-key metering real.</div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="bullet done-dot">✓</span>
+        <div>
+          <div class="title">Demo Matrix muerto → extirpado</div>
+          <div class="why">8402 LOC de experimento que no corría en prod. 2.69MB → 233KB. Cero canvas epiléptico, cero ERR_CONNECTION_REFUSED.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-num">P1</span>
+      <span class="badge next">SIGUIENTE — esta semana</span>
+      <h2>Migrar los consumers rotos</h2>
+    </div>
+    <div class="items">
+      <div class="item">
+        <span class="bullet next-dot">→</span>
+        <div>
+          <div class="title">discord-bot: TTS y STT al gateway</div>
+          <div class="why">La voz del bot está muerta desde que borraste los deployments de insult-openai. Prioridad real: el insult bot no habla.</div>
+          <div class="file">khimeras_shared/tts.py + personas/insult/core/transcribe.py → Bearer $SUSURRO_KEY → /v1/tts y /v1/stt</div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="bullet next-dot">→</span>
+        <div>
+          <div class="title">picturelock TTS al gateway</div>
+          <div class="why">gen-voiceover-tts.mjs sigue apuntando a Azure directo con una llave que ya no tiene ese deployment. Videopipe no puede generar voiceovers.</div>
+          <div class="file">gen-voiceover-tts.mjs → /v1/tts con Bearer</div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="bullet next-dot">→</span>
+        <div>
+          <div class="title">Cache-Control en el SPA</div>
+          <div class="why">index.html sin no-cache = el deploy nuevo llega 10 minutos después al usuario. Assets ya tienen hash, solo falta el header del HTML.</div>
+          <div class="file">api/main.py FileResponse → headers no-cache para index.html, immutable para /js/* /assets/*</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-num">P2</span>
+      <span class="badge later">DESPUÉS — cuando el P1 esté verde</span>
+      <h2>El playground funcional que hace feliz</h2>
+    </div>
+    <div class="items">
+      <div class="item">
+        <span class="bullet later-dot">◈</span>
+        <div>
+          <div class="title">/playground — un micrograbador real que consume el gateway</div>
+          <div class="why">Botón de mic → MediaRecorder → POST /v1/stt → muestra texto. Cuadro de texto → POST /v1/tts → &lt;audio&gt; reproducible. Usa el token de /v1/discovery, sin hardcode, sin WASM, sin ML in-browser. Funciona porque el gateway funciona.</div>
+          <div class="file">src/pages/playground-page.tsx (nueva) + ruta en main.tsx</div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="bullet later-dot">◈</span>
+        <div>
+          <div class="title">Sincronizar artcollection</div>
+          <div class="why">ttsChunking.js — verificar si pega a Azure directo. Si sí, mismo tratamiento: Bearer al gateway.</div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="bullet later-dot">◈</span>
+        <div>
+          <div class="title">CD por GitHub Actions</div>
+          <div class="why">Hoy el deploy es az acr build manual. Debe ser: push a master → build → deploy automático. Misma doctrina que el resto de tus apps (fi-runner-azure-deploy).</div>
+          <div class="file">.github/workflows/api-cd.yml</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-num">P3</span>
+      <span class="badge someday">SOMEDAY — soberanía total</span>
+      <h2>Self-hosted: cero vendor en la voz</h2>
+    </div>
+    <div class="items">
+      <div class="item">
+        <span class="bullet some-dot">◦</span>
+        <div>
+          <div class="title">Reemplazar Azure whisper por faster-whisper en el container</div>
+          <div class="why">El gateway ya abstrae el motor. Swappear whisper: agregar faster-whisper al Dockerfile, un endpoint /v1/stt que lo use internamente, apagar AZURE_WHISPER_DEPLOYMENT. El contrato no cambia. Costo: cero por transcripción, a cambio de CPU del container.</div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="bullet some-dot">◦</span>
+        <div>
+          <div class="title">Reemplazar Azure tts por Kokoro/Piper</div>
+          <div class="why">TTS open source de calidad decente. Mismo patrón: en el container, swappear el motor, contrato /v1/tts no cambia. Consumers no se enteran.</div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="bullet some-dot">◦</span>
+        <div>
+          <div class="title">Una vez verde el P3: borrar susurro-openai</div>
+          <div class="why">La cuenta, el recurso y los deployments tts+whisper desaparecen. Voz 100% soberana, costo de infra solo. Eso es lo que dijiste que querías desde el principio.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- THE REAL SLA -->
+  <div class="vision" style="border-color: var(--green);">
+    <h2 style="color:var(--green)">El SLA que importa</h2>
+    <p>El SLA de susurro no es "el demo web se ve bonito". Es:</p>
+    <p><strong style="color:var(--head)">1.</strong> El discord-bot habla. (P1 — roto hoy)</p>
+    <p><strong style="color:var(--head)">2.</strong> Videopipe genera voiceovers. (P1 — roto hoy)</p>
+    <p><strong style="color:var(--head)">3.</strong> Cualquier nueva app que Bernard arranque usa susurro desde el día 1, con su llave, sin saber qué vendor está abajo.</p>
+    <p><strong style="color:var(--head)">4.</strong> /ready dice la verdad sobre si el motor sirve.</p>
+    <div class="callout">
+      El web app es la vitrina y la herramienta de gestión. No es el producto. El producto es el gateway. Cuando el gateway está vivo, susurro cumple su función aunque nadie abra el browser.
+    </div>
+  </div>
+
+  <footer>
+    <span>susurro — gateway de voz propio de Bernard</span>
+    <span>gateway: <a href="https://susurro-gateway.nicecliff-10074f57.eastus.azurecontainerapps.io/health">live</a> · <a href="https://susurro-gateway.nicecliff-10074f57.eastus.azurecontainerapps.io/docs">docs</a> · <a href="https://github.com/BernardUriza/susurro">repo</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

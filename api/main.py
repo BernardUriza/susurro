@@ -45,17 +45,39 @@ def require_azure() -> None:
 async def health() -> JSONResponse:
     return JSONResponse(
         {
-            "status": "ok",
-            "azure_configured": bool(AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY),
-            "keys_configured": len(SUSURRO_KEYS),
+            "status": "live",
+            "azure_endpoint_set": bool(AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY),
+            "susurro_keys": len(SUSURRO_KEYS),
             "deepgram": bool(DEEPGRAM_API_KEY),
             "claude": bool(ANTHROPIC_API_KEY),
+            "note": "liveness only; GET /ready proves the real Azure voice serving contract",
         }
     )
 
 
+@app.get("/ready")
+async def ready() -> JSONResponse:
+    if not (AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY):
+        return JSONResponse(status_code=503, content={"ready": False, "reason": "Azure not configured"})
+    url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_TTS_DEPLOYMENT}/audio/speech?api-version={AZURE_OPENAI_API_VERSION}"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                url,
+                headers={"api-key": AZURE_OPENAI_KEY, "Content-Type": "application/json"},
+                json={"model": AZURE_TTS_MODEL, "input": ".", "voice": AZURE_TTS_VOICE, "response_format": "mp3"},
+            )
+    except Exception as exc:
+        return JSONResponse(status_code=503, content={"ready": False, "reason": str(exc)})
+    ok = resp.status_code == 200 and len(resp.content) > 0
+    return JSONResponse(
+        status_code=200 if ok else 503,
+        content={"ready": ok, "tts_status": resp.status_code, "tts_bytes": len(resp.content)},
+    )
+
+
 @app.post("/v1/stt", dependencies=[Depends(require_susurro_key)])
-async def stt(request: Request, engine: str = "whisper") -> JSONResponse:
+async def stt(request: Request, engine: str = "whisper", language: str | None = None) -> JSONResponse:
     audio = await request.body()
     if not audio:
         raise HTTPException(status_code=400, detail="Empty audio body")
@@ -81,12 +103,14 @@ async def stt(request: Request, engine: str = "whisper") -> JSONResponse:
     require_azure()
     filename = "audio.mp3" if "mp3" in content_type else "audio.wav"
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_WHISPER_DEPLOYMENT}/audio/transcriptions?api-version={AZURE_OPENAI_API_VERSION}"
-    logger.info("stt.whisper.start bytes=%d", len(audio))
+    logger.info("stt.whisper.start bytes=%d lang=%s", len(audio), language or "auto")
+    data = {"language": language} if language else None
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
             url,
             headers={"api-key": AZURE_OPENAI_KEY},
             files={"file": (filename, audio, content_type)},
+            data=data,
         )
     logger.info("stt.whisper.done status=%d", resp.status_code)
     if resp.status_code != 200:

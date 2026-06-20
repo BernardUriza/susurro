@@ -9,7 +9,7 @@ import { useDualTranscription } from '../src/hooks/use-dual-transcription';
 
 // Mock Web Speech API
 const mockWebSpeechAPI = () => {
-  global.SpeechRecognition = vi.fn().mockImplementation(() => ({
+  const RecognitionMock = vi.fn().mockImplementation(() => ({
     continuous: false,
     interimResults: false,
     lang: 'en-US',
@@ -20,8 +20,10 @@ const mockWebSpeechAPI = () => {
     removeEventListener: vi.fn(),
   }));
 
-  // @ts-ignore
-  global.webkitSpeechRecognition = global.SpeechRecognition;
+  Object.assign(globalThis, {
+    SpeechRecognition: RecognitionMock,
+    webkitSpeechRecognition: RecognitionMock,
+  });
 };
 
 // Mock fetch for Claude API
@@ -193,13 +195,13 @@ describe('useDualTranscription', () => {
 
     act(() => {
       result.current.addDeepgramChunk?.({
+        id: 'chunk-1',
+        audioBlob: new Blob(),
         transcriptionText: 'First chunk',
-        audioData: new Uint8Array(),
         timestamp: Date.now(),
         duration: 1000,
         isVoiceActive: true,
         vadScore: 0.9,
-        confidence: 0.95,
       });
     });
 
@@ -207,13 +209,13 @@ describe('useDualTranscription', () => {
 
     act(() => {
       result.current.addDeepgramChunk?.({
+        id: 'chunk-2',
+        audioBlob: new Blob(),
         transcriptionText: 'Second chunk',
-        audioData: new Uint8Array(),
         timestamp: Date.now(),
         duration: 1000,
         isVoiceActive: true,
         vadScore: 0.9,
-        confidence: 0.95,
       });
     });
 
@@ -243,13 +245,13 @@ describe('useDualTranscription', () => {
     // Simulate receiving Deepgram transcription
     act(() => {
       result.current.addDeepgramChunk?.({
+        id: 'chunk-deepgram',
+        audioBlob: new Blob(),
         transcriptionText: 'Deepgram text',
-        audioData: new Uint8Array(),
         timestamp: Date.now(),
         duration: 1000,
         isVoiceActive: true,
         vadScore: 0.9,
-        confidence: 0.95,
       });
     });
 

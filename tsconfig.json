@@ -36,6 +36,7 @@
   "references": [{ "path": "./config/tsconfig.node.json" }],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "packages/murmuraba"
   ]
 }

@@ -323,6 +323,76 @@ async def refine(request: Request, key: dict = Depends(require_susurro_key)) -> 
     return JSONResponse({"success": True, "refined": refined, "engine": ANTHROPIC_MODEL})
 
 
+def require_susurro_key_compat(
+    api_key: str = Header(default=""), authorization: str = Header(default="")
+) -> dict:
+    presented = api_key.strip() or authorization.removeprefix("Bearer ").removeprefix("bearer ").strip()
+    if not presented:
+        raise HTTPException(status_code=401, detail="Missing key (api-key header or Bearer)")
+    record = get_key_record(presented)
+    if record is None:
+        raise HTTPException(status_code=401, detail="Invalid or inactive key")
+    limit = int(record.get("daily_limit", 0) or 0)
+    if limit > 0 and count_today(record["RowKey"]) >= limit:
+        raise HTTPException(status_code=429, detail=f"Daily limit reached ({limit}/day)")
+    return record
+
+
+@app.post("/openai/deployments/{deployment}/audio/speech")
+async def azure_compat_tts(
+    deployment: str, request: Request, key: dict = Depends(require_susurro_key_compat)
+) -> Response:
+    require_azure()
+    payload = await request.json()
+    text = (payload.get("input") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Missing 'input'")
+    response_format = payload.get("response_format", "mp3")
+    url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_TTS_DEPLOYMENT}/audio/speech?api-version={AZURE_OPENAI_API_VERSION}"
+    logger.info("compat.tts chars=%d voice=%s key=%s", len(text), payload.get("voice", AZURE_TTS_VOICE), key.get("name"))
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.post(
+            url,
+            headers={"api-key": AZURE_OPENAI_KEY, "Content-Type": "application/json"},
+            json={
+                "model": payload.get("model", AZURE_TTS_MODEL),
+                "input": text,
+                "voice": payload.get("voice", AZURE_TTS_VOICE),
+                "response_format": response_format,
+            },
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Azure tts {resp.status_code}: {resp.text}")
+    record_usage(key["RowKey"], "tts", len(text), len(text) * TTS_USD_PER_CHAR)
+    media_type = "audio/mpeg" if response_format == "mp3" else f"audio/{response_format}"
+    return Response(content=resp.content, media_type=media_type)
+
+
+@app.post("/openai/deployments/{deployment}/audio/transcriptions")
+async def azure_compat_stt(
+    deployment: str, request: Request, key: dict = Depends(require_susurro_key_compat)
+) -> JSONResponse:
+    require_azure()
+    form = await request.form()
+    upload = form.get("file")
+    if upload is None or isinstance(upload, str):
+        raise HTTPException(status_code=400, detail="Missing 'file' part")
+    audio = await upload.read()
+    url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_WHISPER_DEPLOYMENT}/audio/transcriptions?api-version={AZURE_OPENAI_API_VERSION}"
+    files = {"file": (upload.filename or "audio.wav", audio, upload.content_type or "application/octet-stream")}
+    data = {f: form[f] for f in ("language", "prompt", "response_format", "temperature") if f in form}
+    logger.info("compat.stt bytes=%d key=%s", len(audio), key.get("name"))
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.post(url, headers={"api-key": AZURE_OPENAI_KEY}, files=files, data=data or None)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Azure whisper {resp.status_code}: {resp.text}")
+    record_usage(key["RowKey"], "stt", len(audio), STT_USD_PER_REQUEST)
+    try:
+        return JSONResponse(resp.json())
+    except Exception:
+        return JSONResponse({"text": resp.text})
+
+
 @app.get("/admin/keys", dependencies=[Depends(require_admin)])
 async def admin_list_keys() -> JSONResponse:
     keys_table, usage_table = _tables()

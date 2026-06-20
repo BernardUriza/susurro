@@ -2,6 +2,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { DocsPage } from './pages/docs-page';
 import { AdminPage } from './pages/admin-page';
+import { ClaimPage } from './pages/claim-page';
 import './styles/reset.css';
 import './styles/tokens.css';
 
@@ -14,6 +15,7 @@ if (rootElement) {
         <Route path="/" element={<DocsPage />} />
         <Route path="/docs" element={<DocsPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/claim" element={<ClaimPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

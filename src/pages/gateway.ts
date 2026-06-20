@@ -55,6 +55,12 @@ export interface AdminKeysResponse {
   keys: AdminKey[];
 }
 
+export interface ClaimResponse {
+  token: string;
+  name: string;
+  warning: string;
+}
+
 export interface CreatedKeyResponse {
   token: string;
   name: string;

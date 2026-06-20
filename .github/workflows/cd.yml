@@ -1,0 +1,73 @@
+name: Deploy gateway
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'api/**'
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'tsconfig*.json'
+      - '.github/workflows/cd.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build web
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          rm -rf api/static && cp -r dist api/static
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build image in ACR
+        run: |
+          az acr build --registry insultacr \
+            --image susurro-gateway:${{ github.sha }} \
+            --image susurro-gateway:latest \
+            --file api/Dockerfile api/
+
+      - name: Deploy to Container Apps
+        run: |
+          az containerapp update -n susurro-gateway -g insult-rg \
+            --image insultacr.azurecr.io/susurro-gateway:${{ github.sha }} \
+            --set-env-vars GATEWAY_VERSION=${{ github.sha }}
+
+      - name: Smoke test /health (must report the new SHA)
+        run: |
+          for i in $(seq 1 25); do
+            v=$(curl -s https://sus.bernarduriza.com/health | jq -r .version)
+            if [ "$v" = "${{ github.sha }}" ]; then
+              echo "✅ live: gateway serving $v"
+              exit 0
+            fi
+            echo "attempt $i: version=$v (waiting for ${{ github.sha }})"
+            sleep 6
+          done
+          echo "❌ /health never reported the deployed SHA"
+          exit 1

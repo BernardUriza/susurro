@@ -1,8 +1,10 @@
 import logging
 import os
 import secrets as secrets_mod
+import time
 import uuid
-from datetime import datetime, timezone
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -39,13 +41,51 @@ TTS_USD_PER_CHAR = 15.0 / 1_000_000
 STT_USD_PER_REQUEST = 0.001
 REFINE_USD_PER_REQUEST = 0.0005
 
-app = FastAPI(title="Susurro Voice Gateway", version="2.0.0", docs_url=None, redoc_url=None)
+GATEWAY_VERSION = os.getenv("GATEWAY_VERSION", "dev")
+ALLOWED_DEPLOYMENTS = {AZURE_TTS_DEPLOYMENT, AZURE_WHISPER_DEPLOYMENT}
+
+
+def _retry_after_secs() -> int:
+    now = datetime.now(timezone.utc)
+    tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    return max(1, int((tomorrow - now).total_seconds()))
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    bootstrap_keys()
+    yield
+
+
+app = FastAPI(
+    title="Susurro Voice Gateway",
+    version="2.0.0",
+    docs_url=None,
+    redoc_url=None,
+    lifespan=lifespan,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    started = time.monotonic()
+    response = await call_next(request)
+    elapsed_ms = round((time.monotonic() - started) * 1000)
+    if request.url.path not in ("/health",) and not request.url.path.startswith(("/js", "/assets")):
+        logger.info(
+            "req method=%s path=%s status=%d ms=%d",
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed_ms,
+        )
+    return response
 
 _keys_table = None
 _usage_table = None
@@ -144,7 +184,6 @@ def name_in_use(name: str) -> bool:
     return False
 
 
-@app.on_event("startup")
 def bootstrap_keys() -> None:
     keys_table, _ = _tables()
     if keys_table is None:
@@ -184,7 +223,11 @@ def require_susurro_key(authorization: str = Header(default="")) -> dict:
         raise HTTPException(status_code=401, detail="Invalid or inactive Susurro key")
     limit = int(record.get("daily_limit", 0) or 0)
     if limit > 0 and count_today(record["RowKey"]) >= limit:
-        raise HTTPException(status_code=429, detail=f"Daily limit reached ({limit} req/day for this key)")
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily limit reached ({limit} req/day for this key)",
+            headers={"Retry-After": str(_retry_after_secs())},
+        )
     return record
 
 
@@ -204,6 +247,7 @@ async def health() -> JSONResponse:
     return JSONResponse(
         {
             "status": "live",
+            "version": GATEWAY_VERSION,
             "azure_endpoint_set": bool(AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY),
             "metering": bool(TABLES_CONN),
             "deepgram": bool(DEEPGRAM_API_KEY),
@@ -265,6 +309,12 @@ async def discovery(request: Request) -> JSONResponse:
                     "body": {"web_speech_text": "...", "deepgram_text": "..."},
                     "returns": {"refined": "best transcript"},
                 },
+            },
+            "azure_openai_compatible": {
+                "purpose": "Drop-in for the Azure OpenAI audio API: point an Azure-OpenAI-shaped client's endpoint here and use your susurro token as the api-key. Zero code change.",
+                "tts": f"{base}/openai/deployments/tts/audio/speech",
+                "stt": f"{base}/openai/deployments/whisper/audio/transcriptions",
+                "auth": "Header: api-key: <token>  (Bearer also accepted)",
             },
         }
     )
@@ -365,7 +415,11 @@ def require_susurro_key_compat(
         raise HTTPException(status_code=401, detail="Invalid or inactive key")
     limit = int(record.get("daily_limit", 0) or 0)
     if limit > 0 and count_today(record["RowKey"]) >= limit:
-        raise HTTPException(status_code=429, detail=f"Daily limit reached ({limit}/day)")
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily limit reached ({limit}/day)",
+            headers={"Retry-After": str(_retry_after_secs())},
+        )
     return record
 
 
@@ -374,13 +428,15 @@ async def azure_compat_tts(
     deployment: str, request: Request, key: dict = Depends(require_susurro_key_compat)
 ) -> Response:
     require_azure()
+    if deployment not in ALLOWED_DEPLOYMENTS:
+        raise HTTPException(status_code=404, detail=f"Unknown deployment '{deployment}'")
     payload = await request.json()
     text = (payload.get("input") or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Missing 'input'")
     response_format = payload.get("response_format", "mp3")
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_TTS_DEPLOYMENT}/audio/speech?api-version={AZURE_OPENAI_API_VERSION}"
-    logger.info("compat.tts chars=%d voice=%s key=%s", len(text), payload.get("voice", AZURE_TTS_VOICE), key.get("name"))
+    logger.info("compat.tts deployment=%s chars=%d key=%s", deployment, len(text), key.get("name"))
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
             url,
@@ -404,6 +460,8 @@ async def azure_compat_stt(
     deployment: str, request: Request, key: dict = Depends(require_susurro_key_compat)
 ) -> JSONResponse:
     require_azure()
+    if deployment not in ALLOWED_DEPLOYMENTS:
+        raise HTTPException(status_code=404, detail=f"Unknown deployment '{deployment}'")
     form = await request.form()
     upload = form.get("file")
     if upload is None or isinstance(upload, str):
@@ -412,7 +470,7 @@ async def azure_compat_stt(
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_WHISPER_DEPLOYMENT}/audio/transcriptions?api-version={AZURE_OPENAI_API_VERSION}"
     files = {"file": (upload.filename or "audio.wav", audio, upload.content_type or "application/octet-stream")}
     data = {f: form[f] for f in ("language", "prompt", "response_format", "temperature") if f in form}
-    logger.info("compat.stt bytes=%d key=%s", len(audio), key.get("name"))
+    logger.info("compat.stt deployment=%s bytes=%d key=%s", deployment, len(audio), key.get("name"))
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(url, headers={"api-key": AZURE_OPENAI_KEY}, files=files, data=data or None)
     if resp.status_code != 200:
@@ -525,6 +583,7 @@ async def admin_list_claims() -> JSONResponse:
         raise HTTPException(status_code=500, detail="Metering not configured")
     out = [
         {
+            "claim_code": c["RowKey"],
             "claim_code_preview": c["RowKey"][:16] + "…",
             "name": c.get("name") or None,
             "status": c.get("status"),
@@ -582,6 +641,45 @@ async def redeem_claim(request: Request) -> JSONResponse:
             "token": token,
             "name": name,
             "warning": "Save this token now — it will NOT be shown again. This claim is now burned.",
+        }
+    )
+
+
+@app.delete("/admin/claims/{code}", dependencies=[Depends(require_admin)])
+async def admin_revoke_claim(code: str) -> JSONResponse:
+    from azure.core.exceptions import ResourceNotFoundError
+
+    claims = _claims_table_client()
+    if claims is None:
+        raise HTTPException(status_code=500, detail="Metering not configured")
+    try:
+        claims.delete_entity("claim", code)
+    except ResourceNotFoundError:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    return JSONResponse({"deleted": code[:16] + "…"})
+
+
+@app.get("/admin/usage", dependencies=[Depends(require_admin)])
+async def admin_usage() -> JSONResponse:
+    _, usage_table = _tables()
+    if usage_table is None:
+        raise HTTPException(status_code=500, detail="Metering not configured")
+    by_endpoint: dict[str, dict[str, float]] = {}
+    total_requests = 0
+    total_cost = 0.0
+    for u in usage_table.list_entities():
+        ep = str(u.get("endpoint", "unknown"))
+        cost = float(u.get("cost_usd", 0) or 0)
+        bucket = by_endpoint.setdefault(ep, {"requests": 0, "cost_usd": 0.0})
+        bucket["requests"] += 1
+        bucket["cost_usd"] = round(bucket["cost_usd"] + cost, 6)
+        total_requests += 1
+        total_cost += cost
+    return JSONResponse(
+        {
+            "total_requests": total_requests,
+            "total_cost_usd": round(total_cost, 4),
+            "by_endpoint": by_endpoint,
         }
     )
 

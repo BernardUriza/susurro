@@ -61,6 +61,13 @@ export interface ClaimResponse {
   warning: string;
 }
 
+export interface ClaimCreateResponse {
+  claim_code: string;
+  claim_url: string;
+  name: string | null;
+  note: string;
+}
+
 export interface CreatedKeyResponse {
   token: string;
   name: string;

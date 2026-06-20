@@ -5,7 +5,7 @@ import {
   SUSURRO_GATEWAY,
   type AdminKey,
   type AdminKeysResponse,
-  type CreatedKeyResponse,
+  type ClaimCreateResponse,
 } from './gateway';
 import styles from './pages.module.css';
 
@@ -27,7 +27,7 @@ export function AdminPage() {
   const [keys, setKeys] = useState<AdminKey[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [newKey, setNewKey] = useState<CreatedKeyResponse | null>(null);
+  const [newClaim, setNewClaim] = useState<ClaimCreateResponse | null>(null);
   const [createName, setCreateName] = useState('');
   const [createLimit, setCreateLimit] = useState('0');
 
@@ -85,7 +85,7 @@ export function AdminPage() {
     }
     setError(null);
     try {
-      const res = await fetch(`${SUSURRO_GATEWAY}/admin/keys`, {
+      const res = await fetch(`${SUSURRO_GATEWAY}/admin/claims`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${adminToken}`,
@@ -97,15 +97,14 @@ export function AdminPage() {
         }),
       });
       if (!res.ok) {
-        throw new Error(`create key returned ${res.status}`);
+        throw new Error(`create claim returned ${res.status}`);
       }
-      const created = (await res.json()) as CreatedKeyResponse;
-      setNewKey(created);
+      const created = (await res.json()) as ClaimCreateResponse;
+      setNewClaim(created);
       setCreateName('');
       setCreateLimit('0');
-      await loadKeys(adminToken);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'failed to create key');
+      setError(err instanceof Error ? err.message : 'failed to create claim');
     }
   };
 
@@ -182,27 +181,32 @@ export function AdminPage() {
 
         {error && <div className={styles.errorBox}>{error}</div>}
 
-        {newKey && (
+        {newClaim && (
           <div className={styles.newKeyBox}>
             <p className={styles.newKeyWarning}>
-              save this now — the full token is shown only once.
+              send this onboarding link to the app owner. They open it once, the token is shown to
+              THEM (never to you), and the link burns.
             </p>
             <div className={styles.tokenBox}>
-              <span className={styles.tokenValue}>{newKey.token}</span>
-              <CopyButton value={newKey.token} />
+              <span className={styles.tokenValue}>{newClaim.claim_url}</span>
+              <CopyButton value={newClaim.claim_url} />
             </div>
             <p className={styles.notice}>
-              name: {newKey.name} · daily limit: {formatDailyLimit(newKey.daily_limit)}
+              identifier: {newClaim.name ?? '(owner names it on claim)'} · burns after one redemption
             </p>
           </div>
         )}
 
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Create project key</h2>
+          <h2 className={styles.sectionTitle}>Onboard a new app</h2>
+          <p className={styles.notice}>
+            Create a one-time claim link, then send it to the app owner. The token is revealed only
+            to whoever redeems it — you never handle it in plaintext.
+          </p>
           <div className={styles.row}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="key-name">
-                name
+                app identifier
               </label>
               <input
                 id="key-name"
@@ -210,7 +214,7 @@ export function AdminPage() {
                 type="text"
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
-                placeholder="project name"
+                placeholder="my-work-app"
               />
             </div>
             <div className={styles.field}>
@@ -227,7 +231,7 @@ export function AdminPage() {
               />
             </div>
             <button type="button" className={styles.button} onClick={handleCreate}>
-              create
+              create claim link
             </button>
           </div>
         </section>

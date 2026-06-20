@@ -137,19 +137,23 @@ export function DocsPage() {
             <p className={styles.subtitle}>{discovery.purpose}</p>
 
             <section className={styles.section}>
-              <h2 className={styles.sectionTitle}>Onboarding token</h2>
+              <h2 className={styles.sectionTitle}>Demo token — try it (rate-limited)</h2>
               <div className={styles.tokenBox}>
                 <span className={styles.tokenValue}>{discovery.onboarding_token}</span>
                 <CopyButton value={discovery.onboarding_token} />
               </div>
-              {rateLimitNote && <p className={styles.notice}>rate limit: {rateLimitNote}</p>}
+              <p className={styles.notice}>
+                For experimenting only{rateLimitNote ? ` — rate limit: ${rateLimitNote}` : ''}. NOT
+                for a real app. To run an app in production, ask the owner for a one-time claim link;
+                you redeem it once to get your own unlimited key.
+              </p>
             </section>
 
             <div className={styles.callout}>
-              <strong>For AI agents:</strong> you can{' '}
-              <code>GET {SUSURRO_GATEWAY}/v1/discovery</code> to self-onboard machine-readably — the
-              full contract comes back as JSON. The onboarding token above is rate-limited (50/day);
-              for production use, ask the owner for an unlimited project key.
+              <strong>For AI agents:</strong> <code>GET {SUSURRO_GATEWAY}/v1/discovery</code> returns
+              this full contract as JSON for machine self-onboarding. The demo token above is
+              rate-limited (50/day) — use it to try the API, then ask the owner for a claim link to
+              get your app its own key.
             </div>
 
             <EndpointCard

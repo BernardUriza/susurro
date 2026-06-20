@@ -1,6 +1,8 @@
 export const SUSURRO_GATEWAY: string =
-  import.meta.env.VITE_SUSURRO_GATEWAY ??
-  'https://susurro-gateway.nicecliff-10074f57.eastus.azurecontainerapps.io';
+  import.meta.env.VITE_SUSURRO_GATEWAY ||
+  (typeof window !== 'undefined'
+    ? window.location.origin
+    : 'https://sus.bernarduriza.com');
 
 export interface DiscoveryEndpoint {
   method: string;

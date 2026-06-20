@@ -389,8 +389,10 @@ async def admin_revoke_key(token: str) -> JSONResponse:
 async def spa(full_path: str) -> FileResponse:
     candidate = os.path.normpath(os.path.join(STATIC_DIR, full_path))
     if full_path and candidate.startswith(STATIC_DIR) and os.path.isfile(candidate):
-        return FileResponse(candidate)
+        immutable = full_path.startswith(("js/", "assets/", "wasm/"))
+        cache = "public, max-age=31536000, immutable" if immutable else "no-cache"
+        return FileResponse(candidate, headers={"Cache-Control": cache})
     index = os.path.join(STATIC_DIR, "index.html")
     if os.path.isfile(index):
-        return FileResponse(index)
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
     raise HTTPException(status_code=404, detail="Not found")

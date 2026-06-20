@@ -73,18 +73,30 @@ his apps call it instead of holding Azure/Deepgram/Anthropic keys directly.
 
 | Route | Auth | Does |
 |---|---|---|
-| `GET /health` | none (Container Apps probe) | reports config state |
-| `POST /v1/stt` | `Bearer SUSURRO_KEY` | audio body → text. `?engine=whisper` (default, Azure) or `?engine=deepgram` |
-| `POST /v1/tts` | `Bearer SUSURRO_KEY` | `{input, voice?, format?}` → audio bytes (Azure tts, default voice `onyx`) |
-| `POST /v1/refine` | `Bearer SUSURRO_KEY` | `{web_speech_text, deepgram_text}` → best transcript (Claude) |
+| `GET /health` | none | liveness + `version` (Container Apps probe; keep keyless) |
+| `GET /ready` | none | real 1-char TTS probe of the upstream → 503 if voice can't serve |
+| `GET /v1/discovery` | none | machine-readable contract (incl. the Azure-compat endpoints) |
+| `POST /v1/stt` | `Bearer` | audio body → `{transcript}`. `?engine=whisper`(default)`\|deepgram`, `?language=` |
+| `POST /v1/tts` | `Bearer` | `{input, voice?, format?}` → audio bytes |
+| `POST /v1/refine` | `Bearer` | `{web_speech_text, deepgram_text}` → `{refined}` (Claude) |
+| `POST /v1/claim` | none | redeem a one-time claim code → token shown once, claim burns |
+| `POST /openai/deployments/{d}/audio/speech` | `api-key` or Bearer | Azure-OpenAI-compat TTS shim |
+| `POST /openai/deployments/{d}/audio/transcriptions` | `api-key` or Bearer | Azure-compat STT (multipart → `{text}`) |
+| `GET /admin/keys` `GET /admin/usage` | `Bearer ADMIN_TOKEN` | list keys + per-key/aggregate usage |
+| `POST /admin/keys` `POST /admin/keys/{t}/revoke` | `ADMIN_TOKEN` | mint / revoke a project key |
+| `POST /admin/claims` `GET /admin/claims` `DELETE /admin/claims/{code}` | `ADMIN_TOKEN` | manage one-time claim links |
 
-- **Auth model:** consumers present a bearer key from `SUSURRO_KEYS` (comma-separated
-  allowlist, held only by Bernard in `~/.secrets/susurro-gateway-key.txt`). The upstream Azure
-  OpenAI key lives in a Container App secret (`azure-openai-key`) and never leaves the gateway.
-- **Engine is swappable (gateway-first strategy):** today STT/TTS proxy the Azure OpenAI
-  `whisper`/`tts` deployments on the `insult-openai` account. The contract (`/v1/*` + bearer)
-  is the stable interface; the engine can be swapped to self-hosted Whisper/TTS later without
-  any consumer change.
+- **Auth model:** each app has its OWN named project key (kind `project`, unlimited) — minted
+  via the claim flow, identified by `name` in `/admin`, usage metered per key in Azure Tables.
+  The public onboarding token (kind `onboarding`, `/docs`) is a rate-limited DEMO token, not
+  production onboarding. The upstream Azure key is a Container App secret (`azure-openai-key`),
+  never leaves the gateway. Keys consumers hold are in `~/.secrets/susurro-key-<app>.txt`.
+- **Onboarding = claim flow:** admin creates a claim in `/admin` → shareable `/claim#code` URL
+  → app owner redeems once → token revealed to them → claim burns. Admin never sees the token.
+- **Engine is swappable:** STT/TTS proxy the **dedicated `susurro-openai`** Azure resource
+  (`susurro-rg`, deployments `tts`/`whisper`) — NOT insult-openai (its voice deployments were
+  deleted). The `/v1/*` + Azure-compat contract is the stable interface; the engine can be
+  swapped to self-hosted Whisper/TTS later with zero consumer change.
 - **Run locally:** `cd api && pip install -r requirements.txt && uvicorn main:app --reload`,
   with the `AZURE_OPENAI_*` and `SUSURRO_KEYS` env vars set (see `.env.example`).
 - **Build & deploy:** `az acr build --registry insultacr --image susurro-gateway:vN --file

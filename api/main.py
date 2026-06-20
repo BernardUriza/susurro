@@ -113,6 +113,37 @@ def gen_token() -> str:
     return "sk-susurro-" + secrets_mod.token_urlsafe(24)
 
 
+def gen_claim_code() -> str:
+    return "claim-" + secrets_mod.token_urlsafe(18)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+_claims_table = None
+
+
+def _claims_table_client():
+    global _claims_table
+    if _claims_table is None and TABLES_CONN:
+        from azure.data.tables import TableServiceClient
+
+        svc = TableServiceClient.from_connection_string(TABLES_CONN)
+        _claims_table = svc.get_table_client("claims")
+    return _claims_table
+
+
+def name_in_use(name: str) -> bool:
+    keys_table, _ = _tables()
+    if keys_table is None:
+        return False
+    for k in keys_table.list_entities():
+        if k.get("name") == name and k.get("active", True):
+            return True
+    return False
+
+
 @app.on_event("startup")
 def bootstrap_keys() -> None:
     keys_table, _ = _tables()
@@ -453,6 +484,106 @@ async def admin_revoke_key(token: str) -> JSONResponse:
     ent["active"] = False
     keys_table.update_entity(ent, mode=UpdateMode.MERGE)
     return JSONResponse({"revoked": token[:14] + "…", "active": False})
+
+
+@app.post("/admin/claims", dependencies=[Depends(require_admin)])
+async def admin_create_claim(request: Request) -> JSONResponse:
+    claims = _claims_table_client()
+    if claims is None:
+        raise HTTPException(status_code=500, detail="Metering not configured")
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    daily_limit = int(body.get("daily_limit", 0) or 0)
+    if name and name_in_use(name):
+        raise HTTPException(status_code=409, detail=f"Identifier '{name}' already in use")
+    code = gen_claim_code()
+    claims.create_entity(
+        {
+            "PartitionKey": "claim",
+            "RowKey": code,
+            "name": name,
+            "daily_limit": daily_limit,
+            "status": "pending",
+            "created": _now_iso(),
+        }
+    )
+    base = str(request.base_url).rstrip("/").replace("http://", "https://")
+    return JSONResponse(
+        {
+            "claim_code": code,
+            "claim_url": f"{base}/claim#{code}",
+            "name": name or None,
+            "note": "Give the code/URL to the app owner. On claim, a token is shown ONCE and this code is burned.",
+        }
+    )
+
+
+@app.get("/admin/claims", dependencies=[Depends(require_admin)])
+async def admin_list_claims() -> JSONResponse:
+    claims = _claims_table_client()
+    if claims is None:
+        raise HTTPException(status_code=500, detail="Metering not configured")
+    out = [
+        {
+            "claim_code_preview": c["RowKey"][:16] + "…",
+            "name": c.get("name") or None,
+            "status": c.get("status"),
+            "created": c.get("created"),
+            "claimed_at": c.get("claimed_at"),
+        }
+        for c in claims.list_entities()
+    ]
+    return JSONResponse({"claims": out})
+
+
+@app.post("/v1/claim")
+async def redeem_claim(request: Request) -> JSONResponse:
+    from azure.core.exceptions import ResourceNotFoundError
+    from azure.data.tables import UpdateMode
+
+    claims = _claims_table_client()
+    keys_table, _ = _tables()
+    if claims is None or keys_table is None:
+        raise HTTPException(status_code=500, detail="Metering not configured")
+    body = await request.json()
+    code = (body.get("claim_code") or "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing 'claim_code'")
+    try:
+        claim = claims.get_entity("claim", code)
+    except ResourceNotFoundError:
+        raise HTTPException(status_code=404, detail="Invalid claim code")
+    if claim.get("status") != "pending":
+        raise HTTPException(status_code=410, detail="Claim already used or disabled")
+    name = (claim.get("name") or body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="This claim needs a 'name' (unique app identifier)")
+    if name_in_use(name):
+        raise HTTPException(status_code=409, detail=f"Identifier '{name}' already in use")
+    token = gen_token()
+    keys_table.create_entity(
+        {
+            "PartitionKey": "key",
+            "RowKey": token,
+            "name": name,
+            "kind": "project",
+            "daily_limit": int(claim.get("daily_limit", 0) or 0),
+            "active": True,
+            "created": _today(),
+        }
+    )
+    claim["status"] = "claimed"
+    claim["claimed_at"] = _now_iso()
+    claim["claimed_name"] = name
+    claims.update_entity(claim, mode=UpdateMode.MERGE)
+    logger.info("claim.redeemed name=%s", name)
+    return JSONResponse(
+        {
+            "token": token,
+            "name": name,
+            "warning": "Save this token now — it will NOT be shown again. This claim is now burned.",
+        }
+    )
 
 
 @app.get("/{full_path:path}")

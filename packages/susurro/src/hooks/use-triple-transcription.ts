@@ -236,8 +236,8 @@ export function useTripleTranscription(
     setRefinedText('');
     setError(null);
     dual.resetTranscription();
-    // WebSpeech resets automatically on stop
-  }, [dual]);
+    webSpeech.resetTranscript();
+  }, [dual, webSpeech]);
 
   // Advanced: Add Whisper chunk manually
   const addWhisperChunk = useCallback((text: string) => {

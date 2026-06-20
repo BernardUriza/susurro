@@ -1,22 +1,76 @@
 /**
- * TDD Tests for useTripleTranscription Hook
+ * Tests for useTripleTranscription Hook
  *
- * Architecture: 3 Independent Streams
+ * Architecture: 3 streams feeding one refiner
  * ────────────────────────────────────
- * WebSpeech Stream  ──┐
- * Whisper Stream    ──┤──→ Refiner ──→ Final Text
- * Deepgram Stream   ──┘
+ * WebSpeech (from useWebSpeech)   ──┐
+ * Whisper   (internal state)      ──┤──→ refineFunction ──→ refinedText
+ * Deepgram  (from useDualTranscription) ──┘
  *
- * All 3 streams run in parallel and send outputs to refiner
+ * webSpeechText and deepgramText are DERIVED from sub-hooks (read-only here),
+ * so these tests mock the sub-hooks and drive text through the real channels:
+ * the mock transcript/deepgramText, and addWhisperChunk for whisper.
  */
 
+import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useTripleTranscription } from '../src/hooks/use-triple-transcription';
 
-describe('useTripleTranscription - TDD', () => {
+let mockWebSpeechTranscript = '';
+let mockDeepgramText = '';
+
+vi.mock('../src/hooks/use-web-speech', () => ({
+  useWebSpeech: () => {
+    const [isListening, setIsListening] = React.useState(false);
+    return {
+      isSupported: true,
+      isListening,
+      transcript: mockWebSpeechTranscript,
+      interimTranscript: '',
+      finalTranscript: mockWebSpeechTranscript,
+      error: null,
+      startListening: () => setIsListening(true),
+      stopListening: () => setIsListening(false),
+      resetTranscript: () => {
+        mockWebSpeechTranscript = '';
+      },
+      lastResult: null,
+    };
+  },
+}));
+
+vi.mock('../src/hooks/use-dual-transcription', () => ({
+  useDualTranscription: () => {
+    const [isTranscribing, setIsTranscribing] = React.useState(false);
+    return {
+      startTranscription: () => setIsTranscribing(true),
+      stopTranscription: async () => {
+        setIsTranscribing(false);
+        return null;
+      },
+      resetTranscription: () => {
+        mockDeepgramText = '';
+      },
+      isTranscribing,
+      webSpeechText: '',
+      deepgramText: mockDeepgramText,
+      refinedText: null,
+      isRefining: false,
+      refineWithClaude: async () => '',
+      currentResult: null,
+      results: [],
+      error: null,
+      addDeepgramChunk: undefined,
+    };
+  },
+}));
+
+describe('useTripleTranscription', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWebSpeechTranscript = '';
+    mockDeepgramText = '';
   });
 
   describe('Initialization', () => {
@@ -43,6 +97,7 @@ describe('useTripleTranscription - TDD', () => {
           enableWebSpeech: true,
           enableWhisper: true,
           enableDeepgram: true,
+          autoRefine: false,
         })
       );
 
@@ -51,8 +106,8 @@ describe('useTripleTranscription - TDD', () => {
   });
 
   describe('3-Stream Architecture', () => {
-    it('should start all 3 streams in parallel', async () => {
-      const { result } = renderHook(() => useTripleTranscription());
+    it('should report transcribing once streams start', async () => {
+      const { result } = renderHook(() => useTripleTranscription({ autoRefine: false }));
 
       await act(async () => {
         await result.current.startTranscription();
@@ -61,33 +116,20 @@ describe('useTripleTranscription - TDD', () => {
       expect(result.current.isTranscribing).toBe(true);
     });
 
-    it('should update WebSpeech text independently', async () => {
-      const { result } = renderHook(() => useTripleTranscription());
-
-      await act(async () => {
-        await result.current.startTranscription();
-      });
-
-      // Simulate WebSpeech update
-      act(() => {
-        // This will be called by the actual WebSpeech API
-        result.current.webSpeechText = 'WebSpeech transcription';
-      });
+    it('should derive WebSpeech text from its stream', () => {
+      mockWebSpeechTranscript = 'WebSpeech transcription';
+      const { result } = renderHook(() => useTripleTranscription({ autoRefine: false }));
 
       expect(result.current.webSpeechText).toBe('WebSpeech transcription');
-      expect(result.current.whisperText).toBe(''); // Others unchanged
+      expect(result.current.whisperText).toBe('');
       expect(result.current.deepgramText).toBe('');
     });
 
-    it('should update Whisper text independently', async () => {
-      const { result } = renderHook(() => useTripleTranscription());
-
-      await act(async () => {
-        await result.current.startTranscription();
-      });
+    it('should update Whisper text through addWhisperChunk', () => {
+      const { result } = renderHook(() => useTripleTranscription({ autoRefine: false }));
 
       act(() => {
-        result.current.whisperText = 'Whisper transcription';
+        result.current.addWhisperChunk?.('Whisper transcription');
       });
 
       expect(result.current.whisperText).toBe('Whisper transcription');
@@ -95,33 +137,22 @@ describe('useTripleTranscription - TDD', () => {
       expect(result.current.deepgramText).toBe('');
     });
 
-    it('should update Deepgram text independently', async () => {
-      const { result } = renderHook(() => useTripleTranscription());
-
-      await act(async () => {
-        await result.current.startTranscription();
-      });
-
-      act(() => {
-        result.current.deepgramText = 'Deepgram transcription';
-      });
+    it('should derive Deepgram text from its stream', () => {
+      mockDeepgramText = 'Deepgram transcription';
+      const { result } = renderHook(() => useTripleTranscription({ autoRefine: false }));
 
       expect(result.current.deepgramText).toBe('Deepgram transcription');
       expect(result.current.webSpeechText).toBe('');
       expect(result.current.whisperText).toBe('');
     });
 
-    it('should allow all 3 streams to have text simultaneously', async () => {
-      const { result } = renderHook(() => useTripleTranscription());
-
-      await act(async () => {
-        await result.current.startTranscription();
-      });
+    it('should allow all 3 streams to have text simultaneously', () => {
+      mockWebSpeechTranscript = 'Web version';
+      mockDeepgramText = 'Deepgram version';
+      const { result } = renderHook(() => useTripleTranscription({ autoRefine: false }));
 
       act(() => {
-        result.current.webSpeechText = 'Web version';
-        result.current.whisperText = 'Whisper version';
-        result.current.deepgramText = 'Deepgram version';
+        result.current.addWhisperChunk?.('Whisper version');
       });
 
       expect(result.current.webSpeechText).toBe('Web version');
@@ -133,18 +164,18 @@ describe('useTripleTranscription - TDD', () => {
   describe('Refiner with 3 Inputs', () => {
     it('should send all 3 texts to refiner', async () => {
       const mockRefine = vi.fn().mockResolvedValue('Refined output');
+      mockWebSpeechTranscript = 'Web text';
+      mockDeepgramText = 'Deepgram text';
 
       const { result } = renderHook(() =>
-        useTripleTranscription({
-          refineFunction: mockRefine,
-        })
+        useTripleTranscription({ autoRefine: false, refineFunction: mockRefine })
       );
 
-      await act(async () => {
-        result.current.webSpeechText = 'Web text';
-        result.current.whisperText = 'Whisper text';
-        result.current.deepgramText = 'Deepgram text';
+      act(() => {
+        result.current.addWhisperChunk?.('Whisper text');
+      });
 
+      await act(async () => {
         await result.current.refineWithClaude();
       });
 
@@ -157,18 +188,13 @@ describe('useTripleTranscription - TDD', () => {
 
     it('should update refined text when refiner completes', async () => {
       const mockRefine = vi.fn().mockResolvedValue('Beautiful refined text');
+      mockWebSpeechTranscript = 'Web';
 
       const { result } = renderHook(() =>
-        useTripleTranscription({
-          refineFunction: mockRefine,
-        })
+        useTripleTranscription({ autoRefine: false, refineFunction: mockRefine })
       );
 
       await act(async () => {
-        result.current.webSpeechText = 'Web';
-        result.current.whisperText = 'Whisper';
-        result.current.deepgramText = 'Deepgram';
-
         await result.current.refineWithClaude();
       });
 
@@ -176,42 +202,39 @@ describe('useTripleTranscription - TDD', () => {
     });
 
     it('should set isRefining state during refinement', async () => {
-      const mockRefine = vi.fn().mockImplementation(
-        () => new Promise((resolve) => setTimeout(() => resolve('Done'), 100))
-      );
+      const mockRefine = vi
+        .fn()
+        .mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve('Done'), 50)));
+      mockWebSpeechTranscript = 'Text';
 
       const { result } = renderHook(() =>
-        useTripleTranscription({
-          refineFunction: mockRefine,
-        })
+        useTripleTranscription({ autoRefine: false, refineFunction: mockRefine })
       );
 
-      await act(async () => {
-        result.current.webSpeechText = 'Text';
-        const refinePromise = result.current.refineWithClaude();
-
-        expect(result.current.isRefining).toBe(true);
-
-        await refinePromise;
-
-        expect(result.current.isRefining).toBe(false);
+      let refinePromise: Promise<void>;
+      act(() => {
+        refinePromise = result.current.refineWithClaude();
       });
+
+      expect(result.current.isRefining).toBe(true);
+
+      await act(async () => {
+        await refinePromise;
+      });
+
+      expect(result.current.isRefining).toBe(false);
     });
 
     it('should handle partial inputs (some streams empty)', async () => {
       const mockRefine = vi.fn().mockResolvedValue('Partial refined');
+      mockWebSpeechTranscript = 'Web text';
+      mockDeepgramText = 'Deepgram text';
 
       const { result } = renderHook(() =>
-        useTripleTranscription({
-          refineFunction: mockRefine,
-        })
+        useTripleTranscription({ autoRefine: false, refineFunction: mockRefine })
       );
 
       await act(async () => {
-        result.current.webSpeechText = 'Web text';
-        result.current.whisperText = ''; // Empty
-        result.current.deepgramText = 'Deepgram text';
-
         await result.current.refineWithClaude();
       });
 
@@ -224,25 +247,24 @@ describe('useTripleTranscription - TDD', () => {
 
     it('should not prioritize any stream over others', async () => {
       const mockRefine = vi.fn().mockImplementation((inputs) => {
-        // Refiner should receive all 3 equally
         expect(Object.keys(inputs)).toHaveLength(3);
         expect(inputs).toHaveProperty('webSpeech');
         expect(inputs).toHaveProperty('whisper');
         expect(inputs).toHaveProperty('deepgram');
         return Promise.resolve('Equal treatment');
       });
+      mockWebSpeechTranscript = 'A';
+      mockDeepgramText = 'C';
 
       const { result } = renderHook(() =>
-        useTripleTranscription({
-          refineFunction: mockRefine,
-        })
+        useTripleTranscription({ autoRefine: false, refineFunction: mockRefine })
       );
 
-      await act(async () => {
-        result.current.webSpeechText = 'A';
-        result.current.whisperText = 'B';
-        result.current.deepgramText = 'C';
+      act(() => {
+        result.current.addWhisperChunk?.('B');
+      });
 
+      await act(async () => {
         await result.current.refineWithClaude();
       });
 
@@ -251,28 +273,30 @@ describe('useTripleTranscription - TDD', () => {
   });
 
   describe('Auto-Refinement', () => {
-    it('should auto-refine when any stream updates', async () => {
+    it('should auto-refine when a stream has text', async () => {
       const mockRefine = vi.fn().mockResolvedValue('Auto refined');
+      mockWebSpeechTranscript = 'New text';
 
-      const { result } = renderHook(() =>
+      renderHook(() =>
         useTripleTranscription({
           autoRefine: true,
+          refineDebounceMs: 50,
           refineFunction: mockRefine,
         })
       );
 
       await act(async () => {
-        result.current.webSpeechText = 'New text';
+        await new Promise((resolve) => setTimeout(resolve, 120));
       });
 
-      // Auto-refine should be triggered
       expect(mockRefine).toHaveBeenCalled();
     });
 
     it('should debounce auto-refinement to avoid excessive calls', async () => {
       const mockRefine = vi.fn().mockResolvedValue('Debounced');
+      mockWebSpeechTranscript = 'Update 1';
 
-      const { result } = renderHook(() =>
+      const { rerender } = renderHook(() =>
         useTripleTranscription({
           autoRefine: true,
           refineDebounceMs: 300,
@@ -280,23 +304,24 @@ describe('useTripleTranscription - TDD', () => {
         })
       );
 
-      await act(async () => {
-        result.current.webSpeechText = 'Update 1';
-        result.current.webSpeechText = 'Update 2';
-        result.current.webSpeechText = 'Update 3';
+      act(() => {
+        mockWebSpeechTranscript = 'Update 2';
+        rerender();
+        mockWebSpeechTranscript = 'Update 3';
+        rerender();
+      });
 
-        // Wait for debounce
+      await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 350));
       });
 
-      // Should only refine once due to debounce
       expect(mockRefine).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('Stop and Cleanup', () => {
     it('should stop all 3 streams when stopTranscription is called', async () => {
-      const { result } = renderHook(() => useTripleTranscription());
+      const { result } = renderHook(() => useTripleTranscription({ autoRefine: false }));
 
       await act(async () => {
         await result.current.startTranscription();
@@ -307,11 +332,11 @@ describe('useTripleTranscription - TDD', () => {
     });
 
     it('should preserve text after stopping', async () => {
-      const { result } = renderHook(() => useTripleTranscription());
+      mockWebSpeechTranscript = 'Preserved text';
+      const { result } = renderHook(() => useTripleTranscription({ autoRefine: false }));
 
       await act(async () => {
         await result.current.startTranscription();
-        result.current.webSpeechText = 'Preserved text';
         await result.current.stopTranscription();
       });
 
@@ -319,14 +344,15 @@ describe('useTripleTranscription - TDD', () => {
     });
 
     it('should reset all texts when resetTranscription is called', async () => {
-      const { result } = renderHook(() => useTripleTranscription());
+      mockWebSpeechTranscript = 'Web';
+      mockDeepgramText = 'Deepgram';
+      const { result } = renderHook(() => useTripleTranscription({ autoRefine: false }));
 
-      await act(async () => {
-        result.current.webSpeechText = 'Web';
-        result.current.whisperText = 'Whisper';
-        result.current.deepgramText = 'Deepgram';
-        result.current.refinedText = 'Refined';
+      act(() => {
+        result.current.addWhisperChunk?.('Whisper');
+      });
 
+      act(() => {
         result.current.resetTranscription();
       });
 
@@ -340,40 +366,31 @@ describe('useTripleTranscription - TDD', () => {
   describe('Error Handling', () => {
     it('should handle refiner errors gracefully', async () => {
       const mockRefine = vi.fn().mockRejectedValue(new Error('Refiner failed'));
+      mockWebSpeechTranscript = 'Text';
 
       const { result } = renderHook(() =>
-        useTripleTranscription({
-          refineFunction: mockRefine,
-        })
+        useTripleTranscription({ autoRefine: false, refineFunction: mockRefine })
       );
 
       await act(async () => {
-        result.current.webSpeechText = 'Text';
-
-        try {
-          await result.current.refineWithClaude();
-        } catch (error) {
-          // Error should be caught
-        }
+        await result.current.refineWithClaude();
       });
 
       expect(result.current.isRefining).toBe(false);
       expect(result.current.error).toBeTruthy();
     });
 
-    it('should continue other streams if one fails', async () => {
-      const { result } = renderHook(() => useTripleTranscription());
+    it('should keep all stream texts when one stream is empty', async () => {
+      mockWebSpeechTranscript = 'Success';
+      mockDeepgramText = 'Success';
+      const { result } = renderHook(() => useTripleTranscription({ autoRefine: false }));
 
       await act(async () => {
         await result.current.startTranscription();
-
-        // Simulate one stream failing
-        result.current.webSpeechText = 'Success';
-        // whisper fails silently
-        result.current.deepgramText = 'Success';
       });
 
       expect(result.current.webSpeechText).toBe('Success');
+      expect(result.current.whisperText).toBe('');
       expect(result.current.deepgramText).toBe('Success');
     });
   });

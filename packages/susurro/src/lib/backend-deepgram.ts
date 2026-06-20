@@ -9,6 +9,13 @@ export interface DeepgramConfig {
   language?: string;
 }
 
+export interface DeepgramTranscriptionResult {
+  transcript: string;
+  confidence: number;
+  is_final: boolean;
+  model: string;
+}
+
 export class DeepgramBackend {
   private ws: WebSocket | null = null;
   private backendUrl: string;
@@ -23,7 +30,7 @@ export class DeepgramBackend {
     try {
       useRender =
         typeof window !== 'undefined' &&
-        (window as Record<string, unknown>).VITE_USE_RENDER === 'true';
+        (window as unknown as Record<string, unknown>).VITE_USE_RENDER === 'true';
     } catch (e) {
       useRender = false;
     }

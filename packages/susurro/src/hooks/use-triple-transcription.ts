@@ -17,6 +17,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useWebSpeech } from './use-web-speech';
 import { useDualTranscription } from './use-dual-transcription';
+import type { StreamingSusurroChunk } from '../lib/types';
 
 export interface TripleTranscriptionOptions {
   language?: string;
@@ -56,7 +57,7 @@ export interface UseTripleTranscriptionReturn {
 
   // Individual stream controls (for advanced use)
   addWhisperChunk?: (text: string) => void;
-  addDeepgramChunk?: (chunk: any) => void;
+  addDeepgramChunk?: (chunk: StreamingSusurroChunk) => void;
 }
 
 export function useTripleTranscription(
@@ -185,14 +186,14 @@ export function useTripleTranscription(
   const startTranscription = useCallback(async () => {
     console.log('🎬 [TripleTranscription] Starting 3 streams...');
 
-    const promises: Promise<void>[] = [];
+    const promises: Promise<unknown>[] = [];
 
     if (enableWebSpeech) {
       promises.push(Promise.resolve(webSpeech.startListening()));
     }
 
     if (enableDeepgram) {
-      promises.push(dual.startTranscription());
+      promises.push(Promise.resolve(dual.startTranscription()));
     }
 
     // TODO: Add Whisper stream start
@@ -209,7 +210,7 @@ export function useTripleTranscription(
   const stopTranscription = useCallback(async () => {
     console.log('⏹️ [TripleTranscription] Stopping 3 streams...');
 
-    const promises: Promise<void>[] = [];
+    const promises: Promise<unknown>[] = [];
 
     if (enableWebSpeech) {
       webSpeech.stopListening();

@@ -1,10 +1,20 @@
 // Dynamic loaders for bundle size optimization
 // This file handles lazy loading of heavy dependencies
 
+type MurmubaraModule = typeof import('murmuraba');
+
+interface MurmubaraProcessing {
+  processFileWithMetrics: MurmubaraModule['processFileWithMetrics'];
+  murmubaraVAD: MurmubaraModule['murmubaraVAD'];
+  extractAudioMetadata: MurmubaraModule['extractAudioMetadata'];
+  getEngineStatus: MurmubaraModule['getEngineStatus'];
+  initializeAudioEngine: MurmubaraModule['initializeAudioEngine'];
+}
+
 // Cache for loaded modules to prevent multiple loads
 const MODULE_CACHE = {
   transformers: null as typeof import('@huggingface/transformers') | null,
-  murmubaraProcessing: null as typeof import('murmuraba') | null,
+  murmubaraProcessing: null as MurmubaraProcessing | null,
 };
 
 /**

@@ -37,6 +37,12 @@ export interface DiscoveryResponse {
     stt: DiscoveryEndpoint;
     refine: DiscoveryEndpoint;
   };
+  azure_openai_compatible?: {
+    purpose: string;
+    tts: string;
+    stt: string;
+    auth: string;
+  };
 }
 
 export interface AdminKey {
@@ -66,6 +72,25 @@ export interface ClaimCreateResponse {
   claim_url: string;
   name: string | null;
   note: string;
+}
+
+export interface UsageResponse {
+  total_requests: number;
+  total_cost_usd: number;
+  by_endpoint: Record<string, { requests: number; cost_usd: number }>;
+}
+
+export interface AdminClaim {
+  claim_code: string;
+  claim_code_preview: string;
+  name: string | null;
+  status: string;
+  created?: string;
+  claimed_at?: string;
+}
+
+export interface AdminClaimsResponse {
+  claims: AdminClaim[];
 }
 
 export interface CreatedKeyResponse {

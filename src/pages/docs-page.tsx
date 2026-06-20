@@ -171,6 +171,20 @@ export function DocsPage() {
               endpoint={discovery.endpoints.refine}
               token={discovery.onboarding_token}
             />
+
+            {discovery.azure_openai_compatible && (
+              <section className={styles.section}>
+                <h2 className={styles.sectionTitle}>Azure OpenAI compatible</h2>
+                <p className={styles.notice}>{discovery.azure_openai_compatible.purpose}</p>
+                <p className={styles.notice}>
+                  TTS: <code>{discovery.azure_openai_compatible.tts}</code>
+                </p>
+                <p className={styles.notice}>
+                  STT: <code>{discovery.azure_openai_compatible.stt}</code>
+                </p>
+                <p className={styles.notice}>{discovery.azure_openai_compatible.auth}</p>
+              </section>
+            )}
           </>
         )}
       </div>

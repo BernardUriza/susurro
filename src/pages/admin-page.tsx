@@ -3,9 +3,12 @@ import { Link } from 'react-router-dom';
 import { CopyButton } from './copy-button';
 import {
   SUSURRO_GATEWAY,
+  type AdminClaim,
+  type AdminClaimsResponse,
   type AdminKey,
   type AdminKeysResponse,
   type ClaimCreateResponse,
+  type UsageResponse,
 } from './gateway';
 import styles from './pages.module.css';
 
@@ -25,6 +28,8 @@ export function AdminPage() {
   );
   const [tokenInput, setTokenInput] = useState('');
   const [keys, setKeys] = useState<AdminKey[]>([]);
+  const [usage, setUsage] = useState<UsageResponse | null>(null);
+  const [claims, setClaims] = useState<AdminClaim[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [newClaim, setNewClaim] = useState<ClaimCreateResponse | null>(null);
@@ -56,6 +61,17 @@ export function AdminPage() {
       }
       const data = (await res.json()) as AdminKeysResponse;
       setKeys(data.keys);
+      const auth = { Authorization: `Bearer ${token}` };
+      const [usageRes, claimsRes] = await Promise.all([
+        fetch(`${SUSURRO_GATEWAY}/admin/usage`, { headers: auth }),
+        fetch(`${SUSURRO_GATEWAY}/admin/claims`, { headers: auth }),
+      ]);
+      if (usageRes.ok) {
+        setUsage((await usageRes.json()) as UsageResponse);
+      }
+      if (claimsRes.ok) {
+        setClaims(((await claimsRes.json()) as AdminClaimsResponse).claims);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'failed to load keys');
     } finally {
@@ -124,6 +140,22 @@ export function AdminPage() {
     }
   };
 
+  const handleDeleteClaim = async (claimCode: string) => {
+    setError(null);
+    try {
+      const res = await fetch(`${SUSURRO_GATEWAY}/admin/claims/${claimCode}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      if (!res.ok) {
+        throw new Error(`delete claim returned ${res.status}`);
+      }
+      await loadKeys(adminToken);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'failed to delete claim');
+    }
+  };
+
   if (!adminToken) {
     return (
       <div className={styles.page}>
@@ -170,9 +202,16 @@ export function AdminPage() {
         <div className={styles.topBar}>
           <h1 className={styles.title}>Susurro Admin</h1>
           <div className={styles.row}>
-            <Link to="/" className={styles.homeLink}>
-              ← demo
+            <Link to="/docs" className={styles.homeLink}>
+              ← docs
             </Link>
+            <button
+              type="button"
+              className={styles.button}
+              onClick={() => void loadKeys(adminToken)}
+            >
+              refresh
+            </button>
             <button type="button" className={styles.button} onClick={clearStoredToken}>
               logout
             </button>
@@ -180,6 +219,18 @@ export function AdminPage() {
         </div>
 
         {error && <div className={styles.errorBox}>{error}</div>}
+
+        {usage && (
+          <p className={styles.notice}>
+            total: {usage.total_requests} requests · ${usage.total_cost_usd.toFixed(4)} est.
+            {Object.entries(usage.by_endpoint).map(([ep, v]) => (
+              <span key={ep}>
+                {' · '}
+                {ep}: {v.requests}
+              </span>
+            ))}
+          </p>
+        )}
 
         {newClaim && (
           <div className={styles.newKeyBox}>
@@ -283,6 +334,54 @@ export function AdminPage() {
                   <tr>
                     <td colSpan={8} className={styles.notice}>
                       no keys yet
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Claims</h2>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>identifier</th>
+                  <th>code</th>
+                  <th>status</th>
+                  <th>created</th>
+                  <th>actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {claims.map((claim) => (
+                  <tr
+                    key={claim.claim_code}
+                    className={claim.status === 'claimed' ? styles.rowInactive : undefined}
+                  >
+                    <td>{claim.name ?? '(open)'}</td>
+                    <td>{claim.claim_code_preview}</td>
+                    <td>{claim.status}</td>
+                    <td>{claim.created ?? '—'}</td>
+                    <td>
+                      {claim.status === 'pending' && (
+                        <button
+                          type="button"
+                          className={`${styles.copyButton} ${styles.buttonDanger}`}
+                          onClick={() => handleDeleteClaim(claim.claim_code)}
+                        >
+                          delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {claims.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className={styles.notice}>
+                      no claims yet
                     </td>
                   </tr>
                 )}

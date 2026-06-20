@@ -2,47 +2,25 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-
-    <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="/94a3c5da-e632-4817-9c6f-094ab4fda838.ico" />
-
-    <!-- PWA Icons -->
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-
-    <!-- Viewport - Optimized for mobile -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
-
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json" />
-
-    <!-- Theme Color -->
-    <meta name="theme-color" content="#00ff41" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
-    <!-- App Info -->
-    <title>Susurro - Neural Transcription Studio</title>
-    <meta name="description" content="Professional real-time speech transcription with neural processing - Deepgram, Web Speech & Claude AI" />
-
-    <!-- PWA Capabilities -->
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Susurro" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d0d0d" />
+    <title>Susurro Voice Gateway</title>
+    <meta
+      name="description"
+      content="Susurro — a single self-owned STT/TTS gateway. Docs, admin, and one-time claim onboarding."
+    />
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-
-    <!-- Service Worker Registration -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('✅ Service Worker registered:', reg.scope))
-            .catch(err => console.error('❌ Service Worker registration failed:', err));
-        });
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => regs.forEach((r) => r.unregister()));
       }
     </script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

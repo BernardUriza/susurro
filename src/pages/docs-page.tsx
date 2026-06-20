@@ -123,8 +123,8 @@ export function DocsPage() {
       <div className={styles.inner}>
         <div className={styles.topBar}>
           <h1 className={styles.title}>Susurro Docs</h1>
-          <Link to="/" className={styles.homeLink}>
-            ← demo
+          <Link to="/playground" className={styles.homeLink}>
+            playground →
           </Link>
         </div>
 

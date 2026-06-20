@@ -344,7 +344,9 @@ async def stt(request: Request, key: dict = Depends(require_susurro_key), engine
         return JSONResponse({"success": True, "transcript": alt.get("transcript", ""), "engine": "deepgram-nova-2"})
 
     require_azure()
-    filename = "audio.mp3" if "mp3" in content_type else "audio.wav"
+    ext_map = {"mpeg": "mp3", "mp3": "mp3", "wav": "wav", "webm": "webm", "mp4": "mp4", "m4a": "m4a", "ogg": "ogg", "flac": "flac"}
+    fmt = next((v for k, v in ext_map.items() if k in content_type), "wav")
+    filename = f"audio.{fmt}"
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_WHISPER_DEPLOYMENT}/audio/transcriptions?api-version={AZURE_OPENAI_API_VERSION}"
     data = {"language": language} if language else None
     logger.info("stt.whisper.start bytes=%d lang=%s key=%s", len(audio), language or "auto", key.get("name"))

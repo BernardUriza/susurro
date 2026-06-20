@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { DocsPage } from './pages/docs-page';
 import { AdminPage } from './pages/admin-page';
 import { ClaimPage } from './pages/claim-page';
+import { PlaygroundPage } from './pages/playground-page';
 import './styles/reset.css';
 import './styles/tokens.css';
 
@@ -16,6 +17,7 @@ if (rootElement) {
         <Route path="/docs" element={<DocsPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/claim" element={<ClaimPage />} />
+        <Route path="/playground" element={<PlaygroundPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

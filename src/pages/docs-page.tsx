@@ -71,9 +71,7 @@ function EndpointCard({ name, endpoint, token }: EndpointCardProps) {
       <CodeBlock label="body" code={JSON.stringify(endpoint.body, null, 2)} />
       <p className={styles.notice}>
         returns:{' '}
-        {typeof endpoint.returns === 'string'
-          ? endpoint.returns
-          : JSON.stringify(endpoint.returns)}
+        {typeof endpoint.returns === 'string' ? endpoint.returns : JSON.stringify(endpoint.returns)}
       </p>
       <CodeBlock label="curl" code={endpoint.curl} />
       {showClientExamples && (
@@ -82,6 +80,54 @@ function EndpointCard({ name, endpoint, token }: EndpointCardProps) {
           <CodeBlock label="python (httpx)" code={buildPythonExample(endpoint, token)} />
         </>
       )}
+    </section>
+  );
+}
+
+interface FileUploadSectionProps {
+  gateway: string;
+  token: string;
+}
+
+function FileUploadSection({ gateway, token }: FileUploadSectionProps) {
+  const transcribeCurl = [
+    `curl -X POST "${gateway}/v1/stt?task=transcribe&language=es&format=m4a" \\`,
+    `  -H "Authorization: Bearer ${token}" \\`,
+    `  -H "Content-Type: audio/mpeg" \\`,
+    `  --data-binary @audio.m4a`,
+  ].join('\n');
+  const translateCurl = [
+    `curl -X POST "${gateway}/v1/stt?task=translate&format=m4a" \\`,
+    `  -H "Authorization: Bearer ${token}" \\`,
+    `  --data-binary @audio.m4a`,
+  ].join('\n');
+  const jsExample = [
+    `// 'file' is a File from an <input type="file">`,
+    `const ext = file.name.split('.').pop();`,
+    `const res = await fetch(`,
+    `  \`${gateway}/v1/stt?task=transcribe&language=es&format=\${ext}\`,`,
+    `  {`,
+    `    method: 'POST',`,
+    `    headers: { 'Authorization': 'Bearer ${token}', 'Content-Type': file.type },`,
+    `    body: file,`,
+    `  },`,
+    `);`,
+    `const { transcript } = await res.json();`,
+  ].join('\n');
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.sectionTitle}>file upload (transcribe / translate)</h2>
+      <p className={styles.notice}>
+        POST a whole audio file as the raw body to <code>/v1/stt</code>.{' '}
+        <code>task=transcribe</code> keeps the original language; <code>task=translate</code> runs
+        Whisper translation — output is always English. Pass <code>format=&lt;ext&gt;</code> with
+        the file&apos;s real extension (m4a, mp3, wav, webm, ogg, flac, mp4): Azure Whisper
+        validates by extension and rejects an m4a sent as mp4. Up to Whisper&apos;s 25MB limit; a
+        ~35-min file transcribes in roughly two minutes.
+      </p>
+      <CodeBlock label="curl — transcribe" code={transcribeCurl} />
+      <CodeBlock label="curl — translate → English" code={translateCurl} />
+      <CodeBlock label="javascript (browser File)" code={jsExample} />
     </section>
   );
 }
@@ -144,16 +190,16 @@ export function DocsPage() {
               </div>
               <p className={styles.notice}>
                 For experimenting only{rateLimitNote ? ` — rate limit: ${rateLimitNote}` : ''}. NOT
-                for a real app. To run an app in production, ask the owner for a one-time claim link;
-                you redeem it once to get your own unlimited key.
+                for a real app. To run an app in production, ask the owner for a one-time claim
+                link; you redeem it once to get your own unlimited key.
               </p>
             </section>
 
             <div className={styles.callout}>
-              <strong>For AI agents:</strong> <code>GET {SUSURRO_GATEWAY}/v1/discovery</code> returns
-              this full contract as JSON for machine self-onboarding. The demo token above is
-              rate-limited (50/day) — use it to try the API, then ask the owner for a claim link to
-              get your app its own key.
+              <strong>For AI agents:</strong> <code>GET {SUSURRO_GATEWAY}/v1/discovery</code>{' '}
+              returns this full contract as JSON for machine self-onboarding. The demo token above
+              is rate-limited (50/day) — use it to try the API, then ask the owner for a claim link
+              to get your app its own key.
             </div>
 
             <EndpointCard
@@ -166,6 +212,7 @@ export function DocsPage() {
               endpoint={discovery.endpoints.stt}
               token={discovery.onboarding_token}
             />
+            <FileUploadSection gateway={SUSURRO_GATEWAY} token={discovery.onboarding_token} />
             <EndpointCard
               name="refine"
               endpoint={discovery.endpoints.refine}

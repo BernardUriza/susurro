@@ -298,10 +298,11 @@ async def discovery(request: Request) -> JSONResponse:
                 },
                 "stt": {
                     "method": "POST",
-                    "url": f"{base}/v1/stt?language=es",
+                    "url": f"{base}/v1/stt?language=es&task=transcribe",
                     "body": "raw audio bytes (Content-Type: audio/wav or audio/mpeg)",
-                    "returns": {"transcript": "...", "engine": "azure-whisper"},
-                    "curl": f'curl -X POST "{base}/v1/stt?language=es" -H "Authorization: Bearer $TOKEN" -H "Content-Type: audio/mpeg" --data-binary @audio.mp3',
+                    "returns": {"transcript": "...", "engine": "azure-whisper", "task": "transcribe|translate"},
+                    "note": "task=translate runs Whisper translation (output is always English; language is ignored). whisper engine only.",
+                    "curl": f'curl -X POST "{base}/v1/stt?task=translate" -H "Authorization: Bearer $TOKEN" -H "Content-Type: audio/mpeg" --data-binary @audio.mp3',
                 },
                 "refine": {
                     "method": "POST",
@@ -321,13 +322,17 @@ async def discovery(request: Request) -> JSONResponse:
 
 
 @app.post("/v1/stt")
-async def stt(request: Request, key: dict = Depends(require_susurro_key), engine: str = "whisper", language: str | None = None) -> JSONResponse:
+async def stt(request: Request, key: dict = Depends(require_susurro_key), engine: str = "whisper", language: str | None = None, task: str = "transcribe") -> JSONResponse:
     audio = await request.body()
     if not audio:
         raise HTTPException(status_code=400, detail="Empty audio body")
+    if task not in ("transcribe", "translate"):
+        raise HTTPException(status_code=400, detail="task must be 'transcribe' or 'translate'")
     content_type = request.headers.get("content-type", "audio/wav")
 
     if engine == "deepgram":
+        if task == "translate":
+            raise HTTPException(status_code=400, detail="translate is whisper-only (Azure); use engine=whisper")
         if not DEEPGRAM_API_KEY:
             raise HTTPException(status_code=500, detail="Deepgram not configured")
         async with httpx.AsyncClient(timeout=60) as client:
@@ -347,15 +352,16 @@ async def stt(request: Request, key: dict = Depends(require_susurro_key), engine
     ext_map = {"mpeg": "mp3", "mp3": "mp3", "wav": "wav", "webm": "webm", "mp4": "mp4", "m4a": "m4a", "ogg": "ogg", "flac": "flac"}
     fmt = next((v for k, v in ext_map.items() if k in content_type), "wav")
     filename = f"audio.{fmt}"
-    url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_WHISPER_DEPLOYMENT}/audio/transcriptions?api-version={AZURE_OPENAI_API_VERSION}"
-    data = {"language": language} if language else None
-    logger.info("stt.whisper.start bytes=%d lang=%s key=%s", len(audio), language or "auto", key.get("name"))
+    operation = "translations" if task == "translate" else "transcriptions"
+    url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_WHISPER_DEPLOYMENT}/audio/{operation}?api-version={AZURE_OPENAI_API_VERSION}"
+    data = {"language": language} if language and task == "transcribe" else None
+    logger.info("stt.whisper.start task=%s bytes=%d lang=%s key=%s", task, len(audio), language or "auto", key.get("name"))
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(url, headers={"api-key": AZURE_OPENAI_KEY}, files={"file": (filename, audio, content_type)}, data=data)
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Azure whisper {resp.status_code}: {resp.text}")
     record_usage(key["RowKey"], "stt", len(audio), STT_USD_PER_REQUEST)
-    return JSONResponse({"success": True, "transcript": resp.json().get("text", ""), "engine": "azure-whisper"})
+    return JSONResponse({"success": True, "transcript": resp.json().get("text", ""), "engine": "azure-whisper", "task": task})
 
 
 @app.post("/v1/tts")

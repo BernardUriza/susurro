@@ -11,8 +11,12 @@ export function PlaygroundPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileTask, setFileTask] = useState<'transcribe' | 'translate'>('transcribe');
+  const [fileResult, setFileResult] = useState('');
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetch(`${SUSURRO_GATEWAY}/v1/discovery`)
@@ -68,6 +72,42 @@ export function PlaygroundPage() {
     }
   };
 
+  const transcribeFile = async (file: File) => {
+    setError(null);
+    setFileResult('');
+    setBusy(true);
+    try {
+      const params = new URLSearchParams({ task: fileTask });
+      if (fileTask === 'transcribe') {
+        params.set('language', 'es');
+      }
+      const res = await fetch(`${SUSURRO_GATEWAY}/v1/stt?${params.toString()}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'audio/mpeg' },
+        body: file,
+      });
+      const data = (await res.json()) as { transcript?: string; detail?: string };
+      if (!res.ok) {
+        setError(data.detail ?? `stt failed (${res.status})`);
+        return;
+      }
+      setFileResult(data.transcript ?? '(empty)');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'file upload failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    setFileName(file.name);
+    void transcribeFile(file);
+  };
+
   const speak = async () => {
     if (!ttsText.trim()) {
       return;
@@ -106,8 +146,8 @@ export function PlaygroundPage() {
 
         {error && <div className={styles.errorBox}>{error}</div>}
         <p className={styles.notice}>
-          Runs against the live gateway with the rate-limited demo token. Mic + text only — no
-          models in your browser.
+          Runs against the live gateway with the rate-limited demo token. Mic, file upload + text
+          — no models in your browser.
         </p>
 
         <section className={styles.section}>
@@ -129,6 +169,56 @@ export function PlaygroundPage() {
         </section>
 
         <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>File → text</h2>
+          <p className={styles.notice}>
+            Upload an audio file. <strong>Transcribe</strong> keeps the original language;{' '}
+            <strong>translate</strong> runs Whisper translation — output is always English.
+          </p>
+          <div className={styles.field}>
+            <label className={styles.notice}>
+              <input
+                type="radio"
+                name="fileTask"
+                checked={fileTask === 'transcribe'}
+                onChange={() => setFileTask('transcribe')}
+              />{' '}
+              transcribe (español)
+            </label>
+            <label className={styles.notice} style={{ marginLeft: '1rem' }}>
+              <input
+                type="radio"
+                name="fileTask"
+                checked={fileTask === 'translate'}
+                onChange={() => setFileTask('translate')}
+              />{' '}
+              translate → English
+            </label>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm,.flac,.mp4"
+            onChange={onFilePicked}
+            disabled={busy}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            className={styles.button}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={busy}
+          >
+            {busy ? 'processing…' : '⬆ choose audio file'}
+          </button>
+          {fileName && <p className={styles.notice}>{fileName}</p>}
+          {fileResult && (
+            <div className={styles.tokenBox}>
+              <span className={styles.tokenValue}>{fileResult}</span>
+            </div>
+          )}
+        </section>
+
+        <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Text → speech</h2>
           <div className={styles.field}>
             <textarea
@@ -141,7 +231,9 @@ export function PlaygroundPage() {
           <button type="button" className={styles.button} onClick={speak} disabled={busy}>
             {busy ? 'synthesizing…' : '▶ speak'}
           </button>
-          {audioUrl && <audio src={audioUrl} controls autoPlay style={{ marginTop: '1rem', width: '100%' }} />}
+          {audioUrl && (
+            <audio src={audioUrl} controls autoPlay style={{ marginTop: '1rem', width: '100%' }} />
+          )}
         </section>
       </div>
     </div>

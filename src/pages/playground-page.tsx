@@ -8,6 +8,7 @@ export function PlaygroundPage() {
   const [recording, setRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [ttsText, setTtsText] = useState('Hola, soy susurro.');
+  const [ttsVoice, setTtsVoice] = useState('onyx');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +123,7 @@ export function PlaygroundPage() {
       const res = await fetch(`${SUSURRO_GATEWAY}/v1/tts`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: ttsText.trim(), voice: 'onyx' }),
+        body: JSON.stringify({ input: ttsText.trim(), voice: ttsVoice }),
       });
       if (!res.ok) {
         const data = (await res.json()) as { detail?: string };
@@ -232,8 +233,22 @@ export function PlaygroundPage() {
               onChange={(e) => setTtsText(e.target.value)}
             />
           </div>
+          <div className={styles.field}>
+            <select
+              className={styles.input}
+              value={ttsVoice}
+              onChange={(e) => setTtsVoice(e.target.value)}
+              aria-label="voice"
+            >
+              {['onyx', 'alloy', 'echo', 'fable', 'nova', 'shimmer'].map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </div>
           <button type="button" className={styles.button} onClick={speak} disabled={busy}>
-            {busy ? 'synthesizing…' : '▶ speak'}
+            {busy ? 'synthesizing…' : `▶ speak (${ttsVoice})`}
           </button>
           {audioUrl && (
             <audio src={audioUrl} controls autoPlay style={{ marginTop: '1rem', width: '100%' }} />

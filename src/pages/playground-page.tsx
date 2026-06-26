@@ -81,6 +81,10 @@ export function PlaygroundPage() {
       if (fileTask === 'transcribe') {
         params.set('language', 'es');
       }
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext) {
+        params.set('format', ext);
+      }
       const res = await fetch(`${SUSURRO_GATEWAY}/v1/stt?${params.toString()}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'audio/mpeg' },
@@ -146,8 +150,8 @@ export function PlaygroundPage() {
 
         {error && <div className={styles.errorBox}>{error}</div>}
         <p className={styles.notice}>
-          Runs against the live gateway with the rate-limited demo token. Mic, file upload + text
-          — no models in your browser.
+          Runs against the live gateway with the rate-limited demo token. Mic, file upload + text —
+          no models in your browser.
         </p>
 
         <section className={styles.section}>

@@ -322,7 +322,7 @@ async def discovery(request: Request) -> JSONResponse:
 
 
 @app.post("/v1/stt")
-async def stt(request: Request, key: dict = Depends(require_susurro_key), engine: str = "whisper", language: str | None = None, task: str = "transcribe") -> JSONResponse:
+async def stt(request: Request, key: dict = Depends(require_susurro_key), engine: str = "whisper", language: str | None = None, task: str = "transcribe", format: str | None = None) -> JSONResponse:
     audio = await request.body()
     if not audio:
         raise HTTPException(status_code=400, detail="Empty audio body")
@@ -349,14 +349,18 @@ async def stt(request: Request, key: dict = Depends(require_susurro_key), engine
         return JSONResponse({"success": True, "transcript": alt.get("transcript", ""), "engine": "deepgram-nova-2"})
 
     require_azure()
-    ext_map = {"mpeg": "mp3", "mp3": "mp3", "wav": "wav", "webm": "webm", "mp4": "mp4", "m4a": "m4a", "ogg": "ogg", "flac": "flac"}
-    fmt = next((v for k, v in ext_map.items() if k in content_type), "wav")
+    whisper_formats = {"flac", "m4a", "mp3", "mp4", "mpeg", "mpga", "oga", "ogg", "wav", "webm"}
+    ext_map = {"x-m4a": "m4a", "m4a": "m4a", "mpeg": "mp3", "mp3": "mp3", "wav": "wav", "webm": "webm", "mp4": "mp4", "ogg": "ogg", "flac": "flac"}
+    if format and format.lower() in whisper_formats:
+        fmt = format.lower()
+    else:
+        fmt = next((v for k, v in ext_map.items() if k in content_type), "wav")
     filename = f"audio.{fmt}"
     operation = "translations" if task == "translate" else "transcriptions"
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_WHISPER_DEPLOYMENT}/audio/{operation}?api-version={AZURE_OPENAI_API_VERSION}"
     data = {"language": language} if language and task == "transcribe" else None
-    logger.info("stt.whisper.start task=%s bytes=%d lang=%s key=%s", task, len(audio), language or "auto", key.get("name"))
-    async with httpx.AsyncClient(timeout=120) as client:
+    logger.info("stt.whisper.start task=%s fmt=%s bytes=%d lang=%s key=%s", task, fmt, len(audio), language or "auto", key.get("name"))
+    async with httpx.AsyncClient(timeout=600) as client:
         resp = await client.post(url, headers={"api-key": AZURE_OPENAI_KEY}, files={"file": (filename, audio, content_type)}, data=data)
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Azure whisper {resp.status_code}: {resp.text}")

@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import secrets as secrets_mod
@@ -30,6 +31,27 @@ AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01")
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+
+DIARIZE_ENDPOINT = os.getenv("DIARIZE_OPENAI_ENDPOINT", "").rstrip("/")
+DIARIZE_KEY = os.getenv("DIARIZE_OPENAI_KEY", "")
+DIARIZE_DEPLOYMENT = os.getenv("DIARIZE_DEPLOYMENT", "gpt-4.1")
+DIARIZE_API_VERSION = os.getenv("DIARIZE_API_VERSION", "2024-02-15-preview")
+DIARIZE_WINDOW_CHARS = int(os.getenv("DIARIZE_WINDOW_CHARS", "6000"))
+
+PROMPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompts")
+_PROMPT_CACHE: dict[str, tuple[float, str]] = {}
+
+
+def load_prompt(name: str) -> str:
+    path = os.path.join(PROMPTS_DIR, f"{name}.md")
+    mtime = os.path.getmtime(path)
+    cached = _PROMPT_CACHE.get(name)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    _PROMPT_CACHE[name] = (mtime, text)
+    return text
 
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 ONBOARDING_TOKEN = os.getenv("SUSURRO_ONBOARDING_TOKEN", "")
@@ -252,6 +274,7 @@ async def health() -> JSONResponse:
             "metering": bool(TABLES_CONN),
             "deepgram": bool(DEEPGRAM_API_KEY),
             "claude": bool(ANTHROPIC_API_KEY),
+            "diarize": bool(DIARIZE_ENDPOINT and DIARIZE_KEY),
             "note": "liveness only; GET /ready proves the real Azure voice serving contract",
         }
     )
@@ -309,6 +332,14 @@ async def discovery(request: Request) -> JSONResponse:
                     "url": f"{base}/v1/refine",
                     "body": {"web_speech_text": "...", "deepgram_text": "..."},
                     "returns": {"refined": "best transcript"},
+                },
+                "diarize": {
+                    "method": "POST",
+                    "url": f"{base}/v1/diarize",
+                    "body": {"transcript": "full transcript text", "num_speakers": "optional int hint"},
+                    "returns": {"segments": [{"speaker": "Hablante 1", "text": "..."}], "speakers": ["..."], "num_speakers": "int"},
+                    "note": "LLM speaker diarization over a transcript (text-based, not acoustic). Windows long transcripts automatically. Pair with /v1/stt for audio.",
+                    "curl": f'curl -X POST {base}/v1/diarize -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d \'{{"transcript":"...","num_speakers":2}}\'',
                 },
             },
             "azure_openai_compatible": {
@@ -414,6 +445,75 @@ async def refine(request: Request, key: dict = Depends(require_susurro_key)) -> 
     refined = "".join(b.get("text", "") for b in blocks if b.get("type") == "text").strip()
     record_usage(key["RowKey"], "refine", len(prompt), REFINE_USD_PER_REQUEST)
     return JSONResponse({"success": True, "refined": refined, "engine": ANTHROPIC_MODEL})
+
+
+def _window_transcript(transcript: str, size: int) -> list[str]:
+    if len(transcript) <= size:
+        return [transcript]
+    windows: list[str] = []
+    remaining = transcript.strip()
+    while remaining:
+        if len(remaining) <= size:
+            windows.append(remaining)
+            break
+        cut = remaining.rfind(". ", 0, size)
+        if cut < size // 2:
+            cut = remaining.rfind(" ", 0, size)
+        if cut <= 0:
+            cut = size
+        windows.append(remaining[: cut + 1].strip())
+        remaining = remaining[cut + 1 :].strip()
+    return windows
+
+
+async def _diarize_window(client: httpx.AsyncClient, system_prompt: str, window: str, roster: list[str], num_speakers: int | None) -> list[dict]:
+    roster_line = f"Hablantes ya identificados (reutiliza estas etiquetas): {', '.join(roster)}.\n\n" if roster else ""
+    hint = f"Pista: la conversación tiene aproximadamente {num_speakers} hablantes.\n\n" if num_speakers else ""
+    user_prompt = f"{roster_line}{hint}Fragmento de transcripción:\n\n{window}"
+    url = f"{DIARIZE_ENDPOINT}/openai/deployments/{DIARIZE_DEPLOYMENT}/chat/completions?api-version={DIARIZE_API_VERSION}"
+    resp = await client.post(
+        url,
+        headers={"api-key": DIARIZE_KEY, "Content-Type": "application/json"},
+        json={
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 4000,
+            "response_format": {"type": "json_object"},
+        },
+    )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Diarize LLM {resp.status_code}: {resp.text}")
+    content = resp.json()["choices"][0]["message"]["content"]
+    parsed = json.loads(content)
+    return [s for s in parsed.get("segments", []) if s.get("text")]
+
+
+@app.post("/v1/diarize")
+async def diarize(request: Request, key: dict = Depends(require_susurro_key)) -> JSONResponse:
+    if not (DIARIZE_ENDPOINT and DIARIZE_KEY):
+        raise HTTPException(status_code=500, detail="Diarization not configured")
+    payload = await request.json()
+    transcript = (payload.get("transcript") or "").strip()
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Missing 'transcript' text")
+    num_speakers = payload.get("num_speakers")
+    system_prompt = load_prompt("diarization")
+    windows = _window_transcript(transcript, DIARIZE_WINDOW_CHARS)
+    segments: list[dict] = []
+    roster: list[str] = []
+    logger.info("diarize.start chars=%d windows=%d key=%s", len(transcript), len(windows), key.get("name"))
+    async with httpx.AsyncClient(timeout=120) as client:
+        for window in windows:
+            for seg in await _diarize_window(client, system_prompt, window, roster, num_speakers):
+                speaker = seg.get("speaker", "Hablante 1")
+                if speaker not in roster:
+                    roster.append(speaker)
+                segments.append({"speaker": speaker, "text": seg["text"]})
+    record_usage(key["RowKey"], "diarize", len(transcript), REFINE_USD_PER_REQUEST)
+    return JSONResponse({"success": True, "segments": segments, "speakers": roster, "num_speakers": len(roster), "engine": f"azure-{DIARIZE_DEPLOYMENT}"})
 
 
 def require_susurro_key_compat(

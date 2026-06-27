@@ -3,6 +3,11 @@ import { Link } from 'react-router-dom';
 import { SUSURRO_GATEWAY, type DiscoveryResponse } from './gateway';
 import styles from './pages.module.css';
 
+interface DiarizeSegment {
+  speaker: string;
+  text: string;
+}
+
 export function PlaygroundPage() {
   const [token, setToken] = useState('');
   const [recording, setRecording] = useState(false);
@@ -15,6 +20,8 @@ export function PlaygroundPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileTask, setFileTask] = useState<'transcribe' | 'translate'>('transcribe');
   const [fileResult, setFileResult] = useState('');
+  const [diarizeOn, setDiarizeOn] = useState(false);
+  const [diarizeSegments, setDiarizeSegments] = useState<DiarizeSegment[] | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -73,9 +80,24 @@ export function PlaygroundPage() {
     }
   };
 
+  const diarize = async (transcript: string) => {
+    const res = await fetch(`${SUSURRO_GATEWAY}/v1/diarize`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript }),
+    });
+    const data = (await res.json()) as { segments?: DiarizeSegment[]; detail?: string };
+    if (!res.ok) {
+      setError(data.detail ?? `diarize failed (${res.status})`);
+      return;
+    }
+    setDiarizeSegments(data.segments ?? []);
+  };
+
   const transcribeFile = async (file: File) => {
     setError(null);
     setFileResult('');
+    setDiarizeSegments(null);
     setBusy(true);
     try {
       const params = new URLSearchParams({ task: fileTask });
@@ -96,7 +118,11 @@ export function PlaygroundPage() {
         setError(data.detail ?? `stt failed (${res.status})`);
         return;
       }
-      setFileResult(data.transcript ?? '(empty)');
+      const transcript = data.transcript ?? '(empty)';
+      setFileResult(transcript);
+      if (diarizeOn && transcript.trim() && transcript !== '(empty)') {
+        await diarize(transcript);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'file upload failed');
     } finally {
@@ -199,6 +225,16 @@ export function PlaygroundPage() {
               translate → English
             </label>
           </div>
+          <div className={styles.field}>
+            <label className={styles.notice}>
+              <input
+                type="checkbox"
+                checked={diarizeOn}
+                onChange={(e) => setDiarizeOn(e.target.checked)}
+              />{' '}
+              diarizar — separar por hablante (LLM)
+            </label>
+          </div>
           <input
             ref={fileInputRef}
             type="file"
@@ -216,10 +252,23 @@ export function PlaygroundPage() {
             {busy ? 'processing…' : '⬆ choose audio file'}
           </button>
           {fileName && <p className={styles.notice}>{fileName}</p>}
-          {fileResult && (
+          {busy && diarizeOn && fileResult && (
+            <p className={styles.notice}>transcript ready — diarizing…</p>
+          )}
+          {diarizeSegments ? (
             <div className={styles.tokenBox}>
-              <span className={styles.tokenValue}>{fileResult}</span>
+              {diarizeSegments.map((seg, i) => (
+                <p key={i} className={styles.tokenValue} style={{ marginBottom: '0.5rem' }}>
+                  <strong>{seg.speaker}:</strong> {seg.text}
+                </p>
+              ))}
             </div>
+          ) : (
+            fileResult && (
+              <div className={styles.tokenBox}>
+                <span className={styles.tokenValue}>{fileResult}</span>
+              </div>
+            )
           )}
         </section>
 

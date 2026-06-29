@@ -33,6 +33,14 @@ export function PlaygroundPage() {
       .catch(() => setError('could not load a demo token'));
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
+
   const startRecording = async () => {
     setError(null);
     setTranscript('');
@@ -187,7 +195,7 @@ export function PlaygroundPage() {
             type="button"
             className={styles.button}
             onClick={recording ? stopRecording : startRecording}
-            disabled={busy && !recording}
+            disabled={(busy && !recording) || !token}
           >
             {recording ? '■ stop & transcribe' : '● record'}
           </button>
@@ -240,14 +248,14 @@ export function PlaygroundPage() {
             type="file"
             accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm,.flac,.mp4"
             onChange={onFilePicked}
-            disabled={busy}
+            disabled={busy || !token}
             style={{ display: 'none' }}
           />
           <button
             type="button"
             className={styles.button}
             onClick={() => fileInputRef.current?.click()}
-            disabled={busy}
+            disabled={busy || !token}
           >
             {busy ? 'processing…' : '⬆ choose audio file'}
           </button>
@@ -296,7 +304,7 @@ export function PlaygroundPage() {
               ))}
             </select>
           </div>
-          <button type="button" className={styles.button} onClick={speak} disabled={busy}>
+          <button type="button" className={styles.button} onClick={speak} disabled={busy || !token}>
             {busy ? 'synthesizing…' : `▶ speak (${ttsVoice})`}
           </button>
           {audioUrl && (

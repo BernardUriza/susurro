@@ -90,6 +90,12 @@
   word-break: break-all;
 }
 
+.transcriptHeader {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.4rem;
+}
+
 .transcriptBox {
   background: rgba(0, 255, 65, 0.06);
   border: 1px solid #00ff41;

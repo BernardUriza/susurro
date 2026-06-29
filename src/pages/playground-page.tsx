@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SUSURRO_GATEWAY, type DiscoveryResponse } from './gateway';
+import { CopyButton } from './copy-button';
 import styles from './pages.module.css';
 
 interface DiarizeSegment {
@@ -201,9 +202,14 @@ export function PlaygroundPage() {
           </button>
           {busy && !recording && <p className={styles.notice}>transcribing…</p>}
           {transcript && (
-            <div className={styles.transcriptBox}>
-              <p className={styles.transcriptText}>{transcript}</p>
-            </div>
+            <>
+              <div className={styles.transcriptHeader}>
+                <CopyButton value={transcript} label="copy transcript" />
+              </div>
+              <div className={styles.transcriptBox}>
+                <p className={styles.transcriptText}>{transcript}</p>
+              </div>
+            </>
           )}
         </section>
 
@@ -264,18 +270,31 @@ export function PlaygroundPage() {
             <p className={styles.notice}>transcript ready — diarizing…</p>
           )}
           {diarizeSegments ? (
-            <div className={styles.transcriptBox}>
-              {diarizeSegments.map((seg, i) => (
-                <p key={i} className={styles.transcriptSegment}>
-                  <strong>{seg.speaker}:</strong> {seg.text}
-                </p>
-              ))}
-            </div>
+            <>
+              <div className={styles.transcriptHeader}>
+                <CopyButton
+                  value={diarizeSegments.map((seg) => `${seg.speaker}: ${seg.text}`).join('\n\n')}
+                  label="copy diarization"
+                />
+              </div>
+              <div className={styles.transcriptBox}>
+                {diarizeSegments.map((seg, i) => (
+                  <p key={i} className={styles.transcriptSegment}>
+                    <strong>{seg.speaker}:</strong> {seg.text}
+                  </p>
+                ))}
+              </div>
+            </>
           ) : (
             fileResult && (
-              <div className={styles.transcriptBox}>
-                <p className={styles.transcriptText}>{fileResult}</p>
-              </div>
+              <>
+                <div className={styles.transcriptHeader}>
+                  <CopyButton value={fileResult} label="copy transcript" />
+                </div>
+                <div className={styles.transcriptBox}>
+                  <p className={styles.transcriptText}>{fileResult}</p>
+                </div>
+              </>
             )
           )}
         </section>

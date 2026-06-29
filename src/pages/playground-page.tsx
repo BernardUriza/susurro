@@ -193,8 +193,8 @@ export function PlaygroundPage() {
           </button>
           {busy && !recording && <p className={styles.notice}>transcribing…</p>}
           {transcript && (
-            <div className={styles.tokenBox}>
-              <span className={styles.tokenValue}>{transcript}</span>
+            <div className={styles.transcriptBox}>
+              <p className={styles.transcriptText}>{transcript}</p>
             </div>
           )}
         </section>
@@ -256,17 +256,17 @@ export function PlaygroundPage() {
             <p className={styles.notice}>transcript ready — diarizing…</p>
           )}
           {diarizeSegments ? (
-            <div className={styles.tokenBox}>
+            <div className={styles.transcriptBox}>
               {diarizeSegments.map((seg, i) => (
-                <p key={i} className={styles.tokenValue} style={{ marginBottom: '0.5rem' }}>
+                <p key={i} className={styles.transcriptSegment}>
                   <strong>{seg.speaker}:</strong> {seg.text}
                 </p>
               ))}
             </div>
           ) : (
             fileResult && (
-              <div className={styles.tokenBox}>
-                <span className={styles.tokenValue}>{fileResult}</span>
+              <div className={styles.transcriptBox}>
+                <p className={styles.transcriptText}>{fileResult}</p>
               </div>
             )
           )}

@@ -90,6 +90,42 @@
   word-break: break-all;
 }
 
+.transcriptBox {
+  background: rgba(0, 255, 65, 0.06);
+  border: 1px solid #00ff41;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.transcriptText,
+.transcriptSegment {
+  font-family: 'Courier New', monospace;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #00ff41;
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: pre-wrap;
+}
+
+.transcriptText {
+  margin: 0;
+}
+
+.transcriptSegment {
+  margin: 0 0 0.6rem 0;
+}
+
+.transcriptSegment:last-child {
+  margin-bottom: 0;
+}
+
+.transcriptSegment strong {
+  color: #7fffd4;
+}
+
 .callout {
   border-left: 3px solid #00ff41;
   background: rgba(0, 255, 65, 0.05);

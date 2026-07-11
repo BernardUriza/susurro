@@ -1,6 +1,8 @@
+import asyncio
 import json
 import logging
 import os
+import re
 import secrets as secrets_mod
 import time
 import uuid
@@ -71,6 +73,41 @@ def _retry_after_secs() -> int:
     now = datetime.now(timezone.utc)
     tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
     return max(1, int((tomorrow - now).total_seconds()))
+
+
+AZURE_MAX_RETRIES = int(os.getenv("AZURE_MAX_RETRIES", "3"))
+AZURE_RETRY_CAP_SECS = float(os.getenv("AZURE_RETRY_CAP_SECS", "30"))
+
+
+def _azure_retry_after(resp: httpx.Response, attempt: int) -> float:
+    header = resp.headers.get("retry-after") or resp.headers.get("x-ratelimit-reset-requests")
+    if header:
+        try:
+            return float(header.rstrip("s"))
+        except ValueError:
+            pass
+    match = re.search(r"retry after (\d+) second", resp.text, re.IGNORECASE)
+    if match:
+        return float(match.group(1))
+    return float(2**attempt)
+
+
+async def azure_post(client: httpx.AsyncClient, url: str, label: str, **kwargs) -> httpx.Response:
+    for attempt in range(AZURE_MAX_RETRIES + 1):
+        resp = await client.post(url, **kwargs)
+        if resp.status_code != 429:
+            return resp
+        wait = _azure_retry_after(resp, attempt)
+        if attempt >= AZURE_MAX_RETRIES or wait > AZURE_RETRY_CAP_SECS:
+            logger.warning("azure.%s rate limited, retries exhausted (retry_after=%.0fs)", label, wait)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Upstream {label} rate limit reached; retry in {int(wait)}s",
+                headers={"Retry-After": str(int(wait))},
+            )
+        logger.info("azure.%s 429, waiting %.0fs then retrying (attempt %d/%d)", label, wait, attempt + 1, AZURE_MAX_RETRIES)
+        await asyncio.sleep(wait)
+    raise HTTPException(status_code=429, detail=f"Upstream {label} rate limit reached")
 
 
 @asynccontextmanager
@@ -294,6 +331,11 @@ async def ready() -> JSONResponse:
             )
     except Exception as exc:
         return JSONResponse(status_code=503, content={"ready": False, "reason": str(exc)})
+    if resp.status_code == 429:
+        return JSONResponse(
+            status_code=200,
+            content={"ready": True, "rate_limited": True, "tts_status": 429, "tts_bytes": 0},
+        )
     ok = resp.status_code == 200 and len(resp.content) > 0
     return JSONResponse(
         status_code=200 if ok else 503,
@@ -392,7 +434,7 @@ async def stt(request: Request, key: dict = Depends(require_susurro_key), engine
     data = {"language": language} if language and task == "transcribe" else None
     logger.info("stt.whisper.start task=%s fmt=%s bytes=%d lang=%s key=%s", task, fmt, len(audio), language or "auto", key.get("name"))
     async with httpx.AsyncClient(timeout=600) as client:
-        resp = await client.post(url, headers={"api-key": AZURE_OPENAI_KEY}, files={"file": (filename, audio, content_type)}, data=data)
+        resp = await azure_post(client, url, "whisper", headers={"api-key": AZURE_OPENAI_KEY}, files={"file": (filename, audio, content_type)}, data=data)
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Azure whisper {resp.status_code}: {resp.text}")
     record_usage(key["RowKey"], "stt", len(audio), STT_USD_PER_REQUEST)
@@ -410,8 +452,10 @@ async def tts(request: Request, key: dict = Depends(require_susurro_key)) -> Res
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_TTS_DEPLOYMENT}/audio/speech?api-version={AZURE_OPENAI_API_VERSION}"
     logger.info("tts.start chars=%d voice=%s key=%s", len(text), payload.get("voice", AZURE_TTS_VOICE), key.get("name"))
     async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(
+        resp = await azure_post(
+            client,
             url,
+            "tts",
             headers={"api-key": AZURE_OPENAI_KEY, "Content-Type": "application/json"},
             json={"model": AZURE_TTS_MODEL, "input": text, "voice": payload.get("voice", AZURE_TTS_VOICE), "response_format": response_format},
         )
@@ -550,8 +594,10 @@ async def azure_compat_tts(
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_TTS_DEPLOYMENT}/audio/speech?api-version={AZURE_OPENAI_API_VERSION}"
     logger.info("compat.tts deployment=%s chars=%d key=%s", deployment, len(text), key.get("name"))
     async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(
+        resp = await azure_post(
+            client,
             url,
+            "tts",
             headers={"api-key": AZURE_OPENAI_KEY, "Content-Type": "application/json"},
             json={
                 "model": payload.get("model", AZURE_TTS_MODEL),
@@ -584,7 +630,7 @@ async def azure_compat_stt(
     data = {f: form[f] for f in ("language", "prompt", "response_format", "temperature") if f in form}
     logger.info("compat.stt deployment=%s bytes=%d key=%s", deployment, len(audio), key.get("name"))
     async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(url, headers={"api-key": AZURE_OPENAI_KEY}, files=files, data=data or None)
+        resp = await azure_post(client, url, "whisper", headers={"api-key": AZURE_OPENAI_KEY}, files=files, data=data or None)
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Azure whisper {resp.status_code}: {resp.text}")
     record_usage(key["RowKey"], "stt", len(audio), STT_USD_PER_REQUEST)

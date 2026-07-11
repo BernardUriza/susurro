@@ -97,13 +97,32 @@ his apps call it instead of holding Azure/Deepgram/Anthropic keys directly.
   (`susurro-rg`, deployments `tts`/`whisper`) — NOT insult-openai (its voice deployments were
   deleted). The `/v1/*` + Azure-compat contract is the stable interface; the engine can be
   swapped to self-hosted Whisper/TTS later with zero consumer change.
+- **The upstream is rate-limited to 3 requests/minute — this is the #1 way the gateway
+  "looks dead".** Azure provisions voice deployments by `capacity`, and 1 unit = 1 RPM. Both
+  `whisper` and `tts` sat at `capacity: 1` until 2026-07-11 (so the SECOND call inside a minute
+  got a 429 and the gateway turned it into a 502 — whisper appeared to be down in prod). Both
+  are now at `capacity: 3`, which is the **subscription's hard ceiling** in northcentralus
+  (`az cognitiveservices usage list -l northcentralus` → `OpenAI.Standard.whisper limit=3`).
+  More capacity requires a quota increase (https://aka.ms/oai/quotaincrease). Check the live
+  value before blaming the code:
+  ```bash
+  az cognitiveservices account deployment show -n susurro-openai -g susurro-rg \
+    --deployment-name whisper --query "{capacity:sku.capacity, rpm:properties.rateLimits[0].count}"
+  ```
+- **429 is part of the contract — consumers must honor `Retry-After`.** `azure_post()` wraps
+  every upstream Azure voice call: on a 429 it waits out Azure's `Retry-After` and retries
+  (bounded by `AZURE_MAX_RETRIES=3` / `AZURE_RETRY_CAP_SECS=30`). When the upstream asks for a
+  longer wait than the cap, the gateway returns an honest **429 + `Retry-After`** — never a
+  502. A 502 from `/v1/stt` now means a real upstream failure, not saturation. `/ready` reports
+  `ready: true, rate_limited: true` on a 429 (a rate limit proves Azure is alive and authing).
 - **Run locally:** `cd api && pip install -r requirements.txt && uvicorn main:app --reload`,
   with the `AZURE_OPENAI_*` and `SUSURRO_KEYS` env vars set (see `.env.example`).
-- **Build & deploy:** `az acr build --registry insultacr --image susurro-gateway:vN --file
-  api/Dockerfile api/`, then `az containerapp update -n susurro-gateway -g insult-rg --image
-  insultacr.azurecr.io/susurro-gateway:vN`. Secrets are set out-of-band with
-  `az containerapp secret set` (never in the image). Local `az acr build` needs working
-  pyexpat — if it errors, see the expat relink fix in `~/CLAUDE.md`.
+- **Deploy is CD, not manual:** push to `master` touching `api/**` or `src/**` →
+  `.github/workflows/cd.yml` builds the web bundle into `api/static`, runs `az acr build`
+  (tagged with the commit SHA), updates the Container App, and smoke-tests that `/health`
+  reports the new SHA. Don't hand-run `az acr build` locally (it also needs working pyexpat —
+  see the expat relink fix in `~/CLAUDE.md`). Secrets are set out-of-band with
+  `az containerapp secret set` (never in the image).
 
 ## Architecture
 

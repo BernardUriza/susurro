@@ -171,13 +171,18 @@ def get_key_record(token: str) -> dict | None:
         if token in BOOTSTRAP_KEYS:
             return {"RowKey": token, "name": "bootstrap", "kind": "project", "daily_limit": 0, "active": True}
         return None
-    from azure.core.exceptions import ResourceNotFoundError
+    from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 
     try:
         ent = keys_table.get_entity("key", token)
         return dict(ent) if ent.get("active", True) else None
     except ResourceNotFoundError:
         return None
+    except HttpResponseError as exc:
+        if exc.status_code == 400:
+            logger.info("auth.malformed_token len=%d", len(token))
+            return None
+        raise
 
 
 def count_today(key_id: str) -> int:
@@ -273,13 +278,41 @@ def bootstrap_keys() -> None:
             pass
 
 
+async def read_json(request: Request) -> dict:
+    raw = await request.body()
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Body is not valid JSON. Send a raw JSON object, e.g. {\"input\":\"hola\"}. "
+            "On Windows cmd/PowerShell single quotes are not stripped — use a file (curl -d @body.json) or escaped double quotes.",
+        )
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Body must be a JSON object")
+    return payload
+
+
+def _key_shape_hint(presented: str) -> str:
+    if not presented.startswith("sk-susurro-"):
+        return (
+            " A Susurro key starts with 'sk-susurro-' and is 43 chars. "
+            "You presented %d chars — if you read a secrets file, send only the value "
+            "after SUSURRO_KEY=, not the whole file." % len(presented)
+        )
+    return ""
+
+
 def require_susurro_key(authorization: str = Header(default="")) -> dict:
     presented = authorization.removeprefix("Bearer ").removeprefix("bearer ").strip()
     if not presented:
         raise HTTPException(status_code=401, detail="Missing Susurro key")
     record = get_key_record(presented)
     if record is None:
-        raise HTTPException(status_code=401, detail="Invalid or inactive Susurro key")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or inactive Susurro key." + _key_shape_hint(presented),
+        )
     limit = int(record.get("daily_limit", 0) or 0)
     if limit > 0 and count_today(record["RowKey"]) >= limit:
         raise HTTPException(
@@ -444,7 +477,7 @@ async def stt(request: Request, key: dict = Depends(require_susurro_key), engine
 @app.post("/v1/tts")
 async def tts(request: Request, key: dict = Depends(require_susurro_key)) -> Response:
     require_azure()
-    payload = await request.json()
+    payload = await read_json(request)
     text = (payload.get("input") or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Missing 'input' text")
@@ -470,7 +503,7 @@ async def tts(request: Request, key: dict = Depends(require_susurro_key)) -> Res
 async def refine(request: Request, key: dict = Depends(require_susurro_key)) -> JSONResponse:
     if not ANTHROPIC_API_KEY:
         raise HTTPException(status_code=500, detail="Claude not configured")
-    payload = await request.json()
+    payload = await read_json(request)
     candidates = [payload.get("web_speech_text", ""), payload.get("deepgram_text", "")]
     prompt = (
         "Eres un corrector de transcripciones. Te doy variantes del mismo audio; "
@@ -539,7 +572,7 @@ async def _diarize_window(client: httpx.AsyncClient, system_prompt: str, window:
 async def diarize(request: Request, key: dict = Depends(require_susurro_key)) -> JSONResponse:
     if not (DIARIZE_ENDPOINT and DIARIZE_KEY):
         raise HTTPException(status_code=500, detail="Diarization not configured")
-    payload = await request.json()
+    payload = await read_json(request)
     transcript = (payload.get("transcript") or "").strip()
     if not transcript:
         raise HTTPException(status_code=400, detail="Missing 'transcript' text")
@@ -586,7 +619,7 @@ async def azure_compat_tts(
     require_azure()
     if deployment not in ALLOWED_DEPLOYMENTS:
         raise HTTPException(status_code=404, detail=f"Unknown deployment '{deployment}'")
-    payload = await request.json()
+    payload = await read_json(request)
     text = (payload.get("input") or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Missing 'input'")
@@ -675,7 +708,7 @@ async def admin_create_key(request: Request) -> JSONResponse:
     keys_table, _ = _tables()
     if keys_table is None:
         raise HTTPException(status_code=500, detail="Metering not configured")
-    body = await request.json()
+    body = await read_json(request)
     name = (body.get("name") or "project").strip()
     daily_limit = int(body.get("daily_limit", 0) or 0)
     token = gen_token()
@@ -707,7 +740,7 @@ async def admin_create_claim(request: Request) -> JSONResponse:
     claims = _claims_table_client()
     if claims is None:
         raise HTTPException(status_code=500, detail="Metering not configured")
-    body = await request.json()
+    body = await read_json(request)
     name = (body.get("name") or "").strip()
     daily_limit = int(body.get("daily_limit", 0) or 0)
     if name and name_in_use(name):
@@ -762,7 +795,7 @@ async def redeem_claim(request: Request) -> JSONResponse:
     keys_table, _ = _tables()
     if claims is None or keys_table is None:
         raise HTTPException(status_code=500, detail="Metering not configured")
-    body = await request.json()
+    body = await read_json(request)
     code = (body.get("claim_code") or "").strip()
     if not code:
         raise HTTPException(status_code=400, detail="Missing 'claim_code'")

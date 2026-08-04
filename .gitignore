@@ -64,6 +64,9 @@ env/
 # WASM files are needed
 !public/wasm/rnnoise.wasm
 
+# Claude Code per-machine permissions — .local is not shared by convention
+.claude/settings.local.json
+
 # Susurro Voice Gateway (api/) — force-track despite the repo-wide *.py ignore
 !api/
 !api/*.py

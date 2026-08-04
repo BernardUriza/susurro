@@ -376,6 +376,27 @@ async def ready() -> JSONResponse:
     )
 
 
+def _powershell_example(url: str, body: dict | None = None, out_file: str = "", in_file: str = "", content_type: str = "application/json") -> str:
+    call = (
+        f"Invoke-RestMethod -Method Post -Uri '{url}'"
+        ' -Headers @{ Authorization = "Bearer $env:SUSURRO_KEY" }'
+        f" -ContentType '{content_type}'"
+    )
+    if body is not None:
+        pairs = "; ".join(f"{k} = {json.dumps(v)}" for k, v in body.items())
+        call = (
+            "$body = @{ " + pairs + " } | ConvertTo-Json\n"
+            "$bytes = [System.Text.Encoding]::UTF8.GetBytes($body)\n"
+            + call
+            + " -Body $bytes"
+        )
+    if in_file:
+        call += f" -InFile {in_file}"
+    if out_file:
+        call += f" -OutFile {out_file}"
+    return call
+
+
 @app.get("/v1/discovery")
 async def discovery(request: Request) -> JSONResponse:
     base = str(request.base_url).rstrip("/").replace("http://", "https://")
@@ -384,7 +405,8 @@ async def discovery(request: Request) -> JSONResponse:
             "service": "Susurro Voice Gateway",
             "purpose": "Single self-owned STT/TTS provider. Call these instead of any vendor SDK.",
             "onboarding_token": ONBOARDING_TOKEN or None,
-            "auth": "Send header: Authorization: Bearer <token>",
+            "auth": "Send header: Authorization: Bearer <token>. A token is 43 chars and starts with 'sk-susurro-'. If you keep it in a secrets file, send ONLY the value after SUSURRO_KEY= — the whole file contains a URL, and a '/' in the token makes the key lookup fail.",
+            "windows_note": "The bash curl examples use single quotes, which cmd and PowerShell do NOT strip — sending them verbatim yields a 400 (invalid JSON body). In PowerShell, 'curl' is also an alias for Invoke-WebRequest, not real curl. Use the 'powershell' example on each endpoint instead; it sends the body as explicit UTF-8 bytes so accented Spanish survives Windows PowerShell 5.1, which otherwise encodes -Body as Latin-1.",
             "rate_limit": f"onboarding token: {ONBOARDING_DAILY_LIMIT} req/day. Ask the owner for an unlimited project key.",
             "endpoints": {
                 "tts": {
@@ -393,6 +415,7 @@ async def discovery(request: Request) -> JSONResponse:
                     "body": {"input": "text to speak", "voice": "onyx", "format": "mp3"},
                     "returns": "audio bytes (audio/mpeg)",
                     "curl": f'curl -X POST {base}/v1/tts -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d \'{{"input":"hola"}}\' --output out.mp3',
+                    "powershell": _powershell_example(f"{base}/v1/tts", body={"input": "hola", "voice": "onyx", "format": "mp3"}, out_file="out.mp3"),
                 },
                 "stt": {
                     "method": "POST",
@@ -401,6 +424,7 @@ async def discovery(request: Request) -> JSONResponse:
                     "returns": {"transcript": "...", "engine": "azure-whisper", "task": "transcribe|translate"},
                     "note": "task=translate runs Whisper translation (output is always English; language is ignored). whisper engine only.",
                     "curl": f'curl -X POST "{base}/v1/stt?task=translate" -H "Authorization: Bearer $TOKEN" -H "Content-Type: audio/mpeg" --data-binary @audio.mp3',
+                    "powershell": _powershell_example(f"{base}/v1/stt?task=translate", in_file="audio.mp3", content_type="audio/mpeg"),
                 },
                 "refine": {
                     "method": "POST",
@@ -415,6 +439,7 @@ async def discovery(request: Request) -> JSONResponse:
                     "returns": {"segments": [{"speaker": "Hablante 1", "text": "..."}], "speakers": ["..."], "num_speakers": "int"},
                     "note": "LLM speaker diarization over a transcript (text-based, not acoustic). Windows long transcripts automatically. Pair with /v1/stt for audio.",
                     "curl": f'curl -X POST {base}/v1/diarize -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d \'{{"transcript":"...","num_speakers":2}}\'',
+                    "powershell": _powershell_example(f"{base}/v1/diarize", body={"transcript": "...", "num_speakers": 2}),
                 },
             },
             "azure_openai_compatible": {

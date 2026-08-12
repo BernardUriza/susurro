@@ -18,6 +18,10 @@ on:
 permissions:
   id-token: write
   contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/bernarduriza/susurro/gateway
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -39,23 +43,37 @@ jobs:
           npm run build
           rm -rf api/static && cp -r dist api/static
 
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: api
+          file: api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Build image in ACR
-        run: |
-          az acr build --registry insultacr \
-            --image susurro-gateway:${{ github.sha }} \
-            --image susurro-gateway:latest \
-            --file api/Dockerfile api/
-
       - name: Deploy to Container Apps
         run: |
           az containerapp update -n susurro-gateway -g insult-rg \
-            --image insultacr.azurecr.io/susurro-gateway:${{ github.sha }} \
+            --image ${{ env.IMAGE }}:${{ github.sha }} \
             --set-env-vars GATEWAY_VERSION=${{ github.sha }}
 
       - name: Smoke test /health (must report the new SHA)

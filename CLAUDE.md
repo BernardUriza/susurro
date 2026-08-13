@@ -23,7 +23,11 @@ Three things live in this repo:
    devices (Teams/BlackHole/etc.) excluded. Consumers: `escucha/dictar.py` (terminal
    dictation) and `~/Documents/compras/llamadas/escucha.py` (call copiloto: coach +
    folio extraction). Any new local voice capture MUST consume `escucha/motor.py` —
-   do not write a new recorder.
+   do not write a new recorder. Packaged as the **conda project `escucha`**
+   (`escucha/environment.yml` + root `pyproject.toml`): `conda env create -f
+   escucha/environment.yml` installs it editable and drops a global `dictar`
+   command in `~/.local/bin` (shebang pinned to the env's python — no activation
+   needed).
 
 ## Commands
 

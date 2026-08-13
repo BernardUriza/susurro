@@ -10,6 +10,7 @@
 # íntegro queda en ~/Documents/susurro/escucha/sesiones/.
 # Reemplazó a ~/bin/dictado.sh (bash, cortes de reloj) el mismo día que nació.
 # ─────────────────────────────────────────────────────────────────────────────
+import signal
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,13 @@ except ModuleNotFoundError:
 
 
 def main():
+    # SIGTERM/SIGHUP (harness, terminal cerrada) drenan igual que Ctrl+C;
+    # sin esto la sesión muere muda, sin FIN — pasó dos veces el 2026-08-13
+    def _senal(signum, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, _senal)
+    signal.signal(signal.SIGHUP, _senal)
+
     etiqueta = sys.argv[1] if len(sys.argv) > 1 else "dictado"
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     base = Path(__file__).resolve().parent / "sesiones" / f"{etiqueta}-{stamp}"

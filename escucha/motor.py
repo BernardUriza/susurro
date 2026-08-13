@@ -45,6 +45,7 @@ UTT_MIN_MS = int(os.environ.get("UTT_MIN_MS", "400"))
 UTT_MAX_MS = int(os.environ.get("UTT_MAX_MS", "15000"))
 PREROLL_MS = 300
 MIC_NOMBRE = os.environ.get("MIC_NOMBRE", "MacBook Air Microphone")
+IDIOMA = os.environ.get("ESCUCHA_LANG", "es-MX")
 MIC_VIRTUALES = re.compile(r"Teams|BlackHole|Loopback|Aggregate|Soundflower|Zoom|Virtual", re.I)
 
 ALUCINACIONES = ("amara.org", "subtítulos", "subtitulos", "gracias por ver",
@@ -133,14 +134,14 @@ def mic_index(nombre=None):
     return "0"
 
 
-def stt_hear(path):
+def stt_hear(path, idioma=None):
     """Contrato por EXIT CODE, jamás grep sobre la salida (un transcript legítimo
     puede contener la palabra 'error').
     → ('ok', texto, '') | ('silencio', '', '') | ('fallo', '', por_qué)"""
     if not HEAR.exists():
         return "fallo", "", f"no existe {HEAR}"
     try:
-        r = subprocess.run([str(HEAR), "-d", "-l", "es-MX", "-p", "-i", str(path)],
+        r = subprocess.run([str(HEAR), "-d", "-l", idioma or IDIOMA, "-p", "-i", str(path)],
                            capture_output=True, text=True, timeout=30)
     except subprocess.TimeoutExpired:
         return "fallo", "", "hear excedió 30s (¿modelo descargándose?)"
@@ -162,8 +163,9 @@ def _leer_key(archivo, patron):
         return ""
 
 
-def stt_gateway(path, language="es"):
+def stt_gateway(path, language=None):
     """→ (texto, '') | ('', por_qué_falló). Texto vacío sin causa = silencio real."""
+    language = (language or IDIOMA).split("-")[0]
     key = _leer_key(KEY_SUSURRO, r"^SUSURRO_KEY=(.+)$")
     if not key:
         return "", f"sin SUSURRO_KEY en {KEY_SUSURRO}"
@@ -176,12 +178,12 @@ def stt_gateway(path, language="es"):
         return "", f"gateway: {type(e).__name__}: {e}"
 
 
-def transcribir_tiers(path, fallos, language="es"):
+def transcribir_tiers(path, fallos, language=None):
     """hear local → gateway. → ('ok', texto) | ('silencio', '') | ('alucinacion', txt)
-    | ('fallo', '')."""
+    | ('fallo', ''). language: formato hear ('es-MX', 'en-US'); default $ESCUCHA_LANG."""
     if rms_de(path) < RMS_MIN:
         return "silencio", ""
-    estado, txt, causa = stt_hear(path)
+    estado, txt, causa = stt_hear(path, language)
     if estado == "silencio":
         return "silencio", ""
     if estado == "fallo":
@@ -244,39 +246,42 @@ class MotorCaptura:
         return self.mic_idx
 
     def _segmentar(self):
-        pipe = self.ffmpeg.stdout if self.ffmpeg else None
-        if pipe is None:
+        try:
+            pipe = self.ffmpeg.stdout if self.ffmpeg else None
+            if pipe is None:
+                return
+            frames_corte = SILENCIO_CORTE_MS // FRAME_MS
+            frames_min = UTT_MIN_MS // FRAME_MS
+            frames_max = UTT_MAX_MS // FRAME_MS
+            preroll = deque(maxlen=PREROLL_MS // FRAME_MS)
+            voz = []
+            silencio_seguido = 0
+            while True:
+                d = pipe.read(FRAME_BYTES)
+                if not d:
+                    break
+                con_voz = rms_frame(d) >= RMS_MIN
+                if voz:
+                    voz.append(d)
+                    silencio_seguido = 0 if con_voz else silencio_seguido + 1
+                    if silencio_seguido >= frames_corte or len(voz) >= frames_max:
+                        if len(voz) - silencio_seguido >= frames_min:
+                            self._encolar(voz)
+                        else:
+                            self.n_mudo += 1
+                        voz = []
+                        silencio_seguido = 0
+                else:
+                    preroll.append(d)
+                    if con_voz:
+                        voz = list(preroll)
+                        silencio_seguido = 0
+            if len(voz) - silencio_seguido >= frames_min:
+                self._encolar(voz)
+        except Exception as e:
+            self.fallos.avisar("segmentador", f"{type(e).__name__}: {e}")
+        finally:
             self.cola.put(None)
-            return
-        frames_corte = SILENCIO_CORTE_MS // FRAME_MS
-        frames_min = UTT_MIN_MS // FRAME_MS
-        frames_max = UTT_MAX_MS // FRAME_MS
-        preroll = deque(maxlen=PREROLL_MS // FRAME_MS)
-        voz = []
-        silencio_seguido = 0
-        while True:
-            d = pipe.read(FRAME_BYTES)
-            if not d:
-                break
-            con_voz = rms_frame(d) >= RMS_MIN
-            if voz:
-                voz.append(d)
-                silencio_seguido = 0 if con_voz else silencio_seguido + 1
-                if silencio_seguido >= frames_corte or len(voz) >= frames_max:
-                    if len(voz) - silencio_seguido >= frames_min:
-                        self._encolar(voz)
-                    else:
-                        self.n_mudo += 1
-                    voz = []
-                    silencio_seguido = 0
-            else:
-                preroll.append(d)
-                if con_voz:
-                    voz = list(preroll)
-                    silencio_seguido = 0
-        if len(voz) - silencio_seguido >= frames_min:
-            self._encolar(voz)
-        self.cola.put(None)
 
     def _encolar(self, frames):
         self.n_utt += 1

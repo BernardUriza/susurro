@@ -1,7 +1,9 @@
 # Escucha: feedback visual en vivo + diarización de hablantes
 
-Status: Proposed
+Status: Done
 Proposed: 2026-08-13 by Bernard (dictado, cerrando el ensayo Minicor)
+Done: 2026-08-13 — vúmetro RMS en vivo (stdlib) + diarización al cierre vía
+`POST /v1/diarize`
 
 ## What it is
 
@@ -35,10 +37,24 @@ caliente tras usar el flujo como copiloto de ensayo de entrevista:
 
 - ¿Feedback vivo = texto parcial streaming (Deepgram/gateway) o basta un
   vúmetro local (stdlib, cero dependencias, cabe en motor.py)?
+  → **Decidido: vúmetro local** (2026-08-13). Texto parcial streaming queda
+  como mejora futura si el vúmetro no basta.
 - ¿Diarización por utterance (latencia por frase) o al cierre de la sesión?
+  → **Decidido: al cierre** (2026-08-13). `/v1/diarize` es diarización LLM
+  sobre el TRANSCRIPT (texto, no acústica — lo dice `/v1/discovery`), así que
+  por utterance ni aplica.
 
 ## Status / next step
 
-No construido. Registrado el día que el motor sobrevivió su primer uso real
-como copiloto (3 GRAVES arreglados el mismo día: SIGTERM silencioso, idioma
-hardcodeado es-MX, hilo segmentador sin guard).
+Construido y verificado offline el 2026-08-13:
+
+- `MotorCaptura(..., on_rms=)` — hook por frame (~30ms) desde el segmentador;
+  si truena se apaga solo con aviso en `fallos`.
+- `dictar.py::Vumetro` — barra RMS log-escala en stderr con `\r`, solo TTY;
+  stdout queda limpio para el protocolo CACHO/FIN/MURIO de los Monitores.
+- `motor.diarizar(texto, fallos)` — POST al gateway, mapea Hablante 1/2 →
+  Hablante A/B; None si falla y el transcript queda sin diarizar (el flujo de
+  dictado jamás se rompe). `dictar.py` la llama al FIN con ≥2 frases y anota
+  la sección `## Hablantes` en `transcripcion.md`.
+- De pilón: `_leer_key` sin `re.M` nunca encontraba `SUSURRO_KEY=` (línea 5
+  del archivo) — el tier gateway de STT llevaba roto en silencio; arreglado.

@@ -14,9 +14,13 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from escucha.motor import (MotorCaptura, Fallos, transcribir_tiers, calentar_hear,
-                           ahora, RMS_MIN, SILENCIO_CORTE_MS)
+try:
+    from escucha.motor import (MotorCaptura, Fallos, transcribir_tiers, calentar_hear,
+                               ahora, RMS_MIN, SILENCIO_CORTE_MS)
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from escucha.motor import (MotorCaptura, Fallos, transcribir_tiers, calentar_hear,
+                               ahora, RMS_MIN, SILENCIO_CORTE_MS)
 
 
 def main():

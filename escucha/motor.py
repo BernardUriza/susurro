@@ -157,7 +157,7 @@ def stt_hear(path, idioma=None):
 
 def _leer_key(archivo, patron):
     try:
-        m = re.search(patron, archivo.read_text())
+        m = re.search(patron, archivo.read_text(), re.M)
         return m.group(1) if m else ""
     except OSError:
         return ""
@@ -176,6 +176,39 @@ def stt_gateway(path, language=None):
         return json.load(urllib.request.urlopen(req, timeout=45)).get("transcript", "").strip(), ""
     except Exception as e:
         return "", f"gateway: {type(e).__name__}: {e}"
+
+
+def diarizar(texto, fallos, num_speakers=None):
+    """POST {GATEWAY}/v1/diarize — contrato de /v1/discovery: recibe el
+    TRANSCRIPT como texto (diarización LLM, no acústica).
+    → [('Hablante A', texto), ...] | None si el gateway falló — el consumidor
+    degrada a transcript sin diarizar, jamás rompe el flujo de dictado."""
+    key = _leer_key(KEY_SUSURRO, r"^SUSURRO_KEY=(.+)$")
+    if not key:
+        fallos.avisar("diarize", f"sin SUSURRO_KEY en {KEY_SUSURRO}")
+        return None
+    cuerpo = {"transcript": texto}
+    if num_speakers:
+        cuerpo["num_speakers"] = num_speakers
+    try:
+        req = urllib.request.Request(
+            f"{GATEWAY}/v1/diarize", data=json.dumps(cuerpo).encode(),
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+        r = json.load(urllib.request.urlopen(req, timeout=90))
+    except Exception as e:
+        fallos.avisar("diarize", f"{type(e).__name__}: {e}")
+        return None
+    letras = {}
+    segmentos = []
+    for s in r.get("segments") or []:
+        txt = (s.get("text") or "").strip()
+        if not txt:
+            continue
+        quien = s.get("speaker", "?")
+        if quien not in letras:
+            letras[quien] = chr(ord("A") + len(letras))
+        segmentos.append((f"Hablante {letras[quien]}", txt))
+    return segmentos or None
 
 
 def transcribir_tiers(path, fallos, language=None):
@@ -223,12 +256,16 @@ class MotorCaptura:
         for wav in motor.utterances():   # bloquea; None => ffmpeg murió solo
             ...
         motor.cerrar()                   # drena y hace flush del utterance final
+
+    on_rms(rms, en_frase) opcional: se invoca por frame (~30ms) desde el hilo
+    segmentador — debe ser barato y no bloquear; si truena, se apaga solo.
     """
 
-    def __init__(self, audio_dir, fallos, mic_nombre=None):
+    def __init__(self, audio_dir, fallos, mic_nombre=None, on_rms=None):
         self.audio_dir = Path(audio_dir)
         self.fallos = fallos
         self.mic_nombre = mic_nombre or MIC_NOMBRE
+        self.on_rms = on_rms
         self.mic_idx = None
         self.cola = queue.Queue()
         self.ffmpeg = None
@@ -260,7 +297,14 @@ class MotorCaptura:
                 d = pipe.read(FRAME_BYTES)
                 if not d:
                     break
-                con_voz = rms_frame(d) >= RMS_MIN
+                rms = rms_frame(d)
+                con_voz = rms >= RMS_MIN
+                if self.on_rms:
+                    try:
+                        self.on_rms(rms, bool(voz))
+                    except Exception as e:
+                        self.fallos.avisar("on_rms", f"{type(e).__name__}: {e}; hook apagado")
+                        self.on_rms = None
                 if voz:
                     voz.append(d)
                     silencio_seguido = 0 if con_voz else silencio_seguido + 1

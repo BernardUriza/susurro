@@ -45,8 +45,10 @@ public/models/
 *.onnx
 *.bin
 
-# Test files and temporary
+# Test files and temporary (los .py sueltos; api/ y escucha/ son código real)
 *.py
+!api/**/*.py
+!escucha/*.py
 test_*.html
 *.zip
 *.msi

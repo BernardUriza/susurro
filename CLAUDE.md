@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Two things live in this repo:
+Three things live in this repo:
 
 1. A Vite + React 19 demo app (`src/`) on top of a publishable core library
    (`packages/susurro`, published as `susurro-audio`). Audio is denoised/VAD'd in-browser by
@@ -14,6 +14,16 @@ Two things live in this repo:
    Apps** that is Bernard's single self-owned STT/TTS provider for all his apps. Consumers
    present a bearer `SUSURRO_KEY`; the gateway holds the upstream Azure OpenAI key so no
    consumer ever sees it. This is the strategic core; the demo app is the showcase.
+3. The **Motor de Escucha** (`escucha/`) — the SSOT for LOCAL mic capture + voice-based
+   segmentation + live transcription on the Mac (Python, stdlib only). Consolidated
+   2026-08-13 from four scattered voice-to-text implementations. ffmpeg streams raw PCM
+   through a pipe; a segmenter thread cuts utterances at ~500 ms of silence AFTER speech
+   (RealtimeSTT/ecoute pattern — whole phrases, never clock slices); STT tiers are
+   `hear` (local, es-MX) → Susurro Gateway fallback. Mic selected by NAME, virtual
+   devices (Teams/BlackHole/etc.) excluded. Consumers: `escucha/dictar.py` (terminal
+   dictation) and `~/Documents/compras/llamadas/escucha.py` (call copiloto: coach +
+   folio extraction). Any new local voice capture MUST consume `escucha/motor.py` —
+   do not write a new recorder.
 
 ## Commands
 

@@ -46,6 +46,13 @@ UTT_MAX_MS = int(os.environ.get("UTT_MAX_MS", "15000"))
 PREROLL_MS = 300
 MIC_NOMBRE = os.environ.get("MIC_NOMBRE", "MacBook Air Microphone")
 IDIOMA = os.environ.get("ESCUCHA_LANG", "es-MX")
+# Ventana de habla de la BOCINA. `susurro-say.sh` crea este archivo mientras
+# reproduce; el segmentador marca —NO borra— los utterances que caen dentro.
+# Así el registro distingue la voz de Bernard de su propio eco por la bocina.
+HABLANDO = Path(os.environ.get(
+    "SUSURRO_LOCK", os.path.join(os.environ.get("TMPDIR", "/tmp"), "susurro-hablando.lock")))
+BOCINA_COLA_MS = int(os.environ.get("BOCINA_COLA_MS", "700"))   # reverb tras callar
+
 MIC_VIRTUALES = re.compile(r"Teams|BlackHole|Loopback|Aggregate|Soundflower|Zoom|Virtual", re.I)
 
 ALUCINACIONES = ("amara.org", "subtítulos", "subtitulos", "gracias por ver",
@@ -262,6 +269,8 @@ class MotorCaptura:
     """
 
     def __init__(self, audio_dir, fallos, mic_nombre=None, on_rms=None):
+        self.origen = {}          # ruta.wav -> 'BERNARD' | 'BOCINA'
+        self._bocina_hasta = 0.0  # monotonic; cola de reverb tras callar la bocina
         self.audio_dir = Path(audio_dir)
         self.fallos = fallos
         self.mic_nombre = mic_nombre or MIC_NOMBRE
@@ -291,6 +300,7 @@ class MotorCaptura:
             frames_min = UTT_MIN_MS // FRAME_MS
             frames_max = UTT_MAX_MS // FRAME_MS
             preroll = deque(maxlen=PREROLL_MS // FRAME_MS)
+            eco_en_curso = False
             voz = []
             silencio_seguido = 0
             while True:
@@ -299,6 +309,16 @@ class MotorCaptura:
                     break
                 rms = rms_frame(d)
                 con_voz = rms >= RMS_MIN
+                # ¿la bocina está sonando (o acaba de callar)?
+                if HABLANDO.exists():
+                    self._bocina_hasta = time.monotonic() + BOCINA_COLA_MS / 1000.0
+                bocina_ahora = time.monotonic() < self._bocina_hasta
+                if bocina_ahora and not voz:
+                    eco_en_curso = True
+                elif not voz:
+                    eco_en_curso = False
+                if voz and bocina_ahora:
+                    eco_en_curso = True
                 if self.on_rms:
                     try:
                         self.on_rms(rms, bool(voz))
@@ -310,10 +330,11 @@ class MotorCaptura:
                     silencio_seguido = 0 if con_voz else silencio_seguido + 1
                     if silencio_seguido >= frames_corte or len(voz) >= frames_max:
                         if len(voz) - silencio_seguido >= frames_min:
-                            self._encolar(voz)
+                            self._encolar(voz, "BOCINA" if eco_en_curso else "BERNARD")
                         else:
                             self.n_mudo += 1
                         voz = []
+                        eco_en_curso = False
                         silencio_seguido = 0
                 else:
                     preroll.append(d)
@@ -321,13 +342,13 @@ class MotorCaptura:
                         voz = list(preroll)
                         silencio_seguido = 0
             if len(voz) - silencio_seguido >= frames_min:
-                self._encolar(voz)
+                self._encolar(voz, "BOCINA" if eco_en_curso else "BERNARD")
         except Exception as e:
             self.fallos.avisar("segmentador", f"{type(e).__name__}: {e}")
         finally:
             self.cola.put(None)
 
-    def _encolar(self, frames):
+    def _encolar(self, frames, origen="BERNARD"):
         self.n_utt += 1
         ruta = self.audio_dir / f"utt-{self.n_utt:04d}.wav"
         with wave.open(str(ruta), "wb") as w:
@@ -335,6 +356,7 @@ class MotorCaptura:
             w.setsampwidth(2)
             w.setframerate(16000)
             w.writeframes(b"".join(frames))
+        self.origen[ruta] = origen
         self.cola.put(ruta)
 
     def utterances(self, timeout=1):
@@ -349,6 +371,11 @@ class MotorCaptura:
             yield utt
             if utt is None:
                 return
+
+    def origen_de(self, ruta):
+        """'BERNARD' | 'BOCINA' — quién habló en ese utterance. La bocina es la
+        voz sintetizada del asistente, capturada de vuelta por el micrófono."""
+        return self.origen.get(ruta, "BERNARD")
 
     def murio_solo(self):
         return self.ffmpeg is not None and self.ffmpeg.poll() is not None

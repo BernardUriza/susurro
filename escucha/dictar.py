@@ -108,9 +108,14 @@ def main():
             return
         n_ok += 1
         frases.append(txt)
+        # Quién habló: BERNARD o la BOCINA (la voz sintetizada del asistente
+        # capturada de vuelta por el micrófono). Sin esto, el eco se lee en el
+        # registro como si Bernard lo hubiera dicho.
+        origen = motor.origen_de(wav)
+        etiqueta_origen = "" if origen == "BERNARD" else f" [{origen}]"
         with log.open("a") as f:
-            f.write(f"**[{ahora()}]**{marca} {txt}\n\n")
-        vum.imprimir(f"CACHO {n_ok}: {txt}")
+            f.write(f"**[{ahora()}]**{marca}{etiqueta_origen} {txt}\n\n")
+        vum.imprimir(f"CACHO {n_ok}{etiqueta_origen}: {txt}")
 
     interrumpido = False
     try:

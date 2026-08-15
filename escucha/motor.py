@@ -14,6 +14,9 @@
 # voz (frases completas, no rebanadas de reloj), y una queue lo entrega al
 # consumidor. Tiers de STT: hear (local, es-MX) → Susurro Gateway (fallback).
 #
+# La capa de PRECISIÓN (corpus de alucinaciones + correcciones de palabra +
+# léxico de dominio) vive en `escucha/lexico.py` — este archivo sólo la cablea.
+#
 # Consumidores:
 #   · susurro/escucha/dictar.py            — dictado de terminal
 #   · compras/llamadas/escucha.py          — copiloto de llamadas (coach+folios)
@@ -32,6 +35,13 @@ import wave
 from collections import deque
 from datetime import datetime
 from pathlib import Path
+
+try:
+    from escucha.lexico import (ALUCINACIONES, corregir, es_alucinacion,
+                                registrar_cambios)
+except ModuleNotFoundError:
+    from lexico import (ALUCINACIONES, corregir, es_alucinacion,
+                        registrar_cambios)
 
 GATEWAY = os.environ.get("SUSURRO_GATEWAY", "https://sus.bernarduriza.com")
 HEAR = Path(os.environ.get("HEAR", str(Path.home() / ".local/bin/hear")))
@@ -54,9 +64,6 @@ HABLANDO = Path(os.environ.get(
 BOCINA_COLA_MS = int(os.environ.get("BOCINA_COLA_MS", "700"))   # reverb tras callar
 
 MIC_VIRTUALES = re.compile(r"Teams|BlackHole|Loopback|Aggregate|Soundflower|Zoom|Virtual", re.I)
-
-ALUCINACIONES = ("amara.org", "subtítulos", "subtitulos", "gracias por ver",
-                 "suscríbete", "suscribete", "♪")
 
 
 def ahora():
@@ -103,11 +110,6 @@ def rms_de(path):
         return rms_frame(datos) if datos else 0
     except Exception:
         return 0
-
-
-def es_alucinacion(t):
-    t = t.lower().strip()
-    return len(t) < 3 or any(a in t for a in ALUCINACIONES)
 
 
 def dispositivos_audio():
@@ -220,7 +222,14 @@ def diarizar(texto, fallos, num_speakers=None):
 
 def transcribir_tiers(path, fallos, language=None):
     """hear local → gateway. → ('ok', texto) | ('silencio', '') | ('alucinacion', txt)
-    | ('fallo', ''). language: formato hear ('es-MX', 'en-US'); default $ESCUCHA_LANG."""
+    | ('fallo', ''). language: formato hear ('es-MX', 'en-US'); default $ESCUCHA_LANG.
+
+    Una alucinación del tier LOCAL ya no se acepta: se descarta y se BAJA al
+    gateway, que sobre el mismo wav suele acertar. Sólo si el último tier
+    también alucina se devuelve ('alucinacion', txt) — ahí ya no hay a dónde
+    caer. Antes de entregar el texto pasa por `corregir()`, y cada sustitución
+    queda escrita en el .log de la sesión (auditable, jamás silenciosa).
+    """
     if rms_de(path) < RMS_MIN:
         return "silencio", ""
     estado, txt, causa = stt_hear(path, language)
@@ -228,6 +237,9 @@ def transcribir_tiers(path, fallos, language=None):
         return "silencio", ""
     if estado == "fallo":
         fallos.avisar("stt-hear", causa)
+    if txt and es_alucinacion(txt):
+        fallos.avisar("alucinacion-hear", f"descartado, bajo a gateway: {txt[:60]!r}")
+        txt = ""
     if not txt:
         txt, causa_gw = stt_gateway(path, language)
         if not txt and causa_gw:
@@ -236,6 +248,8 @@ def transcribir_tiers(path, fallos, language=None):
         return "fallo", ""
     if es_alucinacion(txt):
         return "alucinacion", txt
+    txt, cambios = corregir(txt)
+    registrar_cambios(fallos.archivo, cambios)
     return "ok", txt
 
 

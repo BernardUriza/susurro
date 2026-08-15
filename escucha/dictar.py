@@ -18,6 +18,9 @@ import signal
 import sys
 import threading
 import time
+import array
+import wave
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -86,6 +89,11 @@ def main():
     base = Path(__file__).resolve().parent / "sesiones" / f"{etiqueta}-{stamp}"
     base.mkdir(parents=True)
     log = base / "transcripcion.md"
+    # Registro INSTRUMENTADO: una línea JSON por utterance con métricas
+    # objetivas, no sólo texto. Sin esto no se puede depurar por qué una frase
+    # salió mal ni de dónde vino el sonido. (Bernard, 15-ago-2026: "reestructura
+    # e instrumenta bien eso de los registros porque fallas".)
+    registro = base / "registro.jsonl"
     fallos = Fallos(base / "fallos.log")
 
     calentar_hear(base)
@@ -101,10 +109,37 @@ def main():
     n_ok = 0
     frases = []
 
+    def metrica_wav(ruta):
+        """RMS medio/pico y duración leídos del .wav. Barato y sin dependencias:
+        es la evidencia mínima para saber si algo fue voz cercana, eco de bocina
+        o ruido de fondo."""
+        try:
+            with wave.open(str(ruta), "rb") as w:
+                n, sw, fr = w.getnframes(), w.getsampwidth(), w.getframerate()
+                crudo = w.readframes(n)
+            muestras = array.array("h"); muestras.frombytes(crudo)
+            if not muestras:
+                return {"dur_s": 0.0, "rms": 0, "pico": 0}
+            suma = sum(x * x for x in muestras)
+            return {"dur_s": round(n / fr, 3),
+                    "rms": int((suma / len(muestras)) ** 0.5),
+                    "pico": int(max(abs(min(muestras)), abs(max(muestras))))}
+        except Exception:
+            return {"dur_s": None, "rms": None, "pico": None}
+
     def procesar(wav, marca=""):
         nonlocal n_ok
+        t0 = time.monotonic()
         estado, txt = transcribir_tiers(wav, fallos)
         if estado != "ok":
+            # Los descartes TAMBIÉN se registran: un silencio mal cortado o una
+            # alucinación filtrada son datos, no basura que se tira.
+            with registro.open("a") as f:
+                f.write(json.dumps({"hora": ahora(), "wav": Path(wav).name,
+                                    "descartado": estado,
+                                    "origen": motor.origen_de(wav),
+                                    "latencia_stt_s": round(time.monotonic() - t0, 2),
+                                    **metrica_wav(wav)}, ensure_ascii=False) + "\n")
             return
         n_ok += 1
         frases.append(txt)
@@ -116,6 +151,14 @@ def main():
         with log.open("a") as f:
             f.write(f"**[{ahora()}]**{marca}{etiqueta_origen} {txt}\n\n")
         vum.imprimir(f"CACHO {n_ok}{etiqueta_origen}: {txt}")
+        # Evidencia por frase. Se escribe SIEMPRE, aunque el texto se vea bien:
+        # el registro sirve justo para las veces en que no nos dimos cuenta.
+        fila = {"n": n_ok, "hora": ahora(), "wav": Path(wav).name,
+                "origen": origen, "texto": txt, "chars": len(txt),
+                "latencia_stt_s": round(time.monotonic() - t0, 2),
+                **metrica_wav(wav)}
+        with registro.open("a") as f:
+            f.write(json.dumps(fila, ensure_ascii=False) + "\n")
 
     interrumpido = False
     try:

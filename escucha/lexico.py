@@ -41,6 +41,16 @@ from collections import namedtuple
 _CENTINELA_ENE = "\x00"
 
 
+try:
+    from escucha.instrumentacion import evento
+except ModuleNotFoundError:
+    try:
+        from instrumentacion import evento
+    except ModuleNotFoundError:            # el módulo es opcional: medir no rompe
+        def evento(*_a, **_k):
+            return False
+
+
 def sin_acentos(texto):
     """Quita tildes y diacríticos PERO conserva la ñ y toda la puntuación.
 
@@ -249,21 +259,35 @@ def es_alucinacion(texto, estricto=False):
     if not texto:
         return True
     crudo = texto.strip()
-    if any(m in crudo for m in ALUCINACIONES_CRUDAS):
-        return True
-    # Sin acentos pero CON corchetes: «[Música]» debe casar igual que «[Music]».
-    if ETIQUETA_SONIDO.match(sin_acentos(crudo)):
-        return True
-    t = normalizar(crudo)
-    if len(t) < 3:
-        return True
-    if any(rx.search(t) for rx in _RX_ALUCINACION):
-        return True
-    if es_bucle_repetido(crudo):
-        return True
-    if estricto and t in ALUCINACIONES_DEBILES:
+    motivo = _motivo_de_alucinacion(crudo, estricto)
+    if motivo:
+        # Instrumentado: sin saber QUÉ patrón dispara, no se puede afinar el
+        # corpus ni detectar un falso positivo que esté borrando habla real.
+        evento("lexico.alucinacion", motivo=motivo, estricto=estricto,
+               texto=crudo[:120], chars=len(crudo))
         return True
     return False
+
+
+def _motivo_de_alucinacion(crudo, estricto=False):
+    """→ el nombre de la regla que dispara, o None. Separado de `es_alucinacion`
+    para que el booleano siga siendo booleano y el motivo se pueda medir."""
+    if any(m in crudo for m in ALUCINACIONES_CRUDAS):
+        return "simbolo_musical"
+    # Sin acentos pero CON corchetes: «[Música]» debe casar igual que «[Music]».
+    if ETIQUETA_SONIDO.match(sin_acentos(crudo)):
+        return "etiqueta_sonido"
+    t = normalizar(crudo)
+    if len(t) < 3:
+        return "demasiado_corto"
+    for rx in _RX_ALUCINACION:
+        if rx.search(t):
+            return f"corpus:{rx.pattern[:40]}"
+    if es_bucle_repetido(crudo):
+        return "bucle_repetido"
+    if estricto and t in ALUCINACIONES_DEBILES:
+        return "tier_debil"
+    return None
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -427,6 +451,13 @@ def corregir(texto, modo="conservador"):
         if piezas:
             piezas.append(resultado[fin_previo:])
             resultado = "".join(piezas)
+    # Una corrección es una intervención sobre lo que Bernard dijo: queda medida
+    # una por una, con su regla, para poder auditar falsos positivos después.
+    for c in cambios:
+        evento("lexico.correccion",
+               regla=f"{getattr(c.regla, 'patron', '?')}→{getattr(c.regla, 'reemplazo', '?')}",
+               riesgo=getattr(c.regla, "riesgo", None), modo=modo,
+               antes=c.original, despues=c.corregido)
     return resultado, cambios
 
 

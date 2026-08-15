@@ -51,6 +51,26 @@ ARCHIVOS_DE_TOKEN = ("~/.secrets/susurro-token.txt", "~/.secrets/susurro-gateway
 _VARIABLE_DE_TOKEN = re.compile(r"^SUSURRO_(?:TOKEN|KEY)=(.*)$")
 
 
+try:
+    from escucha.instrumentacion import evento, cronometro
+except ModuleNotFoundError:
+    try:
+        from instrumentacion import evento, cronometro
+    except ModuleNotFoundError:            # opcional: medir no puede romper el habla
+        def evento(*_a, **_k):
+            return False
+
+        class cronometro:
+            def __init__(self, *_a, **_k):
+                self.campos = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_a):
+                return False
+
+
 class HablarError(RuntimeError):
     """Falla esperable: token ausente, gateway caído, audio inválido, mudez."""
 
@@ -381,11 +401,19 @@ def hablar(texto: str, *, gateway: str | None = None, voz: str | None = None,
     total_duracion = 0.0
     duracion_confiable = True
 
+    evento("tts.inicio", tiradas=len(tiradas), chars=len(texto),
+           tamanos=[len(t) for t in tiradas], voz=voz, formato=formato)
+
     for numero, tirada in enumerate(tiradas, 1):
         mp3 = os.path.join(taller, f"say-{numero:02d}.{formato}")
-        bytes_escritos = sintetizar(
-            tirada, mp3, gateway=gateway, voz=voz, formato=formato, token=token
-        )
+        # La síntesis es la llamada de red: su latencia es lo primero que se
+        # degrada cuando el gateway sufre, y sin medirla se confunde con
+        # "la bocina va lenta".
+        with cronometro("tts.sintesis", tirada=numero, chars=len(tirada)) as c:
+            bytes_escritos = sintetizar(
+                tirada, mp3, gateway=gateway, voz=voz, formato=formato, token=token
+            )
+            c.campos["bytes"] = bytes_escritos
         print(f"mp3={mp3} bytes={bytes_escritos} voice={voz}", file=salida, flush=True)
 
         duracion = duracion_de(mp3)
@@ -395,10 +423,22 @@ def hablar(texto: str, *, gateway: str | None = None, voz: str | None = None,
         transcurrido = round(time.monotonic() - arranque)
 
         if reproductor is None:
+            evento("tts.fallo_reproduccion", tirada=numero, mp3=os.path.basename(mp3),
+                   quejas=quejas, bytes=bytes_escritos)
             raise HablarError(
                 f"mp3 generado en {mp3} pero NINGÚN reproductor logró sonar "
                 f"(2 vueltas) — reproducción FALLIDA: {'; '.join(quejas)}"
             )
+        # `deriva_s` = lo que tardó en sonar menos lo que dura el audio. Si
+        # crece, el reproductor está peleándose por el dispositivo (el fallo de
+        # hoy, AudioQueueStart -66681) aunque al final logre sonar.
+        try:
+            deriva = round(transcurrido - float(duracion), 2)
+        except (TypeError, ValueError):
+            deriva = None
+        evento("tts.tirada", tirada=numero, chars=len(tirada), bytes=bytes_escritos,
+               played_s=transcurrido, duration_s=duracion, deriva_s=deriva,
+               reproductor=reproductor, reintentos=len(quejas))
         print(f"played_s={transcurrido} duration_s={duracion}", file=salida, flush=True)
         total_played += transcurrido
         try:
@@ -407,6 +447,8 @@ def hablar(texto: str, *, gateway: str | None = None, voz: str | None = None,
             duracion_confiable = False
 
     total = f"{total_duracion:.3f}" if duracion_confiable else "?"
+    evento("tts.fin", tiradas=len(tiradas), total_played_s=total_played,
+           total_duration_s=total, chars=len(texto))
     print(
         f"tiradas={len(tiradas)} total_played_s={total_played} total_duration_s={total}",
         file=salida, flush=True,

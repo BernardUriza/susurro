@@ -54,6 +54,14 @@ SILENCIO_CORTE_MS = int(os.environ.get("SILENCIO_CORTE_MS", "500"))
 UTT_MIN_MS = int(os.environ.get("UTT_MIN_MS", "400"))
 UTT_MAX_MS = int(os.environ.get("UTT_MAX_MS", "15000"))
 PREROLL_MS = 300
+# Al llegar al máximo, en vez de rebanar en el frame exacto se retrocede hasta
+# el punto MÁS SILENCIOSO de esta ventana. El habla continua (dictado largo,
+# una voz sintetizada) nunca produce los SILENCIO_CORTE_MS de pausa, así que
+# antes se cortaba a mitad de palabra: medido el 15-ago-2026, tres utterances
+# de dur=15.0 exactos con textos mochos ("busca el punto el? E", "pegados al
+# fina"). Cortar en el valle de energía cae en una respiración, no en una
+# sílaba. (Instrumentación: registro.jsonl de dictar.py.)
+RETROCESO_CORTE_MS = int(os.environ.get("RETROCESO_CORTE_MS", "1500"))
 MIC_NOMBRE = os.environ.get("MIC_NOMBRE", "MacBook Air Microphone")
 IDIOMA = os.environ.get("ESCUCHA_LANG", "es-MX")
 # Ventana de habla de la BOCINA. `susurro-say.sh` crea este archivo mientras
@@ -311,6 +319,7 @@ class MotorCaptura:
             if pipe is None:
                 return
             frames_corte = SILENCIO_CORTE_MS // FRAME_MS
+            frames_retroceso = RETROCESO_CORTE_MS // FRAME_MS
             frames_min = UTT_MIN_MS // FRAME_MS
             frames_max = UTT_MAX_MS // FRAME_MS
             preroll = deque(maxlen=PREROLL_MS // FRAME_MS)
@@ -342,13 +351,24 @@ class MotorCaptura:
                 if voz:
                     voz.append(d)
                     silencio_seguido = 0 if con_voz else silencio_seguido + 1
-                    if silencio_seguido >= frames_corte or len(voz) >= frames_max:
-                        if len(voz) - silencio_seguido >= frames_min:
+                    corte_por_silencio = silencio_seguido >= frames_corte
+                    corte_por_largo = len(voz) >= frames_max
+                    if corte_por_largo and not corte_por_silencio:
+                        # Corte "de emergencia": busca el valle de energía en la
+                        # ventana final y parte AHÍ, devolviendo la cola al
+                        # siguiente utterance para no perder ni una sílaba.
+                        voz, resto = self._partir_en_valle(voz, frames_retroceso)
+                    else:
+                        resto = []
+                    if corte_por_silencio or corte_por_largo:
+                        if len(voz) - (silencio_seguido if corte_por_silencio else 0) >= frames_min:
                             self._encolar(voz, "BOCINA" if eco_en_curso else "BERNARD")
                         else:
                             self.n_mudo += 1
-                        voz = []
-                        eco_en_curso = False
+                        # La cola del corte por largo NO se tira: arranca el
+                        # siguiente utterance. Art. 5 aplicado al audio.
+                        voz = list(resto)
+                        eco_en_curso = eco_en_curso and bool(resto)
                         silencio_seguido = 0
                 else:
                     preroll.append(d)
@@ -361,6 +381,22 @@ class MotorCaptura:
             self.fallos.avisar("segmentador", f"{type(e).__name__}: {e}")
         finally:
             self.cola.put(None)
+
+    @staticmethod
+    def _partir_en_valle(frames, ventana):
+        """Parte `frames` en (cabeza, cola) por el frame de MENOR energía dentro
+        de la ventana final. Devuelve la cola para que siga el próximo utterance.
+
+        Si la ventana no cabe o el mínimo cae al final, corta como antes — nunca
+        devuelve una cabeza más corta que la mitad de lo que había."""
+        if ventana <= 0 or len(frames) <= ventana:
+            return frames, []
+        inicio = len(frames) - ventana
+        energias = [(rms_frame(f), i) for i, f in enumerate(frames[inicio:], start=inicio)]
+        _, idx = min(energias)
+        if idx <= len(frames) // 2 or idx >= len(frames) - 1:
+            return frames, []
+        return frames[:idx], frames[idx:]
 
     def _encolar(self, frames, origen="BERNARD"):
         self.n_utt += 1

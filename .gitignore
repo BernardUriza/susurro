@@ -75,3 +75,4 @@ env/
 !api/requirements.txt
 !api/Dockerfile
 api/static/
+*.egg-info/

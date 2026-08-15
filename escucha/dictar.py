@@ -14,6 +14,7 @@
 # Reemplazó a ~/bin/dictado.sh (bash, cortes de reloj) el mismo día que nació.
 # ─────────────────────────────────────────────────────────────────────────────
 import math
+import os
 import signal
 import sys
 import threading
@@ -76,6 +77,12 @@ class Vumetro:
             self.activo = False
 
 
+try:
+    from escucha.instrumentacion import evento
+except ModuleNotFoundError:
+    from instrumentacion import evento
+
+
 def main():
     # SIGTERM/SIGHUP (harness, terminal cerrada) drenan igual que Ctrl+C;
     # sin esto la sesión muere muda, sin FIN — pasó dos veces el 2026-08-13
@@ -94,6 +101,11 @@ def main():
     # salió mal ni de dónde vino el sonido. (Bernard, 15-ago-2026: "reestructura
     # e instrumenta bien eso de los registros porque fallas".)
     registro = base / "registro.jsonl"
+    # UN SOLO sumidero: se le dice a instrumentacion.py que escriba DENTRO de la
+    # sesión, para que los eventos de lexico y hablar caigan en el mismo archivo
+    # que las filas de utterance. Antes vivían en ~/.cache/susurro/ sin llave de
+    # unión: la corrección aplicada a la frase 12 quedaba huérfana de la frase 12.
+    os.environ["SUSURRO_REGISTRO"] = str(registro)
     fallos = Fallos(base / "fallos.log")
 
     calentar_hear(base)
@@ -134,12 +146,9 @@ def main():
         if estado != "ok":
             # Los descartes TAMBIÉN se registran: un silencio mal cortado o una
             # alucinación filtrada son datos, no basura que se tira.
-            with registro.open("a") as f:
-                f.write(json.dumps({"hora": ahora(), "wav": Path(wav).name,
-                                    "descartado": estado,
-                                    "origen": motor.origen_de(wav),
-                                    "latencia_stt_s": round(time.monotonic() - t0, 2),
-                                    **metrica_wav(wav)}, ensure_ascii=False) + "\n")
+            evento("utterance.descartado", wav=Path(wav).name, motivo=estado,
+                   origen=motor.origen_de(wav),
+                   latencia_stt_s=round(time.monotonic() - t0, 2), **metrica_wav(wav))
             return
         n_ok += 1
         frases.append(txt)
@@ -153,12 +162,11 @@ def main():
         vum.imprimir(f"CACHO {n_ok}{etiqueta_origen}: {txt}")
         # Evidencia por frase. Se escribe SIEMPRE, aunque el texto se vea bien:
         # el registro sirve justo para las veces en que no nos dimos cuenta.
-        fila = {"n": n_ok, "hora": ahora(), "wav": Path(wav).name,
+        fila = {"n": n_ok, "wav": Path(wav).name,
                 "origen": origen, "texto": txt, "chars": len(txt),
                 "latencia_stt_s": round(time.monotonic() - t0, 2),
                 **metrica_wav(wav)}
-        with registro.open("a") as f:
-            f.write(json.dumps(fila, ensure_ascii=False) + "\n")
+        evento("utterance", **fila)
 
     interrumpido = False
     try:

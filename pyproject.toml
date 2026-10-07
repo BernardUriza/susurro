@@ -10,6 +10,7 @@ requires-python = ">=3.10"
 
 [project.scripts]
 dictar = "escucha.dictar:main"
+transcribir = "escucha.archivo:main"
 
 [tool.setuptools]
 packages = ["escucha"]

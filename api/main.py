@@ -8,6 +8,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -685,7 +686,10 @@ async def azure_compat_stt(
     audio = await upload.read()
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{AZURE_WHISPER_DEPLOYMENT}/audio/transcriptions?api-version={AZURE_OPENAI_API_VERSION}"
     files = {"file": (upload.filename or "audio.wav", audio, upload.content_type or "application/octet-stream")}
-    data = {f: form[f] for f in ("language", "prompt", "response_format", "temperature") if f in form}
+    data: dict[str, Any] = {f: form[f] for f in ("language", "prompt", "response_format", "temperature") if f in form}
+    # Word-level timestamps (verbose_json only): repeated field, so forward every value.
+    if granularities := [g for g in form.getlist("timestamp_granularities[]") if isinstance(g, str)]:
+        data["timestamp_granularities[]"] = granularities
     logger.info("compat.stt deployment=%s bytes=%d key=%s", deployment, len(audio), key.get("name"))
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await azure_post(client, url, "whisper", headers={"api-key": AZURE_OPENAI_KEY}, files=files, data=data or None)

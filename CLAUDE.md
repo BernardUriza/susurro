@@ -23,7 +23,12 @@ Three things live in this repo:
    devices (Teams/BlackHole/etc.) excluded. Consumers: `escucha/dictar.py` (terminal
    dictation) and `~/Documents/compras/llamadas/escucha.py` (call copiloto: coach +
    folio extraction). Any new local voice capture MUST consume `escucha/motor.py` —
-   do not write a new recorder. Packaged as the **conda project `escucha`**
+   do not write a new recorder. Transcribing an ALREADY-RECORDED audio/video file
+   goes through `escucha/archivo.py` (`transcribir_archivo()` / global `transcribir`
+   CLI): ffmpeg re-encodes + splits at silences under Azure's 25 MB cap, posts each
+   piece to the gateway's Azure-compat route (verbose_json, optional word timestamps),
+   honors `Retry-After`. Local Whisper (mlx_whisper / faster-whisper) was retired
+   2026-10-07 — do not reintroduce it. Packaged as the **conda project `escucha`**
    (`escucha/environment.yml` + root `pyproject.toml`): `conda env create -f
    escucha/environment.yml` installs it editable and drops a global `dictar`
    command in `~/.local/bin` (shebang pinned to the env's python — no activation

@@ -27,7 +27,10 @@ Three things live in this repo:
    goes through `escucha/archivo.py` (`transcribir_archivo()` / global `transcribir`
    CLI): ffmpeg re-encodes + splits at silences under Azure's 25 MB cap, posts each
    piece to the gateway's Azure-compat route (verbose_json, optional word timestamps),
-   honors `Retry-After`. Local Whisper (mlx_whisper / faster-whisper) was retired
+   honors `Retry-After`. Every piece is VERIFIED: Whisper's subtitle-credit hallucinations
+   ("Subtítulos realizados por la comunidad de Amara.org" over music) are dropped, a suspicious
+   piece is retried in smaller pieces (120 s, then 30 s — fresh context), and audio with sound
+   that still went unheard comes back in `huecos` with a loud warning, never silently. Local Whisper (mlx_whisper / faster-whisper) was retired
    2026-10-07 — do not reintroduce it. Packaged as the **conda project `escucha`**
    (`escucha/environment.yml` + root `pyproject.toml`): `conda env create -f
    escucha/environment.yml` installs it editable and drops a global `dictar`

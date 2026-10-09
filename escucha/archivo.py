@@ -15,6 +15,16 @@
 #   · 3 requests/minuto (techo de la suscripción) → un 429 trae Retry-After y se
 #     espera lo que pida. Un lote largo tarda más; no truena.
 #
+# Y un defecto de Whisper que tampoco debe llegarle al consumidor: sobre música o
+# ruido alucina frases de su corpus de entrenamiento ("Subtítulos realizados por
+# la comunidad de Amara.org") y, como se condiciona con su propio texto, la
+# repite en cada ventana de 30 s — un noticiero de Loret (2026-10-09) perdió sus
+# primeros 10 min enteros así, sin aviso. Cada trozo se verifica: la alucinación
+# conocida se tira, un trozo sospechoso se repite en sub-trozos cada vez más
+# chicos (SUBTROZOS_SEG: contexto fresco, y la música que lo contaminó queda
+# aislada en su pedazo), y el audio con sonido que sigue sin oírse se reporta en
+# `huecos` y se avisa. Nunca en silencio.
+#
 # Consumidores:
 #   · `transcribir` (CLI global, reemplaza a mlx_whisper)
 #   · videopipe/picturelock (QA del voiceover, timestamps por palabra)
@@ -43,6 +53,17 @@ TROZO_SEG = int(os.environ.get("ESCUCHA_TROZO_SEG", "600"))     # 10 min ≈ 3.6
 VENTANA_SILENCIO_SEG = 60     # cuánto antes del corte nominal se busca una pausa
 REINTENTOS_429 = 10
 REINTENTOS_FALLO = 2
+SUBTROZOS_SEG = (120, 30)     # reintentos de un trozo sospechoso, cada nivel más chico
+HUECO_SEG = 60                # un tramo con sonido y sin una sola palabra oída ≥ esto es sospechoso
+SONIDO_MIN = 0.5              # fracción del tramo que debe sonar (no silencio) para contar
+
+# Créditos de subtítulos que Whisper alucina sobre música/ruido (vienen de los
+# subtítulos con que lo entrenaron). Sólo cuando son el segmento COMPLETO: nadie
+# los dice en voz alta. "Gracias por ver" queda fuera a propósito — un conductor
+# sí lo dice, y tirar habla real es peor que dejar pasar una alucinación.
+ALUCINACION = re.compile(
+    r"\W*(subt[ií]tulos?|subtitles)\b[^.]{0,40}\bamara\.org\b[^.]{0,20}\W*",
+    re.IGNORECASE)
 
 # Whisper devuelve el idioma por NOMBRE ("spanish"); la API lo recibe por código.
 CODIGO_IDIOMA = {
@@ -86,14 +107,28 @@ def duracion_de(path: Path) -> float:
         raise TranscripcionError(f"ffprobe no pudo leer {path}: {r.stderr.strip()[:200]}")
 
 
-def silencios_de(path: Path) -> list[float]:
-    """Puntos medios de cada pausa ≥0.4 s (ffmpeg silencedetect)."""
+def intervalos_silencio(path: Path) -> list[tuple[float, float]]:
+    """[(inicio, fin)] de cada pausa ≥0.4 s (ffmpeg silencedetect). Una pausa que
+    llega hasta el final del archivo no trae silence_end: cierra en la duración."""
     r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-vn",
                         "-af", "silencedetect=noise=-35dB:d=0.4", "-f", "null", "-"],
                        capture_output=True, text=True)
-    inicios = [float(x) for x in re.findall(r"silence_start: ([\d.]+)", r.stderr)]
+    inicios = [float(x) for x in re.findall(r"silence_start: (-?[\d.]+)", r.stderr)]
     finales = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", r.stderr)]
-    return [(a + b) / 2 for a, b in zip(inicios, finales)]
+    if len(inicios) > len(finales):
+        finales.append(duracion_de(path))
+    return list(zip(inicios, finales))
+
+
+def silencios_de(path: Path) -> list[float]:
+    """Puntos medios de cada pausa ≥0.4 s."""
+    return [(a + b) / 2 for a, b in intervalos_silencio(path)]
+
+
+def segundos_con_sonido(a: float, b: float, silencios: list[tuple[float, float]]) -> float:
+    """Cuánto del tramo [a, b] NO es silencio."""
+    callado = sum(max(0.0, min(b, fin) - max(a, ini)) for ini, fin in silencios)
+    return max(0.0, (b - a) - callado)
 
 
 def puntos_de_corte(duracion: float, silencios: list[float], trozo: float = TROZO_SEG,
@@ -111,10 +146,12 @@ def puntos_de_corte(duracion: float, silencios: list[float], trozo: float = TROZ
     return cortes
 
 
-def partir(path: Path, destino: Path) -> list[tuple[Path, float]]:
+def partir(path: Path, destino: Path, trozo: float = TROZO_SEG) -> list[tuple[Path, float]]:
     """→ [(trozo.mp3, offset_seg)]. Mono 16 kHz 48 kbps: lo que Whisper usa."""
+    destino.mkdir(parents=True, exist_ok=True)
     duracion = duracion_de(path)
-    cortes = puntos_de_corte(duracion, silencios_de(path)) if duracion > TROZO_SEG else []
+    cortes = (puntos_de_corte(duracion, silencios_de(path), trozo, min(VENTANA_SILENCIO_SEG, trozo / 4))
+              if duracion > trozo else [])
     patron = destino / "trozo-%03d.mp3"
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(path), "-vn",
            "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "48k"]
@@ -187,39 +224,123 @@ def transcribir_trozo(trozo: Path, token: str, language: str | None = None,
     raise TranscripcionError("el gateway siguió saturado tras todos los reintentos")
 
 
+# ------------------------------------------------------------------ verificación
+
+def limpiar_alucinaciones(r: dict) -> tuple[dict, int]:
+    """Tira los segmentos de alucinación conocida (y las palabras que caen en
+    ellos). → (respuesta limpia, cuántos segmentos se tiraron)."""
+    segmentos = r.get("segments") or []
+    malos = [x for x in segmentos if ALUCINACION.fullmatch((x.get("text") or "").strip())]
+    if not malos:
+        return r, 0
+
+    def dentro(w):
+        return any(x["start"] - 0.05 <= w["start"] <= x["end"] + 0.05 for x in malos)
+
+    buenos = [x for x in segmentos if x not in malos]
+    limpio = dict(r, segments=buenos, words=[w for w in r.get("words") or [] if not dentro(w)],
+                  text=" ".join((x.get("text") or "").strip() for x in buenos))
+    return limpio, len(malos)
+
+
+def tramos_sin_oir(segmentos: list[dict], duracion: float,
+                   silencios: list[tuple[float, float]], minimo: float = HUECO_SEG,
+                   sonido_min: float = SONIDO_MIN) -> list[tuple[float, float]]:
+    """Tramos ≥`minimo` s entre segmentos oídos (o contra los bordes) donde el
+    audio SÍ suena ≥`sonido_min` del tramo: habla (o música) que Whisper no
+    transcribió. Un silencio largo de verdad no cuenta."""
+    bordes = sorted((x["start"], x["end"]) for x in segmentos)
+    tramos, previo = [], 0.0
+    for a, b in [*bordes, (duracion, duracion)]:
+        if a - previo >= minimo and segundos_con_sonido(previo, a, silencios) >= sonido_min * (a - previo):
+            tramos.append((round(previo, 3), round(a, 3)))
+        previo = max(previo, b)
+    return tramos
+
+
+def _verificar(trozo: Path, r: dict) -> tuple[dict, int, list[tuple[float, float]]]:
+    """→ (respuesta sin alucinaciones, cuántas se tiraron, tramos con sonido sin oír)."""
+    limpio, alucinados = limpiar_alucinaciones(r)
+    duracion = float(r.get("duration") or 0)
+    sin_oir = []
+    if duracion >= HUECO_SEG:
+        sin_oir = tramos_sin_oir(limpio.get("segments") or [], duracion, intervalos_silencio(trozo))
+    return limpio, alucinados, sin_oir
+
+
+def _mmss(seg: float) -> str:
+    return f"{int(seg // 60)}:{int(seg % 60):02d}"
+
+
+def _acumular(resultado: dict, textos: list[str], r: dict, offset: float) -> None:
+    resultado["language"] = resultado["language"] or codigo_idioma(r.get("language"))
+    resultado["duration"] = max(resultado["duration"], offset + float(r.get("duration") or 0))
+    textos.append((r.get("text") or "").strip())
+    for s in r.get("segments") or []:
+        resultado["segments"].append({"start": round(offset + s["start"], 3),
+                                      "end": round(offset + s["end"], 3),
+                                      "text": s["text"].strip()})
+    for w in r.get("words") or []:
+        resultado["words"].append({"start": round(offset + w["start"], 3),
+                                   "end": round(offset + w["end"], 3),
+                                   "word": w["word"].strip()})
+
+
 def transcribir_archivo(path: str | Path, language: str | None = None, *,
                         palabras: bool = False, token: str | None = None,
                         archivo_token: str | Path | None = None,
                         gateway: str = GATEWAY, avisar=print) -> dict:
-    """Audio o video de cualquier largo → {text, language, duration, segments, words}.
+    """Audio o video de cualquier largo → {text, language, duration, segments, words, huecos}.
 
     `segments` = [{start, end, text}] y `words` = [{start, end, word}] en tiempo
     GLOBAL del archivo. `words` sólo se llena con palabras=True. `language` de
-    salida es código ISO ('es'), venga o no pinneado.
+    salida es código ISO ('es'), venga o no pinneado. `huecos` = [{start, end,
+    motivo}]: audio con sonido que ni el reintento logró transcribir — vacío
+    cuando todo se oyó.
     """
     path = Path(path).expanduser()
     if not path.is_file():
         raise TranscripcionError(f"no existe {path}")
     token = token or leer_token(archivo_token)
-    resultado = {"text": "", "language": None, "duration": 0.0, "segments": [], "words": []}
-    textos = []
+    resultado = {"text": "", "language": None, "duration": 0.0, "segments": [], "words": [],
+                 "huecos": []}
+    textos: list[str] = []
+
+    def pedir(trozo: Path):
+        return _verificar(trozo, transcribir_trozo(trozo, token, language, palabras, gateway, avisar))
+
+    def anotar_huecos(r: dict, alucinados: int, sin_oir, offset: float) -> None:
+        if alucinados and not (r.get("segments") or []) and not sin_oir:
+            sin_oir = [(0.0, float(r.get("duration") or 0))]  # corto y pura alucinación
+        for a, b in sin_oir:
+            motivo = "sólo alucinación" if alucinados else "audio con sonido sin transcribir"
+            avisar(f"  ✗ sin transcripción confiable en {_mmss(offset + a)}–{_mmss(offset + b)} ({motivo})")
+            previo = resultado["huecos"][-1] if resultado["huecos"] else None
+            if previo and previo["motivo"] == motivo and offset + a - previo["end"] <= 1.0:
+                previo["end"] = round(offset + b, 3)  # sub-trozos contiguos: un solo hueco
+            else:
+                resultado["huecos"].append({"start": round(offset + a, 3), "end": round(offset + b, 3),
+                                            "motivo": motivo})
+
+    def procesar(trozo: Path, offset: float, tmp: str) -> None:
+        r, alucinados, sin_oir = pedir(trozo)
+        menores = [n for n in SUBTROZOS_SEG if n < float(r.get("duration") or 0)]
+        if not (alucinados or sin_oir) or not menores:
+            _acumular(resultado, textos, r, offset)
+            anotar_huecos(r, alucinados, sin_oir, offset)
+            return
+        avisar(f"  ⚠ {_mmss(offset)}–{_mmss(offset + float(r['duration']))} sospechoso "
+               f"({alucinados} alucinaciones, {len(sin_oir)} tramos sin oír): "
+               f"lo repito en pedazos de {menores[0]}s")
+        for sub, sub_offset in partir(trozo, Path(tempfile.mkdtemp(dir=tmp)), menores[0]):
+            procesar(sub, offset + sub_offset, tmp)
+
     with tempfile.TemporaryDirectory(prefix="escucha-archivo-") as tmp:
         trozos = partir(path, Path(tmp))
         for i, (trozo, offset) in enumerate(trozos, 1):
             if len(trozos) > 1:
-                avisar(f"  · trozo {i}/{len(trozos)} (desde {int(offset // 60)}:{int(offset % 60):02d})")
-            r = transcribir_trozo(trozo, token, language, palabras, gateway, avisar)
-            resultado["language"] = resultado["language"] or codigo_idioma(r.get("language"))
-            resultado["duration"] = offset + float(r.get("duration") or 0)
-            textos.append((r.get("text") or "").strip())
-            for s in r.get("segments") or []:
-                resultado["segments"].append({"start": round(offset + s["start"], 3),
-                                              "end": round(offset + s["end"], 3),
-                                              "text": s["text"].strip()})
-            for w in r.get("words") or []:
-                resultado["words"].append({"start": round(offset + w["start"], 3),
-                                           "end": round(offset + w["end"], 3),
-                                           "word": w["word"].strip()})
+                avisar(f"  · trozo {i}/{len(trozos)} (desde {_mmss(offset)})")
+            procesar(trozo, offset, tmp)
     resultado["text"] = " ".join(t for t in textos if t)
     if language and not resultado["language"]:
         resultado["language"] = language.split("-")[0]
@@ -280,6 +401,9 @@ def main(argv=None) -> int:
             print(f"  ✗ {e}", file=sys.stderr)
             errores += 1
             continue
+        if r["huecos"]:
+            print(f"  ⚠ {len(r['huecos'])} hueco(s) sin transcribir — ver 'huecos' en el json",
+                  file=sys.stderr)
         for fmt in formatos:
             salida = a.output_dir / f"{archivo.stem}.{fmt}"
             salida.write_text(FORMATOS[fmt](r), encoding="utf-8")

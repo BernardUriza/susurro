@@ -72,7 +72,7 @@ jobs:
 
       - name: Deploy to Container Apps
         run: |
-          az containerapp update -n susurro-gateway -g insult-rg \
+          az containerapp update -n susurro-gateway -g susurro-rg \
             --image ${{ env.IMAGE }}:${{ github.sha }} \
             --set-env-vars GATEWAY_VERSION=${{ github.sha }}
 

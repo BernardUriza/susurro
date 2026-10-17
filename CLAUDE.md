@@ -84,7 +84,7 @@ npx vitest run -t "name of the test"               # a single test by name
 - **COOP/COEP headers are required** for `onnxruntime-web` (SharedArrayBuffer). The Vite dev
   server sets `Cross-Origin-Embedder-Policy`/`Cross-Origin-Opener-Policy` (vite.config.ts),
   and `netlify.toml` sets `credentialless` for prod. A host that strips these breaks Whisper.
-- The **gateway** deploys to **Azure Container Apps** (`susurro-gateway` in `insult-rg` /
+- The **gateway** deploys to **Azure Container Apps** (`susurro-gateway` in `susurro-rg` /
   `insult-env`, image in `insultacr`). The demo frontend is a static Vite build (host
   anywhere). README still says Vercel/Netlify — it's wrong, ignore it.
 

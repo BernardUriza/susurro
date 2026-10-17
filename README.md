@@ -51,7 +51,7 @@ The token on `/docs` is a rate-limited **demo** token (try the API), not product
 
 ## Architecture
 
-- `api/` — FastAPI gateway on **Azure Container Apps** (`susurro-gateway`, rg `insult-rg`),
+- `api/` — FastAPI gateway on **Azure Container Apps** (`susurro-gateway`, rg `susurro-rg`),
   proxying a dedicated Azure OpenAI resource (`susurro-openai`). Per-key metering in Azure
   Table Storage. Serves the SPA statically.
 - `web` (`src/`) — Vite + React 19: `/` and `/docs` (public), `/admin` (gated), `/claim`.
@@ -60,7 +60,7 @@ The token on `/docs` is a rate-limited **demo** token (try the API), not product
 
 ```bash
 az acr build --registry insultacr --image susurro-gateway:vN --file api/Dockerfile api/
-az containerapp update -n susurro-gateway -g insult-rg \
+az containerapp update -n susurro-gateway -g susurro-rg \
   --image insultacr.azurecr.io/susurro-gateway:vN --set-env-vars GATEWAY_VERSION=vN
 ```
 

@@ -48,9 +48,9 @@ def esperar_banner(log):
     while time.time() - t0 < ESPERA_BANNER_S:
         time.sleep(0.5)
         texto = log.read_text(encoding="utf-8", errors="replace")
-        m = re.search(r"crea el archivo (\S+PARAR)", texto)
-        if m and "Transcript:" in texto:
-            return Path(m.group(1)), time.time() - t0
+        m = re.search("Transcript: (.+)", texto)
+        if m:
+            return Path(m.group(1).strip()).parent / "PARAR", time.time() - t0
     return None, time.time() - t0
 
 

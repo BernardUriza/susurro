@@ -88,9 +88,9 @@ class Vumetro:
 
 
 try:
-    from escucha.instrumentacion import evento
+    from escucha.instrumentacion import evento, leer
 except ModuleNotFoundError:
-    from instrumentacion import evento
+    from instrumentacion import evento, leer
 
 
 def main():
@@ -232,6 +232,12 @@ def main():
                 f" · tier local {'cargado' if stt_local.listo() else (stt_local.causa() or 'no se necesitó')}\n")
         if hablantes:
             f.write(f"- Hablantes: {len({q for q, _ in hablantes})}\n")
+        del_local = [e for e in leer(registro, "stt.local") if e.get("tipo") == "stt.local"]
+        if del_local:
+            motivos = {}
+            for e in del_local:
+                motivos[e.get("motivo", "?")] = motivos.get(e.get("motivo", "?"), 0) + 1
+            f.write(f"- Tier local opinó en {len(del_local)} frases ({', '.join(f'{m}×{n}' for m, n in motivos.items())})\n")
         f.write(fallos.resumen())
     causa = "Ctrl+C" if interrumpido else ("PARAR" if parar.exists() else "stream")
     print(f"FIN ({causa}): {n_ok} frases · transcript en {log}", flush=True)

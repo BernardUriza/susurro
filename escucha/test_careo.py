@@ -241,5 +241,62 @@ class TestTierLocalDeRespaldo(unittest.TestCase):
         self.assertEqual(motor.transcribir_tiers(self.wav, self.fallos), ("alucinacion", "Gracias por ver el video"))
 
 
+class TestHallazgosDelCritico(unittest.TestCase):
+    """2026-10-27 /cruel-critic: el gateway caído tras el testigo local quedaba mudo; «Gracias»
+    confirmado por los dos motores se descartaba; las correcciones es-MX mordían el inglés."""
+
+    def setUp(self):
+        self.base = Path(tempfile.mkdtemp())
+        self.wav = wav_de_prueba(self.base)
+        self.fallos = Fallos(self.base / "f.log")
+        self._gw, self._hear, self._idioma = motor.stt_gateway, motor.stt_hear, motor.IDIOMA
+        self._local, self._listo = stt_local.stt_local, stt_local.listo
+        motor.stt_hear = lambda p, l=None: ("fallo", "", "no existe")
+        careo._capacidades.clear()
+
+    def tearDown(self):
+        motor.stt_gateway, motor.stt_hear, motor.IDIOMA = self._gw, self._hear, self._idioma
+        stt_local.stt_local, stt_local.listo = self._local, self._listo
+
+    def test_gateway_caido_tras_el_testigo_local_queda_en_fallos(self):
+        motor.stt_gateway = lambda p, l=None, engine="whisper", reintentos=1: ("", "gateway whisper: HTTP 502")
+        stt_local.listo = lambda: True
+        stt_local.stt_local = lambda p, l=None: ("necesito el folio", "")
+        self.assertEqual(motor.transcribir_tiers(self.wav, self.fallos), ("ok", "necesito el folio"))
+        self.assertEqual(self.fallos.por_origen.get("stt-gateway"), 1)
+        self.assertIn("HTTP 502", (self.base / "f.log").read_text(encoding="utf-8"))
+
+    def test_frase_debil_que_el_local_tambien_oyo_es_habla(self):
+        motor.stt_gateway = lambda p, l=None, engine="whisper", reintentos=1: ("¡Gracias!", "")
+        stt_local.listo = lambda: True
+        stt_local.stt_local = lambda p, l=None: ("Gracias", "")
+        self.assertEqual(motor.transcribir_tiers(self.wav, self.fallos), ("ok", "¡Gracias!"))
+        stt_local.stt_local = lambda p, l=None: ("Thank you.", "")
+        self.assertEqual(motor.transcribir_tiers(self.wav, self.fallos), ("ok", "¡Gracias!"))
+
+    def test_corpus_duro_pierde_el_careo_contra_el_testigo_que_oyo_algo(self):
+        motor.stt_gateway = lambda p, l=None, engine="whisper", reintentos=1: ("Gracias por ver el video", "")
+        stt_local.listo = lambda: True
+        stt_local.stt_local = lambda p, l=None: ("gracias", "")
+        self.assertEqual(motor.transcribir_tiers(self.wav, self.fallos), ("ok", "gracias"))
+
+    def test_corpus_duro_con_el_local_mudo_sigue_siendo_alucinacion(self):
+        motor.stt_gateway = lambda p, l=None, engine="whisper", reintentos=1: ("Gracias por ver el video", "")
+        stt_local.listo = lambda: True
+        stt_local.stt_local = lambda p, l=None: ("", "")
+        self.assertEqual(motor.transcribir_tiers(self.wav, self.fallos), ("alucinacion", "Gracias por ver el video"))
+
+    def test_correcciones_solo_cuando_la_sesion_es_en_espanol(self):
+        stt_local.listo = lambda: False
+        ingles = "External vendors will not be allowed on the server until the fix ships."
+        motor.stt_gateway = lambda p, l=None, engine="whisper", reintentos=1: (ingles, "")
+        motor.IDIOMA = "en-US"
+        self.assertEqual(motor.transcribir_tiers(self.wav, self.fallos), ("ok", ingles))
+        self.assertEqual(motor.transcribir_tiers(self.wav, self.fallos, language="en-US"), ("ok", ingles))
+        motor.stt_gateway = lambda p, l=None, engine="whisper", reintentos=1: ("hay que rezarla otra vez", "")
+        motor.IDIOMA = "es-MX"
+        self.assertEqual(motor.transcribir_tiers(self.wav, self.fallos), ("ok", "hay que relanzarla otra vez"))
+
+
 if __name__ == "__main__":
     unittest.main()

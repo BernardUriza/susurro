@@ -78,11 +78,17 @@ def transcribir_careo(path, language, fallos, stt, key="", segundo=None):
         f_d = pool.submit(testigo, path, language)
         whisper, causa_w = f_w.result()
         deepgram, causa_d = f_d.result()
+    if causa_w:
+        fallos.avisar("stt-gateway", causa_w)
     if causa_d:
         fallos.avisar(f"stt-{nombre}", causa_d)
     if not whisper or not deepgram:
         txt = whisper or deepgram
-        evento("stt.careo", veredicto="uno", whisper=whisper[:80], deepgram=deepgram[:80])
+        ganador = "whisper" if whisper else (nombre if deepgram else "nadie")
+        evento("stt.careo", veredicto="uno", ganador=ganador, whisper=whisper[:80], deepgram=deepgram[:80],
+               causa_whisper=causa_w, causa_testigo=causa_d)
+        if ganador == "local":
+            evento("stt.local", motivo="gateway-fallo", wav=os.path.basename(str(path)), texto=deepgram[:80])
         return txt, "" if txt else (causa_w or causa_d), "uno"
     sim = similitud(whisper, deepgram)
     if sim >= UMBRAL_ACUERDO:

@@ -517,10 +517,18 @@ def transcribir_tiers(path, fallos, language=None):
             evento("stt.local", motivo="alucinacion-gateway", wav=Path(path).name,
                    gateway=txt[:80], texto=local[:80])
             txt = local
+        elif local and not es_alucinacion(txt):
+            # Frase DÉBIL y el testigo también oyó habla: dos motores coinciden en que alguien
+            # habló, así que «¡Gracias!» era un gracias de verdad
+            evento("stt.local", motivo="acuerdo-debil", wav=Path(path).name,
+                   gateway=txt[:80], texto=local[:80])
         elif es_alucinacion(txt) or testigo:
             return "alucinacion", txt
-    txt, cambios = corregir(txt)
-    registrar_cambios(fallos.archivo, cambios)
+    if (language or IDIOMA).lower().startswith("es"):
+        # El corpus de correcciones nació de hear es-MX («be allowed» → Visalaw); sobre inglés
+        # real corrompe el transcript
+        txt, cambios = corregir(txt)
+        registrar_cambios(fallos.archivo, cambios)
     return "ok", txt
 
 

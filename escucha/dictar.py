@@ -32,12 +32,14 @@ try:
                                calentar_gateway, diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS,
                                HEAR, GATEWAY)
     from escucha import careo, stt_local
+    from escucha.eco import FiltroEco
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from escucha.motor import (MotorCaptura, Fallos, transcribir_tiers, calentar_hear,
                                calentar_gateway, diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS,
                                HEAR, GATEWAY)
     from escucha import careo, stt_local
+    from escucha.eco import FiltroEco
 
 for _flujo in (sys.stdout, sys.stderr):
     if hasattr(_flujo, "reconfigure"):
@@ -127,6 +129,9 @@ def main():
     calentar_gateway(base)
     vum = Vumetro()
     motor = MotorCaptura(base, fallos, on_rms=vum.latido)
+    # Eco TEXTUAL (bocinas abiertas): el mic repite lo que ya salió por LLAMADA.
+    # Sólo espera a la copia del loopback donde hay loopback; en la Mac no cuesta nada.
+    filtro_eco = FiltroEco(espera_s=float(os.environ.get("ESCUCHA_ECO_ESPERA_S", "3")) if motor.loopback else 0.0)
     idx = motor.arrancar()
     stt = f"hear → {GATEWAY}" if HEAR.exists() else f"{GATEWAY} (hear no instalado)"
     bocina = motor.loopback.nombre if motor.loopback else "no (sólo micrófono)"
@@ -180,6 +185,15 @@ def main():
             return
         # Quién habló: BERNARD, la BOCINA (eco del TTS) o la LLAMADA (loopback).
         origen = motor.origen_de(wav)
+        if origen == "LLAMADA":
+            filtro_eco.registrar_llamada(txt)
+        elif origen == "BERNARD":
+            ref = filtro_eco.es_eco(txt)
+            if ref is not None:
+                evento("utterance.descartado", wav=Path(wav).name, motivo="eco", origen=origen,
+                       texto=txt, repite=ref,
+                       latencia_stt_s=round(time.monotonic() - t0, 2), **metrica_wav(wav))
+                return
         etiqueta_origen = "" if origen == "BERNARD" else f" [{origen}]"
         # Varias frases se transcriben a la vez: la emisión va bajo candado y el
         # transcript lleva la hora en que se CORTÓ el audio, no en que llegó el texto

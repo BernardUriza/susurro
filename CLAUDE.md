@@ -15,12 +15,30 @@ Three things live in this repo:
    present a bearer `SUSURRO_KEY`; the gateway holds the upstream Azure OpenAI key so no
    consumer ever sees it. This is the strategic core; the demo app is the showcase.
 3. The **Motor de Escucha** (`escucha/`) — the SSOT for LOCAL mic capture + voice-based
-   segmentation + live transcription on the Mac (Python, stdlib only). Consolidated
+   segmentation + live transcription on the Mac AND on Windows (Python, stdlib only on the
+   Mac; `PyAudioWPatch` on Windows). Consolidated
    2026-08-13 from four scattered voice-to-text implementations. ffmpeg streams raw PCM
    through a pipe; a segmenter thread cuts utterances at ~500 ms of silence AFTER speech
    (RealtimeSTT/ecoute pattern — whole phrases, never clock slices); STT tiers are
-   `hear` (local, es-MX) → Susurro Gateway fallback. Mic selected by NAME, virtual
-   devices (Teams/BlackHole/etc.) excluded. Consumers: `escucha/dictar.py` (terminal
+   `hear` (local, es-MX, Mac only) → Susurro Gateway fallback (the only tier on Windows).
+   Mic selected by NAME, virtual devices (Teams/BlackHole/etc.) excluded.
+   **Windows (ported 2026-10-27 on the Infios ThinkPad):** capture is `-f dshow` by the
+   device's ASCII "Alternative name"; ffmpeg comes from winget (`Gyan.FFmpeg`, resolved by
+   `ffmpeg_bin()` even before the shell reloads PATH); run with `python -X utf8 -m
+   escucha.dictar <etiqueta>` (cp1252 consoles choke on the emojis otherwise); a background
+   process gets no Ctrl+C, so the portable stop is creating the file `PARAR` inside the
+   session folder. A SECOND source, `FuenteLoopback` (WASAPI loopback of the default
+   speakers via PyAudioWPatch, callback mode — blocking `read()` + `close()` segfaults),
+   feeds the same segmenter tagged `[LLAMADA]`: that is how the remote party of a Teams
+   call is heard, since Teams mutes the mic at device level while you are muted and the
+   remote voice never enters the mic anyway. The loopback delivers NOTHING while nothing
+   plays (measured: 0 chunks/s idle, 100/s with audio), so `frames()` injects silence to
+   keep the silence cut alive. It must capture at the device's native rate (48 kHz stereo;
+   16 kHz mono is refused) and `a_16k_mono()` converts. `ESCUCHA_BOCINA=0` disables it.
+   Short near-silent utterances (`RMS_SOSPECHOSO`, 60 on Windows) are dropped before STT:
+   Whisper turns them into «¡Gracias!» / «Thank you.» (31 of 37 phrases in one session).
+   Wear headphones on a call: the mic then hears only Bernard and the loopback only the
+   remote side; on open speakers the mic also hears the speakers (tagged BERNARD). Consumers: `escucha/dictar.py` (terminal
    dictation) and `~/Documents/compras/llamadas/escucha.py` (call copiloto: coach +
    folio extraction). Any new local voice capture MUST consume `escucha/motor.py` —
    do not write a new recorder. Transcribing an ALREADY-RECORDED audio/video file
@@ -35,7 +53,10 @@ Three things live in this repo:
    (`escucha/environment.yml` + root `pyproject.toml`): `conda env create -f
    escucha/environment.yml` installs it editable and drops a global `dictar`
    command in `~/.local/bin` (shebang pinned to the env's python — no activation
-   needed).
+   needed). On Windows: `python -m pip install --user -e .` (the `dictar.exe` lands in
+   `%APPDATA%\Python\Python314\Scripts`, add it to PATH or use `python -m escucha.dictar`).
+   Engine tests: `cd escucha && PYTHONUTF8=1 python -m unittest test_motor_corte test_lexico
+   test_loopback`.
 
 ## Commands
 

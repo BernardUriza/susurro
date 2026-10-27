@@ -63,6 +63,9 @@ except ModuleNotFoundError:
 GATEWAY = os.environ.get("SUSURRO_GATEWAY", "https://sus.bernarduriza.com")
 HEAR = Path(os.environ.get("HEAR", str(Path.home() / ".local/bin/hear")))
 KEY_SUSURRO = Path.home() / ".secrets/susurro-gateway-key.txt"
+# `/susurramelo claim` (susurro-claim.sh) guarda la llave minteada en susurro-token.txt como
+# SUSURRO_TOKEN=; el motor acepta los dos archivos y los dos nombres: una sola llave por máquina
+TOKEN_SUSURRO = Path.home() / ".secrets/susurro-token.txt"
 ES_WINDOWS = sys.platform == "win32"
 
 
@@ -378,7 +381,15 @@ def _leer_key(archivo, patron):
 
 
 def susurro_key():
-    return os.environ.get("SUSURRO_KEY") or _leer_key(KEY_SUSURRO, r"^SUSURRO_KEY=(.+)$")
+    """La llave del gateway: $SUSURRO_KEY, o la primera que aparezca en los archivos de
+    ~/.secrets (`SUSURRO_KEY=` o `SUSURRO_TOKEN=`). Nunca se imprime."""
+    if os.environ.get("SUSURRO_KEY"):
+        return os.environ["SUSURRO_KEY"].strip()
+    for archivo in (KEY_SUSURRO, TOKEN_SUSURRO):
+        k = _leer_key(archivo, r"^SUSURRO_(?:KEY|TOKEN)=(.+)$")
+        if k:
+            return k.strip()
+    return ""
 
 
 def stt_gateway(path, language=None, engine="whisper", reintentos=1):
@@ -388,7 +399,7 @@ def stt_gateway(path, language=None, engine="whisper", reintentos=1):
     language = (language or IDIOMA).split("-")[0]
     key = susurro_key()
     if not key:
-        return "", f"sin SUSURRO_KEY en el entorno ni en {KEY_SUSURRO}"
+        return "", f"sin SUSURRO_KEY en el entorno ni en {KEY_SUSURRO} ni {TOKEN_SUSURRO}"
     url = f"{GATEWAY}/v1/stt?language={language}" + ("" if engine == "whisper" else f"&engine={engine}")
     datos = path.read_bytes()
     intento = 0

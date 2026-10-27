@@ -2,6 +2,7 @@
 los motores son funciones falsas y el gateway se simula parchando urlopen."""
 import io
 import json
+import os
 import tempfile
 import unittest
 import urllib.error
@@ -153,6 +154,35 @@ class TestReintentoGateway(unittest.TestCase):
         motor.urllib.request.urlopen = urlopen
         motor.stt_gateway(self.wav, engine="deepgram")
         self.assertIn("engine=deepgram", visto["url"])
+
+
+class TestLlaveDelGateway(unittest.TestCase):
+    """Una sola llave por máquina, en cualquiera de los dos archivos y con cualquiera de los dos nombres."""
+
+    def setUp(self):
+        self.base = Path(tempfile.mkdtemp())
+        self._k, self._t = motor.KEY_SUSURRO, motor.TOKEN_SUSURRO
+        self._env = os.environ.pop("SUSURRO_KEY", None)
+        motor.KEY_SUSURRO, motor.TOKEN_SUSURRO = self.base / "key.txt", self.base / "token.txt"
+
+    def tearDown(self):
+        motor.KEY_SUSURRO, motor.TOKEN_SUSURRO = self._k, self._t
+        if self._env is not None:
+            os.environ["SUSURRO_KEY"] = self._env
+
+    def test_lee_susurro_token_del_archivo_del_claim(self):
+        motor.TOKEN_SUSURRO.write_text("Created: hoy\nSUSURRO_TOKEN=sk-susurro-abc\n", encoding="utf-8")
+        self.assertEqual(motor.susurro_key(), "sk-susurro-abc")
+
+    def test_el_archivo_key_gana_y_el_entorno_gana_a_todo(self):
+        motor.KEY_SUSURRO.write_text("SUSURRO_KEY=sk-susurro-key\n", encoding="utf-8")
+        motor.TOKEN_SUSURRO.write_text("SUSURRO_TOKEN=sk-susurro-tok\n", encoding="utf-8")
+        self.assertEqual(motor.susurro_key(), "sk-susurro-key")
+        os.environ["SUSURRO_KEY"] = "sk-susurro-env"
+        self.assertEqual(motor.susurro_key(), "sk-susurro-env")
+
+    def test_sin_nada_devuelve_vacio(self):
+        self.assertEqual(motor.susurro_key(), "")
 
 
 class TestTierLocalDeRespaldo(unittest.TestCase):

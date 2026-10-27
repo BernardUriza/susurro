@@ -135,7 +135,7 @@ npx vitest run -t "name of the test"               # a single test by name
   server sets `Cross-Origin-Embedder-Policy`/`Cross-Origin-Opener-Policy` (vite.config.ts),
   and `netlify.toml` sets `credentialless` for prod. A host that strips these breaks Whisper.
 - The **gateway** deploys to **Azure Container Apps** (`susurro-gateway` in `susurro-rg` /
-  `insult-env`, image in `insultacr`). The demo frontend is a static Vite build (host
+  `susurro-env`, image `ghcr.io/bernarduriza/susurro/gateway:<sha>` built by CD). The demo frontend is a static Vite build (host
   anywhere). README still says Vercel/Netlify — it's wrong, ignore it.
 
 ## The Voice Gateway (`api/`)
@@ -200,11 +200,11 @@ his apps call it instead of holding Azure/Deepgram/Anthropic keys directly.
 - **Run locally:** `cd api && pip install -r requirements.txt && uvicorn main:app --reload`,
   with the `AZURE_OPENAI_*` and `SUSURRO_KEYS` env vars set (see `.env.example`).
 - **Deploy is CD, not manual:** push to `master` touching `api/**` or `src/**` →
-  `.github/workflows/cd.yml` builds the web bundle into `api/static`, runs `az acr build`
-  (tagged with the commit SHA), updates the Container App, and smoke-tests that `/health`
-  reports the new SHA. Don't hand-run `az acr build` locally (it also needs working pyexpat —
-  see the expat relink fix in `~/CLAUDE.md`). Secrets are set out-of-band with
-  `az containerapp secret set` (never in the image).
+  `.github/workflows/cd.yml` builds the web bundle into `api/static`, builds and pushes the
+  image to `ghcr.io/bernarduriza/susurro/gateway` (tagged with the commit SHA), updates the
+  Container App, and smoke-tests that `/health` reports the new SHA. Don't build/push the image
+  by hand. Secrets are set out-of-band with `az containerapp secret set` (never in the image);
+  a changed secret only reaches the pod after `az containerapp revision restart`.
 
 ## Architecture
 

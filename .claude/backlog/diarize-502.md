@@ -1,6 +1,6 @@
 # `/v1/diarize` responde 502 desde el 2026-10-27
 
-Status: In progress (sólo falta el secret)
+Status: Done (2026-10-27)
 Proposed: 2026-10-27 by Claude
 
 ## Qué es
@@ -41,10 +41,7 @@ Hecho (commit `4c92edf`, CD verde, `/health` reporta ese SHA):
 - Recibo de la forma contra la puerta (18:0xZ): HTTP 200, `gpt-5.4-mini-2026-03-17`, 160 tokens,
   4 segmentos Hablante 1/2 correctos sobre un diálogo de prueba.
 
-Falta: el valor del secret `diarize-openai-key` del Container App (la sesión de Claude no puede
-escribir secret stores; lo corre Bernard):
-
-    az containerapp secret set -n susurro-gateway -g susurro-rg --secrets "diarize-openai-key=$(grep -oE '^AIRE_KEY_SUSURRO_DIARIZE=.+$' ~/.secrets/aire-key-susurro-diarize.txt | cut -d= -f2-)" && az containerapp update -n susurro-gateway -g susurro-rg --set-env-vars DIARIZE_MODEL=gpt-5.4-mini -o none
-
-Recibo de cierre: `POST /v1/diarize` en `sus.bernarduriza.com` devolviendo 200 con `speakers`
-(hoy devuelve 502 "Diarize LLM 401: AIRE: unknown key", que ya es la puerta nueva hablando).
+Cierre (2026-10-27 18:09Z): Bernard corrió `~/Desktop/set-diarize-secret.sh` (secret set +
+`revision restart` de `susurro-gateway--0000003`; un secretRef no se refresca sin reiniciar la
+revisión). Recibo: `POST https://sus.bernarduriza.com/v1/diarize` con transcript de 4 frases y
+`num_speakers: 2` → HTTP 200, 4 segmentos Hablante 1/2 correctos, `"engine": "aire-gpt-5.4-mini"`.

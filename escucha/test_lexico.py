@@ -341,7 +341,7 @@ class TestIntegracionConMotor(unittest.TestCase):
     def test_motor_ya_no_define_su_propia_lista(self):
         """Migración terminada: la tupla vieja de 7 substrings está BORRADA,
         no escondida detrás de un shim."""
-        fuente = (Path(__file__).resolve().parent / "motor.py").read_text()
+        fuente = (Path(__file__).resolve().parent / "motor.py").read_text(encoding="utf-8")
         self.assertNotIn('ALUCINACIONES = (', fuente)
         self.assertNotIn('def es_alucinacion', fuente)
 
@@ -361,7 +361,7 @@ class TestFlujoDeTiers(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp())
         cls.wav = cls.tmp / "ruido.wav"
         r = subprocess.run(
-            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi",
+            [motor.FFMPEG, "-hide_banner", "-loglevel", "error", "-f", "lavfi",
              "-i", "anoisesrc=d=2:c=pink:a=0.9", "-ar", "16000", "-ac", "1", str(cls.wav)],
             capture_output=True)
         if r.returncode != 0 or not cls.wav.exists():
@@ -385,7 +385,7 @@ class TestFlujoDeTiers(unittest.TestCase):
         self.assertEqual(estado, "ok")
         self.assertEqual(txt, "hay un bug en el commit y traía THC")
         self.assertEqual(f.por_origen.get("alucinacion-hear"), 1)
-        contenido = log.read_text()
+        contenido = log.read_text(encoding="utf-8")
         self.assertIn("'bus' → 'bug'", contenido)
         self.assertIn("'MHC' → 'THC'", contenido)
 
@@ -403,7 +403,7 @@ class TestFlujoDeTiers(unittest.TestCase):
         f, log = self._fallos("limpio")
         self.assertEqual(self.motor.transcribir_tiers(self.wav, f), ("ok", limpio))
         self.assertEqual(f.total, 0)
-        self.assertEqual(log.read_text(), "")
+        self.assertEqual(log.read_text(encoding="utf-8"), "")
 
     def test_una_correccion_no_cuenta_como_fallo(self):
         """El contador de Fallos mide fallos; una corrección del léxico se
@@ -413,7 +413,7 @@ class TestFlujoDeTiers(unittest.TestCase):
         self.assertEqual(self.motor.transcribir_tiers(self.wav, f),
                          ("ok", "traía THC el cartucho"))
         self.assertEqual(f.total, 0)
-        self.assertIn("lexico:", log.read_text())
+        self.assertIn("lexico:", log.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

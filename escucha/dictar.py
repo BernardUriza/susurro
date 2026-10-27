@@ -13,6 +13,7 @@
 # se diariza via {GATEWAY}/v1/diarize y el transcript anota Hablante A/B.
 # Reemplazó a ~/bin/dictado.sh (bash, cortes de reloj) el mismo día que nació.
 # ─────────────────────────────────────────────────────────────────────────────
+import _thread
 import math
 import os
 import signal
@@ -27,11 +28,15 @@ from pathlib import Path
 
 try:
     from escucha.motor import (MotorCaptura, Fallos, transcribir_tiers, calentar_hear,
-                               diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS)
+                               diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS, HEAR, GATEWAY)
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from escucha.motor import (MotorCaptura, Fallos, transcribir_tiers, calentar_hear,
-                               diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS)
+                               diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS, HEAR, GATEWAY)
+
+for _flujo in (sys.stdout, sys.stderr):
+    if hasattr(_flujo, "reconfigure"):
+        _flujo.reconfigure(encoding="utf-8", errors="replace")
 
 
 class Vumetro:
@@ -88,8 +93,9 @@ def main():
     # sin esto la sesión muere muda, sin FIN — pasó dos veces el 2026-08-13
     def _senal(signum, _frame):
         raise KeyboardInterrupt
-    signal.signal(signal.SIGTERM, _senal)
-    signal.signal(signal.SIGHUP, _senal)
+    for nombre in ("SIGTERM", "SIGHUP"):
+        if hasattr(signal, nombre):
+            signal.signal(getattr(signal, nombre), _senal)
 
     etiqueta = sys.argv[1] if len(sys.argv) > 1 else "dictado"
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -107,16 +113,28 @@ def main():
     # unión: la corrección aplicada a la frase 12 quedaba huérfana de la frase 12.
     os.environ["SUSURRO_REGISTRO"] = str(registro)
     fallos = Fallos(base / "fallos.log")
+    # Windows no entrega SIGINT a un proceso en background: el archivo PARAR es el Ctrl+C portable
+    parar = base / "PARAR"
+
+    def _vigilar_parar():
+        while not parar.exists():
+            time.sleep(0.5)
+        _thread.interrupt_main()
+    threading.Thread(target=_vigilar_parar, daemon=True).start()
 
     calentar_hear(base)
     vum = Vumetro()
     motor = MotorCaptura(base, fallos, on_rms=vum.latido)
     idx = motor.arrancar()
+    stt = f"hear → {GATEWAY}" if HEAR.exists() else f"{GATEWAY} (hear no instalado)"
+    bocina = motor.loopback.nombre if motor.loopback else "no (sólo micrófono)"
     log.write_text(f"# Dictado — {etiqueta}\n\n- Inicio: {datetime.now():%Y-%m-%d %H:%M:%S}\n"
-                   f"- Micrófono: índice {idx}\n"
-                   f"- Corte a {SILENCIO_CORTE_MS}ms de silencio · VAD RMS≥{RMS_MIN}\n\n---\n\n")
-    print(f"DICTANDO al mic [{idx}]. Habla; cada frase sale al callar. Ctrl+C para parar.")
-    print(f"Transcript: {log}")
+                   f"- Micrófono: {idx}\n- Bocina (loopback): {bocina}\n- STT: {stt}\n"
+                   f"- Corte a {SILENCIO_CORTE_MS}ms de silencio · VAD RMS≥{RMS_MIN}\n\n---\n\n",
+                   encoding="utf-8")
+    print(f"DICTANDO al mic [{idx}] · bocina: {bocina} · STT {stt}. Habla; cada frase sale al callar.")
+    print(f"Parar: Ctrl+C, o crea el archivo {parar}")
+    print(f"Transcript: {log}", flush=True)
 
     n_ok = 0
     frases = []
@@ -157,7 +175,7 @@ def main():
         # registro como si Bernard lo hubiera dicho.
         origen = motor.origen_de(wav)
         etiqueta_origen = "" if origen == "BERNARD" else f" [{origen}]"
-        with log.open("a") as f:
+        with log.open("a", encoding="utf-8") as f:
             f.write(f"**[{ahora()}]**{marca}{etiqueta_origen} {txt}\n\n")
         vum.imprimir(f"CACHO {n_ok}{etiqueta_origen}: {txt}")
         # Evidencia por frase. Se escribe SIEMPRE, aunque el texto se vea bien:
@@ -184,12 +202,12 @@ def main():
 
     hablantes = diarizar("\n".join(frases), fallos) if len(frases) >= 2 else None
     if hablantes:
-        with log.open("a") as f:
+        with log.open("a", encoding="utf-8") as f:
             f.write("\n## Hablantes\n\n")
             for quien, txt in hablantes:
                 f.write(f"**{quien}:** {txt}\n\n")
 
-    with log.open("a") as f:
+    with log.open("a", encoding="utf-8") as f:
         f.write(f"\n---\n\n- Fin: {ahora()} · {n_ok} frases · "
                 f"{motor.n_mudo} silencios descartados\n")
         if hablantes:

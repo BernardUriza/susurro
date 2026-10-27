@@ -193,7 +193,7 @@ def ruta_del_lock() -> str:
     """Archivo que existe MIENTRAS la bocina suena. `motor.py` lo lee para
     etiquetar el eco como [BOCINA] en vez de atribuírselo a Bernard."""
     return os.environ.get("SUSURRO_LOCK") or os.path.join(
-        os.environ.get("TMPDIR", "/tmp"), "susurro-hablando.lock"
+        os.environ.get("TMPDIR") or tempfile.gettempdir(), "susurro-hablando.lock"
     )
 
 

@@ -477,7 +477,7 @@ def registrar_cambios(archivo, cambios, imprimir=True):
         return
     marca = time.strftime("%H:%M:%S")
     try:
-        with open(archivo, "a") as f:
+        with open(archivo, "a", encoding="utf-8") as f:
             for c in cambios:
                 f.write(f"[{marca}] lexico: '{c.original}' → '{c.corregido}' "
                         f"({c.regla.riesgo})\n")

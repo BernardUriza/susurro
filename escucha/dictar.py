@@ -3,7 +3,8 @@
 # DICTAR — dictado de terminal sobre el motor de escucha (consumidor canario).
 #
 #   Uso:    python3 ~/Documents/susurro/escucha/dictar.py [etiqueta]
-#   Parar:  Ctrl+C  (drena el utterance en curso)
+#   Parar:  Ctrl+C, o crear el archivo PARAR en la carpeta de la sesión (Windows en
+#           background no recibe Ctrl+C). Ambos drenan el utterance en curso.
 #
 # Cada frase completa sale como una línea `CACHO n: texto` en stdout — diseñado
 # para leerse a ojo o bajo un Monitor (cada línea = un evento). El transcript
@@ -13,7 +14,6 @@
 # se diariza via {GATEWAY}/v1/diarize y el transcript anota Hablante A/B.
 # Reemplazó a ~/bin/dictado.sh (bash, cortes de reloj) el mismo día que nació.
 # ─────────────────────────────────────────────────────────────────────────────
-import _thread
 import math
 import os
 import signal
@@ -113,14 +113,10 @@ def main():
     # unión: la corrección aplicada a la frase 12 quedaba huérfana de la frase 12.
     os.environ["SUSURRO_REGISTRO"] = str(registro)
     fallos = Fallos(base / "fallos.log")
-    # Windows no entrega SIGINT a un proceso en background: el archivo PARAR es el Ctrl+C portable
+    # Windows no entrega SIGINT a un proceso en background: el archivo PARAR es el Ctrl+C
+    # portable. Parada COOPERATIVA (el motor lo consulta entre utterances), no interrupt_main:
+    # una interrupción a media transcripción perdía la frase que estaba en el gateway.
     parar = base / "PARAR"
-
-    def _vigilar_parar():
-        while not parar.exists():
-            time.sleep(0.5)
-        _thread.interrupt_main()
-    threading.Thread(target=_vigilar_parar, daemon=True).start()
 
     calentar_hear(base)
     vum = Vumetro()
@@ -188,7 +184,7 @@ def main():
 
     interrumpido = False
     try:
-        for wav in motor.utterances():
+        for wav in motor.utterances(parar=parar.exists):
             if wav is None:
                 vum.imprimir("LA GRABACION MURIO SOLA — el mic ya no captura. Relanza dictar.py")
                 break
@@ -213,7 +209,8 @@ def main():
         if hablantes:
             f.write(f"- Hablantes: {len({q for q, _ in hablantes})}\n")
         f.write(fallos.resumen())
-    print(f"FIN ({'Ctrl+C' if interrumpido else 'stream'}): {n_ok} frases · transcript en {log}", flush=True)
+    causa = "Ctrl+C" if interrumpido else ("PARAR" if parar.exists() else "stream")
+    print(f"FIN ({causa}): {n_ok} frases · transcript en {log}", flush=True)
 
 
 if __name__ == "__main__":

@@ -396,7 +396,7 @@ def hablar(texto: str, *, gateway: str | None = None, voz: str | None = None,
         raise HablarError("texto vacío")
 
     token = resolver_token()
-    taller = tempfile.mkdtemp(prefix="susurro.", dir=os.environ.get("TMPDIR", "/tmp"))
+    taller = tempfile.mkdtemp(prefix="susurro.", dir=os.environ.get("TMPDIR") or tempfile.gettempdir())
     total_played = 0
     total_duracion = 0.0
     duracion_confiable = True

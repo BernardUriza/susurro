@@ -58,6 +58,52 @@ class TestSilencioInyectado(unittest.TestCase):
             next(gen)
 
 
+class TestColaConTope(unittest.TestCase):
+    def test_cola_llena_tira_y_avisa_una_vez_por_crecimiento(self):
+        base = Path(tempfile.mkdtemp())
+        fallos = Fallos(base / "f.log")
+        fuente = FuenteLoopback(fallos)
+        fuente.vivo = True
+        for _ in range(FuenteLoopback.COLA_MAX):
+            fuente.cola.put_nowait(frame_16k(1))
+        with self.assertRaises(queue.Full):
+            fuente.cola.put_nowait(frame_16k(1))
+        fuente.tirados = 7
+        gen = fuente.frames()
+        next(gen)
+        self.assertEqual(fallos.por_origen.get("loopback"), 1, "un aviso por crecimiento del contador")
+        next(gen)
+        self.assertEqual(fallos.por_origen.get("loopback"), 1, "sin crecimiento no se repite")
+        fuente.cerrar()
+        self.assertIn(None, list(fuente.cola.queue), "cerrar() mete el None aunque la cola esté llena")
+
+
+class TestParadaCooperativa(unittest.TestCase):
+    def test_parar_termina_entre_utterances_sin_none(self):
+        base = Path(tempfile.mkdtemp())
+        motor = MotorCaptura(base, Fallos(base / "f.log"), loopback=False)
+        motor.cola.put(base / "utt-0001.wav")
+        bandera = {"parar": False}
+        vistos = []
+        for utt in motor.utterances(timeout=0.05, parar=lambda: bandera["parar"]):
+            vistos.append(utt)
+            bandera["parar"] = True
+        self.assertEqual(vistos, [base / "utt-0001.wav"], "la frase en vuelo se entrega; luego termina sin None")
+
+    def test_cerrar_recoge_la_ultima_frase_de_llamada_tras_el_none_del_mic(self):
+        base = Path(tempfile.mkdtemp())
+        motor = MotorCaptura(base, Fallos(base / "f.log"), loopback=False)
+        voz = [frame_16k(0)] * 5 + [frame_16k(2000)] * 40 + [frame_16k(0)] * 25
+        motor._hilo_mic = threading.Thread(target=motor._segmentar, args=(iter([frame_16k(0)] * 3), "BERNARD", True))
+        motor._hilo_mic.start()
+        motor._hilo_mic.join()
+        motor._hilo_llamada = threading.Thread(target=motor._segmentar, args=(iter(voz), "LLAMADA", False))
+        motor._hilo_llamada.start()
+        rezagados = motor.cerrar(drenar_segundos=3)
+        self.assertEqual(len(rezagados), 1, "el None del mic no corta el drenado")
+        self.assertEqual(motor.origen_de(rezagados[0]), "LLAMADA")
+
+
 class TestSegundaFuente(unittest.TestCase):
     def test_llamada_se_etiqueta_y_su_fin_no_mata_al_motor(self):
         base = Path(tempfile.mkdtemp())

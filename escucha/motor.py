@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # ─────────────────────────────────────────────────────────────────────────────
 # MOTOR DE ESCUCHA — la SSOT de captura de micrófono + segmentación por voz +
-# transcripción local en vivo. Stdlib puro, cero dependencias.
+# transcripción local en vivo. Stdlib puro en la Mac; en Windows sólo PyAudioWPatch
+# (loopback WASAPI de la bocina).
 #
 # Nació 2026-08-13 consolidando CUATRO implementaciones dispersas:
 #   · compras/llamadas/escucha.py v5 (el mejor motor: de ahí se extrajo esto)
@@ -185,9 +186,12 @@ class FuenteLoopback:
     2026-10-27: 0 chunks/s en silencio, 100/s con audio), así que ante un hueco se
     inyecta silencio para que el corte por silencio del segmentador siga vivo."""
 
+    COLA_MAX = 200  # ~6 s de audio; si el consumidor se atora, se tira lo más viejo y se cuenta
+
     def __init__(self, fallos):
         self.fallos = fallos
-        self.cola = queue.Queue()
+        self.cola = queue.Queue(maxsize=self.COLA_MAX)
+        self.tirados = 0
         self.vivo = False
         self.pa = None
         self.stream = None
@@ -202,7 +206,12 @@ class FuenteLoopback:
                                "python -m pip install --user PyAudioWPatch "
                                "(o ESCUCHA_BOCINA=0 para sólo micrófono)") from e
         self.pa = pa.PyAudio()
-        dev = self.pa.get_default_wasapi_loopback()
+        try:
+            dev = self.pa.get_default_wasapi_loopback()
+        except Exception:
+            self.pa.terminate()
+            self.pa = None
+            raise
         self.nombre = dev["name"]
         self.rate, self.canales = int(dev["defaultSampleRate"]), int(dev["maxInputChannels"])
         por_frame = self.rate * FRAME_MS // 1000
@@ -211,7 +220,10 @@ class FuenteLoopback:
         # Modo callback: PortAudio entrega cada chunk en su hilo y el cierre es seguro.
         # Con read() bloqueante, close() mientras el lector espera revienta el proceso (0xC0000005).
         def _chunk(crudo, _n, _t, _status):
-            self.cola.put(crudo)
+            try:
+                self.cola.put_nowait(crudo)
+            except queue.Full:
+                self.tirados += 1
             return (None, pa.paContinue if self.vivo else pa.paComplete)
         self.stream = self.pa.open(format=pa.paInt16, channels=self.canales, rate=self.rate,
                                    input=True, input_device_index=dev["index"],
@@ -221,7 +233,11 @@ class FuenteLoopback:
 
     def frames(self):
         silencio = bytes(FRAME_BYTES)
+        avisados = 0
         while self.vivo:
+            if self.tirados > avisados:
+                avisados = self.tirados
+                self.fallos.avisar("loopback", f"cola llena: {avisados} frames de bocina tirados")
             try:
                 d = self.cola.get(timeout=FRAME_MS / 1000)
             except queue.Empty:
@@ -241,7 +257,11 @@ class FuenteLoopback:
                 self.pa.terminate()
         except Exception as e:
             self.fallos.avisar("loopback", f"al cerrar: {type(e).__name__}: {e}")
-        self.cola.put(None)
+        try:
+            self.cola.put_nowait(None)
+        except queue.Full:
+            self.cola.get_nowait()
+            self.cola.put_nowait(None)
 
 
 def dispositivos_audio():
@@ -451,6 +471,8 @@ class MotorCaptura:
         self.ffmpeg = None
         self.loopback = None
         self.quiere_loopback = LOOPBACK if loopback is None else loopback
+        self._hilo_mic = None
+        self._hilo_llamada = None
         self._candado = threading.Lock()
         self.n_utt = 0
         self.n_mudo = 0
@@ -458,19 +480,31 @@ class MotorCaptura:
     def arrancar(self):
         self.audio_dir.mkdir(parents=True, exist_ok=True)
         self.mic_idx = mic_index(self.mic_nombre)
-        entrada = (["-f", "dshow", "-i", f"audio={self.mic_idx}"] if ES_WINDOWS
-                   else ["-f", "avfoundation", "-i", f":{self.mic_idx}"])
-        self.ffmpeg = subprocess.Popen(
-            [FFMPEG, "-hide_banner", "-loglevel", "error", *entrada,
-             "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "-f", "s16le", "-"],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        threading.Thread(target=self._segmentar, args=(self._frames_mic(), "BERNARD", True),
-                         daemon=True).start()
+        # La bocina arranca ANTES que ffmpeg: si falla (sin PyAudioWPatch, sin dispositivo de
+        # salida) no deja un ffmpeg huérfano con el mic tomado; si ffmpeg falla, se cierra ella.
         if self.quiere_loopback:
             self.loopback = FuenteLoopback(self.fallos)
             self.loopback.arrancar()
-            threading.Thread(target=self._segmentar, args=(self.loopback.frames(), "LLAMADA", False),
-                             daemon=True).start()
+        entrada = (["-f", "dshow", "-i", f"audio={self.mic_idx}"] if ES_WINDOWS
+                   else ["-f", "avfoundation", "-i", f":{self.mic_idx}"])
+        try:
+            self.ffmpeg = subprocess.Popen(
+                [FFMPEG, "-hide_banner", "-loglevel", "error", *entrada,
+                 "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "-f", "s16le", "-"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        except Exception:
+            if self.loopback:
+                self.loopback.cerrar()
+                self.loopback = None
+            raise
+        self._hilo_mic = threading.Thread(target=self._segmentar,
+                                          args=(self._frames_mic(), "BERNARD", True), daemon=True)
+        self._hilo_mic.start()
+        if self.loopback:
+            self._hilo_llamada = threading.Thread(target=self._segmentar,
+                                                  args=(self.loopback.frames(), "LLAMADA", False),
+                                                  daemon=True)
+            self._hilo_llamada.start()
         return self.mic_idx
 
     def _frames_mic(self):
@@ -577,11 +611,15 @@ class MotorCaptura:
             self.origen[ruta] = origen
         self.cola.put(ruta)
 
-    def utterances(self, timeout=1):
+    def utterances(self, timeout=1, parar=None):
         """Generador bloqueante. Cede rutas .wav; un None final = ffmpeg murió
         solo (mic desconectado, disco lleno) — el consumidor DEBE anunciarlo,
-        no tragárselo como stop sano."""
+        no tragárselo como stop sano. `parar()` → True termina el generador SIN
+        None y entre utterances, nunca a media transcripción: la frase en curso
+        se procesa y `cerrar()` drena el resto (la última frase siempre importa)."""
         while True:
+            if parar and parar():
+                return
             try:
                 utt = self.cola.get(timeout=timeout)
             except queue.Empty:
@@ -591,8 +629,9 @@ class MotorCaptura:
                 return
 
     def origen_de(self, ruta):
-        """'BERNARD' | 'BOCINA' — quién habló en ese utterance. La bocina es la
-        voz sintetizada del asistente, capturada de vuelta por el micrófono."""
+        """'BERNARD' | 'BOCINA' | 'LLAMADA' — quién habló en ese utterance. BOCINA es
+        la voz sintetizada del asistente capturada de vuelta por el micrófono;
+        LLAMADA es el interlocutor oído por el loopback de la bocina (Windows)."""
         return self.origen.get(ruta, "BERNARD")
 
     def murio_solo(self):
@@ -617,14 +656,19 @@ class MotorCaptura:
                 except subprocess.TimeoutExpired:
                     self.fallos.avisar("ffmpeg", "no murió con terminate; kill")
                     self.ffmpeg.kill()
-        rezagados = []
         limite = time.time() + drenar_segundos
-        while time.time() < limite:
+        # Los dos segmentadores hacen su flush final en su propio hilo; se les espera
+        # antes de drenar, y el None del mic no corta el drenado: la última frase de
+        # LLAMADA puede entrar a la cola después de ese None.
+        for hilo in (self._hilo_mic, self._hilo_llamada):
+            if hilo is not None:
+                hilo.join(timeout=max(0.0, limite - time.time()))
+        rezagados = []
+        while True:
             try:
-                utt = self.cola.get(timeout=2)
+                utt = self.cola.get(timeout=0.2 if time.time() < limite else 0)
             except queue.Empty:
                 break
-            if utt is None:
-                break
-            rezagados.append(utt)
+            if utt is not None:
+                rezagados.append(utt)
         return rezagados

@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import contextlib
+import glob
 import json
 import os
 import re
@@ -47,8 +48,16 @@ FORMATO_POR_DEFECTO = "mp3"
 MAXIMO_POR_DEFECTO = 1100
 TIMEOUT_S = 120
 
-ARCHIVOS_DE_TOKEN = ("~/.secrets/susurro-token.txt", "~/.secrets/susurro-gateway-key.txt")
+ARCHIVOS_DE_TOKEN = ("~/.secrets/susurro-token.txt", "~/.secrets/susurro-gateway-key.txt", "~/.secrets/susurro-key-*.txt")
 _VARIABLE_DE_TOKEN = re.compile(r"^SUSURRO_(?:TOKEN|KEY)=(.*)$")
+
+
+def candidatos_de_token():
+    """Los archivos de ~/.secrets donde puede vivir la llave, en orden; los comodines se expanden."""
+    rutas = []
+    for candidato in ARCHIVOS_DE_TOKEN:
+        rutas.extend(sorted(glob.glob(os.path.expanduser(candidato))))
+    return [r for r in rutas if os.path.isfile(r)]
 
 
 try:
@@ -82,10 +91,7 @@ def resolver_token() -> str:
     del_entorno = os.environ.get("SUSURRO_TOKEN", "").strip()
     if del_entorno:
         return del_entorno
-    for candidato in ARCHIVOS_DE_TOKEN:
-        ruta = os.path.expanduser(candidato)
-        if not os.path.isfile(ruta):
-            continue
+    for ruta in candidatos_de_token():
         with open(ruta, "r", encoding="utf-8", errors="replace") as fh:
             for linea in fh:
                 hallazgo = _VARIABLE_DE_TOKEN.match(linea.strip())
@@ -209,7 +215,7 @@ def _barrer_locks(*_ignorado) -> None:
 
 atexit.register(_barrer_locks)
 
-_SENALES_QUE_MATAN = (signal.SIGTERM, signal.SIGHUP)
+_SENALES_QUE_MATAN = tuple(s for s in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGHUP", None)) if s)
 
 
 @contextlib.contextmanager

@@ -62,10 +62,12 @@ except ModuleNotFoundError:
 
 GATEWAY = os.environ.get("SUSURRO_GATEWAY", "https://sus.bernarduriza.com")
 HEAR = Path(os.environ.get("HEAR", str(Path.home() / ".local/bin/hear")))
-KEY_SUSURRO = Path.home() / ".secrets/susurro-gateway-key.txt"
-# `/susurramelo claim` (susurro-claim.sh) guarda la llave minteada en susurro-token.txt como
-# SUSURRO_TOKEN=; el motor acepta los dos archivos y los dos nombres: una sola llave por máquina
-TOKEN_SUSURRO = Path.home() / ".secrets/susurro-token.txt"
+DIR_SECRETS = Path.home() / ".secrets"
+KEY_SUSURRO = DIR_SECRETS / "susurro-gateway-key.txt"
+# susurro-claim.sh guarda la llave minteada como SUSURRO_TOKEN= en susurro-token.txt o, con
+# SUSURRO_TOKEN_FILE, en susurro-key-<app>.txt; el motor acepta todos: una sola llave por máquina
+TOKEN_SUSURRO = DIR_SECRETS / "susurro-token.txt"
+PATRON_KEY_APP = "susurro-key-*.txt"
 ES_WINDOWS = sys.platform == "win32"
 
 
@@ -380,12 +382,17 @@ def _leer_key(archivo, patron):
         return ""
 
 
+def archivos_key():
+    """Dónde puede vivir la llave, en orden de prioridad."""
+    return [KEY_SUSURRO, TOKEN_SUSURRO] + sorted(DIR_SECRETS.glob(PATRON_KEY_APP))
+
+
 def susurro_key():
     """La llave del gateway: $SUSURRO_KEY, o la primera que aparezca en los archivos de
     ~/.secrets (`SUSURRO_KEY=` o `SUSURRO_TOKEN=`). Nunca se imprime."""
     if os.environ.get("SUSURRO_KEY"):
         return os.environ["SUSURRO_KEY"].strip()
-    for archivo in (KEY_SUSURRO, TOKEN_SUSURRO):
+    for archivo in archivos_key():
         k = _leer_key(archivo, r"^SUSURRO_(?:KEY|TOKEN)=(.+)$")
         if k:
             return k.strip()
@@ -399,7 +406,7 @@ def stt_gateway(path, language=None, engine="whisper", reintentos=1):
     language = (language or IDIOMA).split("-")[0]
     key = susurro_key()
     if not key:
-        return "", f"sin SUSURRO_KEY en el entorno ni en {KEY_SUSURRO} ni {TOKEN_SUSURRO}"
+        return "", f"sin SUSURRO_KEY en el entorno ni en {DIR_SECRETS} ({KEY_SUSURRO.name}, {TOKEN_SUSURRO.name}, {PATRON_KEY_APP})"
     url = f"{GATEWAY}/v1/stt?language={language}" + ("" if engine == "whisper" else f"&engine={engine}")
     datos = path.read_bytes()
     intento = 0
@@ -435,7 +442,7 @@ def diarizar(texto, fallos, num_speakers=None):
     degrada a transcript sin diarizar, jamás rompe el flujo de dictado."""
     key = susurro_key()
     if not key:
-        fallos.avisar("diarize", f"sin SUSURRO_KEY en el entorno ni en {KEY_SUSURRO}")
+        fallos.avisar("diarize", f"sin SUSURRO_KEY en el entorno ni en {DIR_SECRETS}")
         return None
     cuerpo = {"transcript": texto}
     if num_speakers:

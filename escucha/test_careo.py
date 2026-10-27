@@ -161,12 +161,13 @@ class TestLlaveDelGateway(unittest.TestCase):
 
     def setUp(self):
         self.base = Path(tempfile.mkdtemp())
-        self._k, self._t = motor.KEY_SUSURRO, motor.TOKEN_SUSURRO
+        self._k, self._t, self._d = motor.KEY_SUSURRO, motor.TOKEN_SUSURRO, motor.DIR_SECRETS
         self._env = os.environ.pop("SUSURRO_KEY", None)
+        motor.DIR_SECRETS = self.base
         motor.KEY_SUSURRO, motor.TOKEN_SUSURRO = self.base / "key.txt", self.base / "token.txt"
 
     def tearDown(self):
-        motor.KEY_SUSURRO, motor.TOKEN_SUSURRO = self._k, self._t
+        motor.KEY_SUSURRO, motor.TOKEN_SUSURRO, motor.DIR_SECRETS = self._k, self._t, self._d
         if self._env is not None:
             os.environ["SUSURRO_KEY"] = self._env
 
@@ -180,6 +181,12 @@ class TestLlaveDelGateway(unittest.TestCase):
         self.assertEqual(motor.susurro_key(), "sk-susurro-key")
         os.environ["SUSURRO_KEY"] = "sk-susurro-env"
         self.assertEqual(motor.susurro_key(), "sk-susurro-env")
+
+    def test_lee_el_archivo_por_app_que_escribe_susurro_token_file(self):
+        (self.base / "susurro-key-thinkpad-escucha.txt").write_text(
+            "App identifier: thinkpad-escucha\nSUSURRO_TOKEN=sk-susurro-app\n", encoding="utf-8")
+        self.assertEqual(motor.susurro_key(), "sk-susurro-app")
+        self.assertEqual(motor.archivos_key()[-1].name, "susurro-key-thinkpad-escucha.txt")
 
     def test_sin_nada_devuelve_vacio(self):
         self.assertEqual(motor.susurro_key(), "")

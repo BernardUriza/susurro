@@ -1,6 +1,7 @@
 """VAD de RNNoise (el de murmuraba, vía Node) sobre audio que no sale de ninguna máquina de
 trabajo: el JFK de `public/sample.wav` como voz y ruido rosa de ffmpeg como ruido. Exige Node:
 sin él la regla del ruido no existe y eso debe verse en rojo, no en skip."""
+import json
 import subprocess
 import tempfile
 import unittest
@@ -83,6 +84,24 @@ class TestRuidoEnLosTiers(unittest.TestCase):
         vad.ACTIVO = False
         estado, _ = motor.transcribir_tiers(self.ruido, self.fallos, language="en-US")
         self.assertEqual(estado, "ok")
+
+
+class TestMedirCorpus(unittest.TestCase):
+    """medir_vad etiqueta el corpus desde el registro: habla real, alucinación del tier débil
+    y descartado por ruido/silencio; un `fallo` del gateway no es veredicto."""
+
+    def test_clases_desde_el_registro(self):
+        import medir_vad
+        sesion = Path(tempfile.mkdtemp())
+        filas = [
+            {"tipo": "utterance", "wav": "a.wav", "texto": "vamos a revisar el firmware", "origen": "LLAMADA", "rms": 900},
+            {"tipo": "utterance", "wav": "b.wav", "texto": "¡Gracias!", "origen": "BERNARD", "rms": 40},
+            {"tipo": "utterance.descartado", "wav": "c.wav", "motivo": "ruido", "origen": "BERNARD", "rms": 500},
+            {"tipo": "utterance.descartado", "wav": "d.wav", "motivo": "fallo", "origen": "BERNARD", "rms": 300},
+        ]
+        (sesion / "registro.jsonl").write_text(chr(10).join(json.dumps(f) for f in filas), encoding="utf-8")
+        clases = {w: c for w, (c, _) in medir_vad.clases(sesion).items()}
+        self.assertEqual(clases, {"a.wav": "habla", "b.wav": "ruido", "c.wav": "ruido"})
 
 
 if __name__ == "__main__":

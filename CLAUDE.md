@@ -49,7 +49,7 @@ Three things live in this repo:
    open): mic mean during playback 116 rms → 28 with AEC (4×), p90 267 → 145, but the peaks
    still segmented the same 2 false BERNARD utterances. It attenuates, it does not remove:
    the mic/loopback pairing still jitters (~13 % of frames re-synced) and AEC3 needs a
-   stable delay. Headphones remain the safe setup; finer alignment is in the backlog. **STT redundancy (2026-10-27):** `escucha/careo.py` runs two engines on
+   stable delay. Headphones remain the safe setup; finer alignment is in the backlog. Loopback smoke test before a call: `python -X utf8 escucha/recibo_loopback.py --tts "<english text>" --lang en-US` (gateway TTS clip → dictar → speakers → PARAR → cachos with rms, latency and careo; 2026-10-27 receipt: two `[LLAMADA]` cachos near-verbatim, mic at rms 16 discarded as silence). Never `kill` dictar in a harness: wait for the banner's `Parar:` line and touch that PARAR. **STT redundancy (2026-10-27):** `escucha/careo.py` runs two engines on
    the same wav and a judge when they disagree: whisper + deepgram via the gateway with
    `/v1/refine` as judge when `/health` reports `deepgram`/`claude` configured (both OFF
    today, missing Container App secrets), otherwise whisper + the LOCAL tier as the second

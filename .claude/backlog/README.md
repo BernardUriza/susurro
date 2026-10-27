@@ -5,3 +5,5 @@
 - [refinado-whisper](refinado-whisper.md) — **Proposed** · segunda pasada Whisper sobre ~5 utterances compuestos que corrige puntuación y palabras del ticker de hear (dictado por Bernard, 2026-08-13)
 - [Escucha: feedback vivo + diarización](escucha-feedback-vivo-y-diarizacion.md) — **Done** (2026-08-13) · vúmetro RMS en vivo en dictar.py + diarización al cierre vía gateway `/v1/diarize`, con Hablante A/B en el transcript
 - [El loopback debe seguir al dispositivo de salida cuando Windows lo cambia](loopback-sigue-al-dispositivo-de-salida.md) — **Proposed** · hoy se ata a la bocina default del arranque; si cambia (Bluetooth, dock) el motor oye silencio sin avisar (2026-10-27, /cruel-critic #4)
+- [Antieco: alinear mic y bocina por reloj](antieco-alineacion-fina.md) — **Proposed** · en vivo el AEC baja el eco 4× pero los picos siguen cortando utterances falsos de BERNARD; audífonos siguen siendo la recomendación (2026-10-27)
+- [`/v1/diarize` responde 502](diarize-502.md) — **Proposed** · el upstream LLM de Azure no contesta 200; falta leer el `detail` con la llave de proyecto (el token de onboarding agotó el día) (2026-10-27)

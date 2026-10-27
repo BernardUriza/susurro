@@ -44,10 +44,12 @@ Three things live in this repo:
    disables it. The mic is captured with `-audio_buffer_size 30` (`MIC_BUFFER_MS`): dshow's
    default delivers ~500 ms bursts (measured p95 491 ms) and the AEC needs a steady 30 ms
    cadence to pair frames. WASAPI hands the loopback in ~10 ms chunks, so `frames()` re-blocks
-   them into exact 30 ms frames. Synthetic receipt: echo −20 dB, voice −1 dB, 0.6 % CPU; the
-   live receipt (mp3 through the speakers, mic open) is still pending because the mic read
-   zeros during the test session (Teams mute at device level, see below). Headphones remain
-   the safe setup. **STT redundancy (2026-10-27):** `escucha/careo.py` runs two engines on
+   them into exact 30 ms frames. Synthetic receipt: echo −20 dB, voice −1 dB, 0.6 % CPU.
+   LIVE receipt (2026-10-27, `escucha/recibo_antieco.py`, wav through the speakers, mic
+   open): mic mean during playback 116 rms → 28 with AEC (4×), p90 267 → 145, but the peaks
+   still segmented the same 2 false BERNARD utterances. It attenuates, it does not remove:
+   the mic/loopback pairing still jitters (~13 % of frames re-synced) and AEC3 needs a
+   stable delay. Headphones remain the safe setup; finer alignment is in the backlog. **STT redundancy (2026-10-27):** `escucha/careo.py` runs two engines on
    the same wav and a judge when they disagree: whisper + deepgram via the gateway with
    `/v1/refine` as judge when `/health` reports `deepgram`/`claude` configured (both OFF
    today, missing Container App secrets), otherwise whisper + the LOCAL tier as the second
@@ -55,7 +57,12 @@ Three things live in this repo:
    `sherpa-onnx` (~640 MB in `~/.cache/susurro/modelos/`, loads in ~2 s, 0.1-0.2 s per
    utterance on the ThinkPad CPU, got "Infios" right where whisper wrote "Infuse"); it also
    answers when the gateway fails (429/5xx/down) and gives the acoustic second opinion on
-   weak hallucinations («¡Gracias!»). NOT Whisper: local Whisper stays retired.
+   weak hallucinations («¡Gracias!»). NOT Whisper: local Whisper stays retired. It is NOT
+   the primary engine: measured over 38 recorded utterances it drifts to English on short
+   Spanish clips («test the Ecoli», «Vapority») while whisper with `language=es` holds; it
+   beats whisper on the TTS proper noun («Infios» ×5) and returns nothing on the 24
+   near-silent clips whisper turned into «¡Gracias!» / «Bye.», which is exactly the witness
+   the careo needs.
    `calentar_gateway()` wakes Azure Whisper at start (cold 25.8 s vs warm 1.2 s measured),
    reads the careo capabilities and loads the local model; `stt_gateway` retries once on
    429 (honoring `Retry-After`) and 5xx. `dictar.py` transcribes up to three utterances

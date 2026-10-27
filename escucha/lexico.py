@@ -202,6 +202,14 @@ ALUCINACIONES_DEBILES = frozenset({
     "music",                # [F3]
     "applause",             # [F3]
     "jackie",               # [F5] observado hoy sobre ruido; sin respaldo en F3
+    # [W1] Whisper del gateway sobre casi-silencio en la ThinkPad (2026-10-27, rms 15-150):
+    # despedidas que el tier local (Parakeet) oyó como nada o como «Uh». Sólo cuentan con
+    # testigo: si el local también las oye, pasan como habla.
+    "adios",                # [W1]
+    "chao",                 # [W1]
+    "un saludo",            # [W1]
+    "hasta la proxima",     # [W1]
+    "hasta luego",          # [W1]
 })
 
 _RX_ALUCINACION = tuple(re.compile(p) for p in ALUCINACIONES)

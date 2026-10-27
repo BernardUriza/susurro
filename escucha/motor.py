@@ -16,7 +16,10 @@
 # de reloj), y una queue lo entrega al consumidor. En Windows una segunda fuente,
 # FuenteLoopback (WASAPI loopback de la bocina), alimenta el mismo segmentador
 # etiquetada LLAMADA: así se oye al interlocutor de una llamada de Teams.
-# Tiers de STT: hear (local, es-MX, sólo Mac) → Susurro Gateway (fallback).
+# Tiers de STT: hear (local, es-MX, sólo Mac) → Susurro Gateway (careo whisper↔deepgram
+# con juez /v1/refine cuando el gateway los tiene configurados; ver careo.py) → tier
+# local Parakeet/sherpa-onnx si el gateway falla (stt_local.py). En Windows el mic pasa
+# por cancelación de eco con la bocina como referencia (antieco.py).
 #
 # La capa de PRECISIÓN (corpus de alucinaciones + correcciones de palabra +
 # léxico de dominio) vive en `escucha/lexico.py` — este archivo sólo la cablea.
@@ -46,9 +49,16 @@ from pathlib import Path
 try:
     from escucha.lexico import (ALUCINACIONES, corregir, es_alucinacion,
                                 registrar_cambios)
+    from escucha import careo, stt_local
+    from escucha.antieco import Antieco
+    from escucha.instrumentacion import evento
 except ModuleNotFoundError:
     from lexico import (ALUCINACIONES, corregir, es_alucinacion,
                         registrar_cambios)
+    import careo
+    import stt_local
+    from antieco import Antieco
+    from instrumentacion import evento
 
 GATEWAY = os.environ.get("SUSURRO_GATEWAY", "https://sus.bernarduriza.com")
 HEAR = Path(os.environ.get("HEAR", str(Path.home() / ".local/bin/hear")))
@@ -76,6 +86,12 @@ RMS_MIN = int(os.environ.get("RMS_MIN", "15"))
 RMS_SOSPECHOSO = int(os.environ.get("RMS_SOSPECHOSO", "60" if ES_WINDOWS else "0"))
 UTT_SOSPECHOSO_MS = int(os.environ.get("UTT_SOSPECHOSO_MS", "1500"))
 LOOPBACK = os.environ.get("ESCUCHA_BOCINA", "1" if ES_WINDOWS else "0") == "1"
+# Cancelación de eco del mic con la bocina como referencia; sólo tiene sentido con loopback
+AEC = os.environ.get("ESCUCHA_AEC", "1") == "1"
+# dshow entrega el mic en ráfagas del tamaño de su buffer; para que el Antieco empareje mic y
+# bocina con un desfase estable se pide un buffer corto (ms). 0 = default de dshow.
+MIC_BUFFER_MS = int(os.environ.get("MIC_BUFFER_MS", "30"))
+GATEWAY_TIMEOUT = int(os.environ.get("GATEWAY_TIMEOUT", "45"))
 LOOPBACK_RATE = 16000
 FRAME_MS = 30
 FRAME_BYTES = 16000 * FRAME_MS // 1000 * 2
@@ -191,6 +207,8 @@ class FuenteLoopback:
     def __init__(self, fallos):
         self.fallos = fallos
         self.cola = queue.Queue(maxsize=self.COLA_MAX)
+        # Copia de cada frame entregado (silencio incluido) para el Antieco del mic
+        self.referencia = queue.Queue(maxsize=100)
         self.tirados = 0
         self.vivo = False
         self.pa = None
@@ -232,8 +250,12 @@ class FuenteLoopback:
         return self.nombre
 
     def frames(self):
+        """Frames de EXACTAMENTE FRAME_BYTES: WASAPI entrega chunks de ~10 ms (medido: 100/s
+        aunque se pidan 30 ms), así que se reempaqueta; el segmentador y el Antieco cuentan
+        en frames de FRAME_MS y un frame corto les tuerce el reloj."""
         silencio = bytes(FRAME_BYTES)
         avisados = 0
+        resto = b""
         while self.vivo:
             if self.tirados > avisados:
                 avisados = self.tirados
@@ -241,11 +263,23 @@ class FuenteLoopback:
             try:
                 d = self.cola.get(timeout=FRAME_MS / 1000)
             except queue.Empty:
+                self._referir(silencio)
                 yield silencio
                 continue
             if d is None:
                 return
-            yield d if len(d) == FRAME_BYTES else a_16k_mono(d, self.rate, self.canales)
+            resto += d if (self.rate, self.canales) == (LOOPBACK_RATE, 1) else a_16k_mono(d, self.rate, self.canales)
+            while len(resto) >= FRAME_BYTES:
+                d16, resto = resto[:FRAME_BYTES], resto[FRAME_BYTES:]
+                self._referir(d16)
+                yield d16
+
+    def _referir(self, frame):
+        try:
+            self.referencia.put_nowait(frame)
+        except queue.Full:
+            self.referencia.get_nowait()
+            self.referencia.put_nowait(frame)
 
     def cerrar(self):
         self.vivo = False
@@ -343,19 +377,44 @@ def _leer_key(archivo, patron):
         return ""
 
 
-def stt_gateway(path, language=None):
-    """→ (texto, '') | ('', por_qué_falló). Texto vacío sin causa = silencio real."""
+def susurro_key():
+    return os.environ.get("SUSURRO_KEY") or _leer_key(KEY_SUSURRO, r"^SUSURRO_KEY=(.+)$")
+
+
+def stt_gateway(path, language=None, engine="whisper", reintentos=1):
+    """→ (texto, '') | ('', por_qué_falló). Texto vacío sin causa = silencio real.
+    Un 429 espera su Retry-After (tope 30 s) y reintenta; un 5xx o un corte de red
+    reintenta una vez tras 1 s; un timeout NO reintenta (ya esperó 45 s)."""
     language = (language or IDIOMA).split("-")[0]
-    key = os.environ.get("SUSURRO_KEY") or _leer_key(KEY_SUSURRO, r"^SUSURRO_KEY=(.+)$")
+    key = susurro_key()
     if not key:
         return "", f"sin SUSURRO_KEY en el entorno ni en {KEY_SUSURRO}"
-    try:
-        req = urllib.request.Request(
-            f"{GATEWAY}/v1/stt?language={language}", data=path.read_bytes(),
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "audio/wav"})
-        return json.load(urllib.request.urlopen(req, timeout=45)).get("transcript", "").strip(), ""
-    except Exception as e:
-        return "", f"gateway: {type(e).__name__}: {e}"
+    url = f"{GATEWAY}/v1/stt?language={language}" + ("" if engine == "whisper" else f"&engine={engine}")
+    datos = path.read_bytes()
+    intento = 0
+    while True:
+        intento += 1
+        try:
+            req = urllib.request.Request(
+                url, data=datos, headers={"Authorization": f"Bearer {key}", "Content-Type": "audio/wav"})
+            return json.load(urllib.request.urlopen(req, timeout=GATEWAY_TIMEOUT)).get("transcript", "").strip(), ""
+        except urllib.error.HTTPError as e:
+            causa = f"gateway {engine}: HTTP {e.code}"
+            if intento > reintentos or e.code < 429 or e.code in (431, 451):
+                return "", causa
+            espera = 1.0
+            if e.code == 429:
+                try:
+                    espera = min(30.0, float(e.headers.get("Retry-After", "5")))
+                except ValueError:
+                    espera = 5.0
+            time.sleep(espera)
+        except TimeoutError:
+            return "", f"gateway {engine}: timeout {GATEWAY_TIMEOUT}s"
+        except Exception as e:
+            if isinstance(getattr(e, "reason", None), TimeoutError) or intento > reintentos:
+                return "", f"gateway {engine}: {type(e).__name__}: {e}"
+            time.sleep(1.0)
 
 
 def diarizar(texto, fallos, num_speakers=None):
@@ -363,7 +422,7 @@ def diarizar(texto, fallos, num_speakers=None):
     TRANSCRIPT como texto (diarización LLM, no acústica).
     → [('Hablante A', texto), ...] | None si el gateway falló — el consumidor
     degrada a transcript sin diarizar, jamás rompe el flujo de dictado."""
-    key = os.environ.get("SUSURRO_KEY") or _leer_key(KEY_SUSURRO, r"^SUSURRO_KEY=(.+)$")
+    key = susurro_key()
     if not key:
         fallos.avisar("diarize", f"sin SUSURRO_KEY en el entorno ni en {KEY_SUSURRO}")
         return None
@@ -392,7 +451,8 @@ def diarizar(texto, fallos, num_speakers=None):
 
 
 def transcribir_tiers(path, fallos, language=None):
-    """hear local → gateway. → ('ok', texto) | ('silencio', '') | ('alucinacion', txt)
+    """hear local → gateway (careo whisper↔deepgram si está configurado) → tier local
+    Parakeet si el gateway falló. → ('ok', texto) | ('silencio', '') | ('alucinacion', txt)
     | ('fallo', ''). language: formato hear ('es-MX', 'en-US'); default $ESCUCHA_LANG.
 
     Una alucinación del tier LOCAL ya no se acepta: se descarta y se BAJA al
@@ -415,16 +475,54 @@ def transcribir_tiers(path, fallos, language=None):
         fallos.avisar("alucinacion-hear", f"descartado, bajo a gateway: {txt[:60]!r}")
         txt = ""
     if not txt:
-        txt, causa_gw = stt_gateway(path, language)
+        txt, causa_gw, veredicto = careo.transcribir_careo(
+            path, language, fallos, stt_gateway, susurro_key(),
+            segundo=stt_local.stt_local if stt_local.listo() else None)
         if not txt and causa_gw:
             fallos.avisar("stt-gateway", causa_gw)
+            # El gateway falló (frío, 429, caído): el tier local responde con el mismo wav
+            txt, causa_local = stt_local.stt_local(path, language)
+            if txt:
+                evento("stt.local", motivo="gateway-fallo", wav=Path(path).name, texto=txt[:80])
+            elif causa_local:
+                fallos.avisar("stt-local", causa_local)
     if not txt:
         return "fallo", ""
-    if es_alucinacion(txt):
-        return "alucinacion", txt
+    if es_alucinacion(txt, estricto=True):
+        # Sospechoso: del corpus duro, o una frase DÉBIL («¡Gracias!», «Bye.») que puede ser habla
+        # real. Segunda opinión ACÚSTICA del tier local, sólo si ya está cargado (nunca espera la
+        # carga): si oye otra cosa, gana; si no oye nada, era alucinación; sin testigo, el corpus
+        # duro descarta y la débil pasa como antes.
+        testigo = stt_local.listo()
+        local = stt_local.stt_local(path, language)[0] if testigo else ""
+        if local and not es_alucinacion(local, estricto=True):
+            evento("stt.local", motivo="alucinacion-gateway", wav=Path(path).name,
+                   gateway=txt[:80], texto=local[:80])
+            txt = local
+        elif es_alucinacion(txt) or testigo:
+            return "alucinacion", txt
     txt, cambios = corregir(txt)
     registrar_cambios(fallos.archivo, cambios)
     return "ok", txt
+
+
+def calentar_gateway(audio_dir):
+    """La PRIMERA transcripción del gateway tarda ~25 s (Azure Whisper frío) y las
+    siguientes ~1.2 s (medido 2026-10-27). Un wav de silencio lo despierta antes de la
+    primera frase real; de paso lee las capacidades (careo) y carga el tier local."""
+    def _c():
+        careo.capacidades(refrescar=True)
+        stt_local.calentar()
+        w = Path(audio_dir) / ".warmup-gateway.wav"
+        subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-f", "lavfi",
+                        "-i", "anullsrc=r=16000:cl=mono", "-t", "0.5", str(w)],
+                       capture_output=True)
+        try:
+            if w.exists():
+                stt_gateway(w, reintentos=0)
+        finally:
+            w.unlink(missing_ok=True)
+    threading.Thread(target=_c, daemon=True).start()
 
 
 def calentar_hear(audio_dir):
@@ -470,6 +568,7 @@ class MotorCaptura:
         self.cola = queue.Queue()
         self.ffmpeg = None
         self.loopback = None
+        self.antieco = None
         self.quiere_loopback = LOOPBACK if loopback is None else loopback
         self._hilo_mic = None
         self._hilo_llamada = None
@@ -485,8 +584,12 @@ class MotorCaptura:
         if self.quiere_loopback:
             self.loopback = FuenteLoopback(self.fallos)
             self.loopback.arrancar()
-        entrada = (["-f", "dshow", "-i", f"audio={self.mic_idx}"] if ES_WINDOWS
-                   else ["-f", "avfoundation", "-i", f":{self.mic_idx}"])
+            if AEC:
+                self.antieco = Antieco(self.fallos, self.loopback.referencia)
+        if ES_WINDOWS:
+            entrada = ["-f", "dshow"] + (["-audio_buffer_size", str(MIC_BUFFER_MS)] if MIC_BUFFER_MS else [])                 + ["-i", f"audio={self.mic_idx}"]
+        else:
+            entrada = ["-f", "avfoundation", "-i", f":{self.mic_idx}"]
         try:
             self.ffmpeg = subprocess.Popen(
                 [FFMPEG, "-hide_banner", "-loglevel", "error", *entrada,
@@ -513,7 +616,7 @@ class MotorCaptura:
             d = pipe.read(FRAME_BYTES)
             if not d:
                 return
-            yield d
+            yield self.antieco.procesar(d) if self.antieco else d
 
     def _segmentar(self, fuente, origen_base="BERNARD", fatal=True):
         """Corta `fuente` (frames de FRAME_MS a 16 kHz mono) en utterances. `fatal`:

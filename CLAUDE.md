@@ -37,8 +37,30 @@ Three things live in this repo:
    16 kHz mono is refused) and `a_16k_mono()` converts. `ESCUCHA_BOCINA=0` disables it.
    Short near-silent utterances (`RMS_SOSPECHOSO`, 60 on Windows) are dropped before STT:
    Whisper turns them into «¡Gracias!» / «Thank you.» (31 of 37 phrases in one session).
-   Wear headphones on a call: the mic then hears only Bernard and the loopback only the
-   remote side; on open speakers the mic also hears the speakers (tagged BERNARD). Consumers: `escucha/dictar.py` (terminal
+   **Echo cancellation (2026-10-27):** `escucha/antieco.py` runs WebRTC AEC3 (`pywebrtc-audio`)
+   on every mic frame with the loopback frames as the far-end reference (`FuenteLoopback`
+   tees each delivered frame, silence included, into `referencia`), so the remote party heard
+   through open speakers is subtracted from the mic before segmentation; `ESCUCHA_AEC=0`
+   disables it. The mic is captured with `-audio_buffer_size 30` (`MIC_BUFFER_MS`): dshow's
+   default delivers ~500 ms bursts (measured p95 491 ms) and the AEC needs a steady 30 ms
+   cadence to pair frames. WASAPI hands the loopback in ~10 ms chunks, so `frames()` re-blocks
+   them into exact 30 ms frames. Synthetic receipt: echo −20 dB, voice −1 dB, 0.6 % CPU; the
+   live receipt (mp3 through the speakers, mic open) is still pending because the mic read
+   zeros during the test session (Teams mute at device level, see below). Headphones remain
+   the safe setup. **STT redundancy (2026-10-27):** `escucha/careo.py` runs two engines on
+   the same wav and a judge when they disagree: whisper + deepgram via the gateway with
+   `/v1/refine` as judge when `/health` reports `deepgram`/`claude` configured (both OFF
+   today, missing Container App secrets), otherwise whisper + the LOCAL tier as the second
+   witness. The local tier is `escucha/stt_local.py`: NVIDIA Parakeet-TDT 0.6B v3 int8 on
+   `sherpa-onnx` (~640 MB in `~/.cache/susurro/modelos/`, loads in ~2 s, 0.1-0.2 s per
+   utterance on the ThinkPad CPU, got "Infios" right where whisper wrote "Infuse"); it also
+   answers when the gateway fails (429/5xx/down) and gives the acoustic second opinion on
+   weak hallucinations («¡Gracias!»). NOT Whisper: local Whisper stays retired.
+   `calentar_gateway()` wakes Azure Whisper at start (cold 25.8 s vs warm 1.2 s measured),
+   reads the careo capabilities and loads the local model; `stt_gateway` retries once on
+   429 (honoring `Retry-After`) and 5xx. `dictar.py` transcribes up to three utterances
+   concurrently; the transcript keeps the time the audio was CUT, not when the text arrived.
+   Consumers: `escucha/dictar.py` (terminal
    dictation) and `~/Documents/compras/llamadas/escucha.py` (call copiloto: coach +
    folio extraction). Any new local voice capture MUST consume `escucha/motor.py` —
    do not write a new recorder. Transcribing an ALREADY-RECORDED audio/video file
@@ -56,7 +78,7 @@ Three things live in this repo:
    needed). On Windows: `python -m pip install --user -e .` (the `dictar.exe` lands in
    `%APPDATA%\Python\Python314\Scripts`, add it to PATH or use `python -m escucha.dictar`).
    Engine tests: `cd escucha && PYTHONUTF8=1 python -m unittest test_motor_corte test_lexico
-   test_loopback`.
+   test_loopback test_careo test_antieco`.
 
 ## Commands
 

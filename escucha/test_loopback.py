@@ -58,6 +58,25 @@ class TestSilencioInyectado(unittest.TestCase):
             next(gen)
 
 
+class TestReempaquetado(unittest.TestCase):
+    def test_chunks_de_10ms_salen_como_frames_de_30ms(self):
+        fuente = FuenteLoopback(Fallos(Path(tempfile.mkdtemp()) / "f.log"))
+        fuente.vivo = True
+        fuente.rate, fuente.canales = 48000, 2
+        chunk = array.array("h", [900, 300] * (48000 * 10 // 1000)).tobytes()
+        for _ in range(3):
+            fuente.cola.put(chunk)
+        gen = fuente.frames()
+        d = next(gen)
+        self.assertEqual(len(d), FRAME_BYTES, "tres chunks de 10 ms = un frame de 30 ms")
+        self.assertEqual(rms_frame(d), 600)
+        fuente.cola.put(chunk)
+        self.assertEqual(next(gen), bytes(FRAME_BYTES), "con 10 ms sueltos no hay frame: sale silencio y el resto espera")
+        fuente.cola.put(chunk)
+        fuente.cola.put(chunk)
+        self.assertEqual(rms_frame(next(gen)), 600)
+
+
 class TestColaConTope(unittest.TestCase):
     def test_cola_llena_tira_y_avisa_una_vez_por_crecimiento(self):
         base = Path(tempfile.mkdtemp())

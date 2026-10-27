@@ -16,6 +16,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 import math
 import os
+from concurrent.futures import ThreadPoolExecutor
 import signal
 import sys
 import threading
@@ -28,11 +29,15 @@ from pathlib import Path
 
 try:
     from escucha.motor import (MotorCaptura, Fallos, transcribir_tiers, calentar_hear,
-                               diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS, HEAR, GATEWAY)
+                               calentar_gateway, diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS,
+                               HEAR, GATEWAY)
+    from escucha import careo, stt_local
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from escucha.motor import (MotorCaptura, Fallos, transcribir_tiers, calentar_hear,
-                               diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS, HEAR, GATEWAY)
+                               calentar_gateway, diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS,
+                               HEAR, GATEWAY)
+    from escucha import careo, stt_local
 
 for _flujo in (sys.stdout, sys.stderr):
     if hasattr(_flujo, "reconfigure"):
@@ -119,6 +124,7 @@ def main():
     parar = base / "PARAR"
 
     calentar_hear(base)
+    calentar_gateway(base)
     vum = Vumetro()
     motor = MotorCaptura(base, fallos, on_rms=vum.latido)
     idx = motor.arrancar()
@@ -129,11 +135,15 @@ def main():
                    f"- Corte a {SILENCIO_CORTE_MS}ms de silencio · VAD RMS≥{RMS_MIN}\n\n---\n\n",
                    encoding="utf-8")
     print(f"DICTANDO al mic [{idx}] · bocina: {bocina} · STT {stt}. Habla; cada frase sale al callar.")
+    print(f"Antieco: {'sí' if motor.antieco and motor.antieco.activo else 'no'} · "
+          f"tier local: {'modelo en disco' if stt_local.disponible() else 'sin modelo'} · "
+          f"careo: se lee del gateway al calentar")
     print(f"Parar: Ctrl+C, o crea el archivo {parar}")
     print(f"Transcript: {log}", flush=True)
 
     n_ok = 0
     frases = []
+    candado = threading.Lock()
 
     def metrica_wav(ruta):
         """RMS medio/pico y duración leídos del .wav. Barato y sin dependencias:
@@ -156,6 +166,10 @@ def main():
     def procesar(wav, marca=""):
         nonlocal n_ok
         t0 = time.monotonic()
+        try:
+            hora_audio = datetime.fromtimestamp(Path(wav).stat().st_mtime).strftime("%H:%M:%S")
+        except OSError:
+            hora_audio = ahora()
         estado, txt = transcribir_tiers(wav, fallos)
         if estado != "ok":
             # Los descartes TAMBIÉN se registran: un silencio mal cortado o una
@@ -164,37 +178,42 @@ def main():
                    origen=motor.origen_de(wav),
                    latencia_stt_s=round(time.monotonic() - t0, 2), **metrica_wav(wav))
             return
-        n_ok += 1
-        frases.append(txt)
-        # Quién habló: BERNARD o la BOCINA (la voz sintetizada del asistente
-        # capturada de vuelta por el micrófono). Sin esto, el eco se lee en el
-        # registro como si Bernard lo hubiera dicho.
+        # Quién habló: BERNARD, la BOCINA (eco del TTS) o la LLAMADA (loopback).
         origen = motor.origen_de(wav)
         etiqueta_origen = "" if origen == "BERNARD" else f" [{origen}]"
-        with log.open("a", encoding="utf-8") as f:
-            f.write(f"**[{ahora()}]**{marca}{etiqueta_origen} {txt}\n\n")
-        vum.imprimir(f"CACHO {n_ok}{etiqueta_origen}: {txt}")
-        # Evidencia por frase. Se escribe SIEMPRE, aunque el texto se vea bien:
-        # el registro sirve justo para las veces en que no nos dimos cuenta.
-        fila = {"n": n_ok, "wav": Path(wav).name,
-                "origen": origen, "texto": txt, "chars": len(txt),
-                "latencia_stt_s": round(time.monotonic() - t0, 2),
-                **metrica_wav(wav)}
-        evento("utterance", **fila)
+        # Varias frases se transcriben a la vez: la emisión va bajo candado y el
+        # transcript lleva la hora en que se CORTÓ el audio, no en que llegó el texto
+        with candado:
+            n_ok += 1
+            frases.append((Path(wav).name, txt))
+            with log.open("a", encoding="utf-8") as f:
+                f.write(f"**[{hora_audio}]**{marca}{etiqueta_origen} {txt}\n\n")
+            vum.imprimir(f"CACHO {n_ok}{etiqueta_origen}: {txt}")
+            fila = {"n": n_ok, "wav": Path(wav).name,
+                    "origen": origen, "texto": txt, "chars": len(txt),
+                    "latencia_stt_s": round(time.monotonic() - t0, 2),
+                    **metrica_wav(wav)}
+            evento("utterance", **fila)
 
+    # Tres transcripciones en vuelo a la vez: una frase lenta (gateway frío, 25 s)
+    # ya no congela las que vienen detrás ni a la otra fuente
+    pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="stt")
     interrumpido = False
     try:
         for wav in motor.utterances(parar=parar.exists):
             if wav is None:
                 vum.imprimir("LA GRABACION MURIO SOLA — el mic ya no captura. Relanza dictar.py")
                 break
-            procesar(wav)
+            pool.submit(procesar, wav)
     except KeyboardInterrupt:
         interrumpido = True
 
     for wav in motor.cerrar():
-        procesar(wav, marca=" ·final")
+        pool.submit(procesar, wav, " ·final")
+    pool.shutdown(wait=True)
     vum.apagar()
+    frases.sort()
+    frases = [txt for _, txt in frases]
 
     hablantes = diarizar("\n".join(frases), fallos) if len(frases) >= 2 else None
     if hablantes:
@@ -206,6 +225,11 @@ def main():
     with log.open("a", encoding="utf-8") as f:
         f.write(f"\n---\n\n- Fin: {ahora()} · {n_ok} frases · "
                 f"{motor.n_mudo} silencios descartados\n")
+        if motor.antieco:
+            f.write(f"- Antieco: {motor.antieco.resumen()}\n")
+        caps = careo.capacidades()
+        f.write(f"- Careo: deepgram {'sí' if caps.get('deepgram') else 'no'} · juez {'sí' if caps.get('claude') else 'no'}"
+                f" · tier local {'cargado' if stt_local.listo() else (stt_local.causa() or 'no se necesitó')}\n")
         if hablantes:
             f.write(f"- Hablantes: {len({q for q, _ in hablantes})}\n")
         f.write(fallos.resumen())

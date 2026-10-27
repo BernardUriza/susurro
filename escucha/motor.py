@@ -49,7 +49,7 @@ from pathlib import Path
 try:
     from escucha.lexico import (ALUCINACIONES, corregir, es_alucinacion,
                                 registrar_cambios)
-    from escucha import careo, stt_local
+    from escucha import careo, stt_local, vad
     from escucha.antieco import Antieco
     from escucha.instrumentacion import evento
 except ModuleNotFoundError:
@@ -57,6 +57,7 @@ except ModuleNotFoundError:
                         registrar_cambios)
     import careo
     import stt_local
+    import vad
     from antieco import Antieco
     from instrumentacion import evento
 
@@ -470,8 +471,9 @@ def diarizar(texto, fallos, num_speakers=None):
 
 def transcribir_tiers(path, fallos, language=None):
     """hear local → gateway (careo whisper↔deepgram si está configurado) → tier local
-    Parakeet si el gateway falló. → ('ok', texto) | ('silencio', '') | ('alucinacion', txt)
-    | ('fallo', ''). language: formato hear ('es-MX', 'en-US'); default $ESCUCHA_LANG.
+    Parakeet si el gateway falló. → ('ok', texto) | ('silencio', '') | ('ruido', '')
+    | ('alucinacion', txt) | ('fallo', ''). language: formato hear ('es-MX', 'en-US');
+    default $ESCUCHA_LANG. 'ruido' = pasó el RMS pero el VAD de RNNoise no oyó voz.
 
     Una alucinación del tier LOCAL ya no se acepta: se descarta y se BAJA al
     gateway, que sobre el mismo wav suele acertar. Sólo si el último tier
@@ -483,6 +485,13 @@ def transcribir_tiers(path, fallos, language=None):
     if rms < RMS_MIN or (RMS_SOSPECHOSO and rms < RMS_SOSPECHOSO
                          and duracion_ms(path) < UTT_SOSPECHOSO_MS):
         return "silencio", ""
+    # Energía no es voz: un golpe o el teclado pasan el RMS y whisper los vuelve «Boop! Boop!».
+    # RNNoise (el VAD de murmuraba) dice si hubo voz antes de pagar un solo tier.
+    veredicto_vad, _ = vad.juzgar(path)
+    if veredicto_vad == "ruido":
+        return "ruido", ""
+    if veredicto_vad == "sin_vad" and vad.ACTIVO and not vad.disponible():
+        fallos.avisar("vad", "sin node o sin vad_rnnoise.mjs: el ruido pasa a whisper sin filtro")
     estado, txt, causa = stt_hear(path, language)
     if estado == "silencio":
         return "silencio", ""

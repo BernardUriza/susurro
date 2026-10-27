@@ -200,12 +200,14 @@ class TestTierLocalDeRespaldo(unittest.TestCase):
         self.base = Path(tempfile.mkdtemp())
         self.wav = wav_de_prueba(self.base)
         self.fallos = Fallos(self.base / "f.log")
+        self._vad, motor.vad.ACTIVO = motor.vad.ACTIVO, False
         self._gw, self._hear = motor.stt_gateway, motor.stt_hear
         self._local, self._listo = stt_local.stt_local, stt_local.listo
         motor.stt_hear = lambda p, l=None: ("fallo", "", "no existe")
         careo._capacidades.clear()
 
     def tearDown(self):
+        motor.vad.ACTIVO = self._vad
         motor.stt_gateway, motor.stt_hear = self._gw, self._hear
         stt_local.stt_local, stt_local.listo = self._local, self._listo
 
@@ -249,12 +251,14 @@ class TestHallazgosDelCritico(unittest.TestCase):
         self.base = Path(tempfile.mkdtemp())
         self.wav = wav_de_prueba(self.base)
         self.fallos = Fallos(self.base / "f.log")
+        self._vad, motor.vad.ACTIVO = motor.vad.ACTIVO, False
         self._gw, self._hear, self._idioma = motor.stt_gateway, motor.stt_hear, motor.IDIOMA
         self._local, self._listo = stt_local.stt_local, stt_local.listo
         motor.stt_hear = lambda p, l=None: ("fallo", "", "no existe")
         careo._capacidades.clear()
 
     def tearDown(self):
+        motor.vad.ACTIVO = self._vad
         motor.stt_gateway, motor.stt_hear, motor.IDIOMA = self._gw, self._hear, self._idioma
         stt_local.stt_local, stt_local.listo = self._local, self._listo
 

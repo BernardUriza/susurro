@@ -57,7 +57,7 @@ Three things live in this repo:
    `sherpa-onnx` (~640 MB in `~/.cache/susurro/modelos/`, loads in ~2 s, 0.1-0.2 s per
    utterance on the ThinkPad CPU, got "Infios" right where whisper wrote "Infuse"); it also
    answers when the gateway fails (429/5xx/down) and gives the acoustic second opinion on
-   weak hallucinations («¡Gracias!»): a weak phrase the local tier ALSO heard is speech and passes; only a mute witness proves hallucination (2026-10-27 review). When the witness answers and whisper failed, the gateway failure still lands in fallos.log and the footer counts the phrases the local tier decided. `corregir()` runs only when the session language is Spanish: its rules («be allowed» → Visalaw, bus → bug) were written for es-MX hear and corrupt English [LLAMADA] transcripts. NOT Whisper: local Whisper stays retired. It is NOT
+   weak hallucinations («¡Gracias!»): a weak phrase the local tier ALSO heard is speech and passes; only a mute witness proves hallucination (2026-10-27 review). When the witness answers and whisper failed, the gateway failure still lands in fallos.log and the footer counts the phrases the local tier decided. `corregir()` runs only when the session language is Spanish: its rules («be allowed» → Visalaw, bus → bug) were written for es-MX hear and corrupt English [LLAMADA] transcripts. **Noise gate (2026-10-27):** `escucha/vad.py` runs RNNoise, the same WASM murmuraba uses (`packages/rnnoise-wasm`), through Node (`escucha/vad_rnnoise.mjs`) on every utterance that passed the RMS threshold, BEFORE any STT tier: fewer than 500 ms of voiced frames or a mean voice probability under 0.30 is `ruido` and never reaches whisper. Measured on 75 utterances: real speech ≥ 540 ms / ≥ 0.38, all 30 noises and hallucinations («Boop! Boop!», «Bye.», «¡Chao!» at rms up to 1515) ≤ 470 ms or ≤ 0.33. ~130 ms CPU per utterance; `ESCUCHA_VAD=0` disables; without Node the engine warns once and passes everything. Its tests use the repo's JFK `public/sample.wav` as voice and ffmpeg pink noise as noise, never recordings from a work machine. The Silero VAD was tried and dropped: murmuraba's engine is the canonical one. NOT Whisper: local Whisper stays retired. It is NOT
    the primary engine: measured over 38 recorded utterances it drifts to English on short
    Spanish clips («test the Ecoli», «Vapority») while whisper with `language=es` holds; it
    beats whisper on the TTS proper noun («Infios» ×5) and returns nothing on the 24
@@ -85,7 +85,7 @@ Three things live in this repo:
    needed). On Windows: `python -m pip install --user -e .` (the `dictar.exe` lands in
    `%APPDATA%\Python\Python314\Scripts`, add it to PATH or use `python -m escucha.dictar`).
    Engine tests: `cd escucha && PYTHONUTF8=1 python -m unittest test_motor_corte test_lexico
-   test_loopback test_careo test_antieco`.
+   test_loopback test_careo test_antieco test_vad` (test_vad needs Node).
 
 ## Commands
 

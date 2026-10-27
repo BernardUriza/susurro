@@ -358,6 +358,8 @@ class TestFlujoDeTiers(unittest.TestCase):
         import tempfile
         from escucha import motor
         cls.motor = motor
+        cls._vad_activo = motor.vad.ACTIVO
+        motor.vad.ACTIVO = False
         cls.tmp = Path(tempfile.mkdtemp())
         cls.wav = cls.tmp / "ruido.wav"
         r = subprocess.run(
@@ -376,6 +378,10 @@ class TestFlujoDeTiers(unittest.TestCase):
         log = self.tmp / f"{nombre}.log"
         log.write_text("")
         return self.motor.Fallos(log), log
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.motor.vad.ACTIVO = cls._vad_activo
 
     def test_alucinacion_del_local_baja_al_gateway(self):
         self.motor.stt_hear = lambda p, l=None: ("ok", "¡Suscríbete al canal!", "")

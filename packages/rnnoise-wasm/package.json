@@ -7,6 +7,7 @@
       "url": "git+https://github.com/jitsi/rnnoise-wasm.git"
     },
     "main": "index.js",
+    "type": "module",
     "scripts": {
         "build:dockerimage": "docker image inspect -f '.' emscripten-autotools || docker build -t emscripten-autotools .",
         "build:emscripten": "docker run --rm -v $(pwd):/src emscripten-autotools bash -x ./build.sh",

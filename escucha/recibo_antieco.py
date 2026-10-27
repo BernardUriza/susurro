@@ -11,7 +11,7 @@ import time
 import winsound
 from pathlib import Path
 
-sys.path.insert(0, r"C:\Users\bernard.uriza\Documents\BernardUriza\susurro")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from escucha import motor  # noqa: E402
 
 wav = sys.argv[1]

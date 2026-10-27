@@ -151,6 +151,7 @@ his apps call it instead of holding Azure/Deepgram/Anthropic keys directly.
 | `POST /v1/stt` | `Bearer` | audio body → `{transcript}`. `?engine=whisper`(default)`\|deepgram`, `?language=` |
 | `POST /v1/tts` | `Bearer` | `{input, voice?, format?}` → audio bytes |
 | `POST /v1/refine` | `Bearer` | `{web_speech_text, deepgram_text}` → `{refined}` (Claude) |
+| `POST /v1/diarize` | `Bearer` | `{transcript, num_speakers?}` → `{segments:[{speaker,text}], speakers}` (LLM, text-based) |
 | `POST /v1/claim` | none | redeem a one-time claim code → token shown once, claim burns |
 | `POST /openai/deployments/{d}/audio/speech` | `api-key` or Bearer | Azure-OpenAI-compat TTS shim |
 | `POST /openai/deployments/{d}/audio/transcriptions` | `api-key` or Bearer | Azure-compat STT (multipart → `{text}`) |
@@ -169,6 +170,14 @@ his apps call it instead of holding Azure/Deepgram/Anthropic keys directly.
   (`susurro-rg`, deployments `tts`/`whisper`) — NOT insult-openai (its voice deployments were
   deleted). The `/v1/*` + Azure-compat contract is the stable interface; the engine can be
   swapped to self-hosted Whisper/TTS later with zero consumer change.
+- **Diarize has a DIFFERENT upstream: the AIRE OpenAI gate, not Azure.** `/v1/diarize` posts
+  plain OpenAI shape (`{DIARIZE_OPENAI_ENDPOINT}/chat/completions`, `Authorization: Bearer`,
+  `"model": DIARIZE_MODEL`) to `https://gate.bernarduriza.com/openai/v1` with `gpt-5.4-mini`
+  (AIRE backlog #51; invited key `susurro-diarize`, local copy
+  `~/.secrets/aire-key-susurro-diarize.txt`, Container App secret `diarize-openai-key`). It used
+  to point at an `insult-openai` deployment that was deleted 2026-10-16, which made `/v1/diarize`
+  return 502 "Diarize LLM 401" while STT/TTS were fine. gpt-5.x rejects `max_tokens` (use
+  `max_completion_tokens`); `temperature` is accepted — both measured against the gate 2026-10-27.
 - **The upstream is rate-limited to 3 requests/minute — this is the #1 way the gateway
   "looks dead".** Azure provisions voice deployments by `capacity`, and 1 unit = 1 RPM. Both
   `whisper` and `tts` sat at `capacity: 1` until 2026-07-11 (so the SECOND call inside a minute

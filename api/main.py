@@ -35,10 +35,12 @@ DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 
-DIARIZE_ENDPOINT = os.getenv("DIARIZE_OPENAI_ENDPOINT", "").rstrip("/")
+# Diarization LLM: the AIRE OpenAI gate (backlog #51), plain OpenAI shape —
+# {endpoint}/chat/completions, Bearer key, "model" in the body. No Azure
+# deployments/api-version: insult-openai (the old Azure upstream) was deleted 2026-10-16.
+DIARIZE_ENDPOINT = os.getenv("DIARIZE_OPENAI_ENDPOINT", "https://gate.bernarduriza.com/openai/v1").rstrip("/")
 DIARIZE_KEY = os.getenv("DIARIZE_OPENAI_KEY", "")
-DIARIZE_DEPLOYMENT = os.getenv("DIARIZE_DEPLOYMENT", "gpt-4.1")
-DIARIZE_API_VERSION = os.getenv("DIARIZE_API_VERSION", "2024-02-15-preview")
+DIARIZE_MODEL = os.getenv("DIARIZE_MODEL", "gpt-5.4-mini")
 DIARIZE_WINDOW_CHARS = int(os.getenv("DIARIZE_WINDOW_CHARS", "6000"))
 
 PROMPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompts")
@@ -573,17 +575,18 @@ async def _diarize_window(client: httpx.AsyncClient, system_prompt: str, window:
     roster_line = f"Hablantes ya identificados (reutiliza estas etiquetas): {', '.join(roster)}.\n\n" if roster else ""
     hint = f"Pista: la conversación tiene aproximadamente {num_speakers} hablantes.\n\n" if num_speakers else ""
     user_prompt = f"{roster_line}{hint}Fragmento de transcripción:\n\n{window}"
-    url = f"{DIARIZE_ENDPOINT}/openai/deployments/{DIARIZE_DEPLOYMENT}/chat/completions?api-version={DIARIZE_API_VERSION}"
     resp = await client.post(
-        url,
-        headers={"api-key": DIARIZE_KEY, "Content-Type": "application/json"},
+        f"{DIARIZE_ENDPOINT}/chat/completions",
+        headers={"Authorization": f"Bearer {DIARIZE_KEY}", "Content-Type": "application/json"},
         json={
+            "model": DIARIZE_MODEL,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": 0.1,
-            "max_tokens": 4000,
+            # gpt-5.x wants "max_completion_tokens"; "max_tokens" is a 400 (measured against the gate 2026-10-27)
+            "max_completion_tokens": 4000,
             "response_format": {"type": "json_object"},
         },
     )
@@ -616,7 +619,7 @@ async def diarize(request: Request, key: dict = Depends(require_susurro_key)) ->
                     roster.append(speaker)
                 segments.append({"speaker": speaker, "text": seg["text"]})
     record_usage(key["RowKey"], "diarize", len(transcript), REFINE_USD_PER_REQUEST)
-    return JSONResponse({"success": True, "segments": segments, "speakers": roster, "num_speakers": len(roster), "engine": f"azure-{DIARIZE_DEPLOYMENT}"})
+    return JSONResponse({"success": True, "segments": segments, "speakers": roster, "num_speakers": len(roster), "engine": f"aire-{DIARIZE_MODEL}"})
 
 
 def require_susurro_key_compat(

@@ -178,14 +178,15 @@ his apps call it instead of holding Azure/Deepgram/Anthropic keys directly.
   to point at an `insult-openai` deployment that was deleted 2026-10-16, which made `/v1/diarize`
   return 502 "Diarize LLM 401" while STT/TTS were fine. gpt-5.x rejects `max_tokens` (use
   `max_completion_tokens`); `temperature` is accepted — both measured against the gate 2026-10-27.
-- **The upstream is rate-limited to 3 requests/minute — this is the #1 way the gateway
+- **The upstream is rate-limited to 30 requests/minute — this is the #1 way the gateway
   "looks dead".** Azure provisions voice deployments by `capacity`, and 1 unit = 1 RPM. Both
   `whisper` and `tts` sat at `capacity: 1` until 2026-07-11 (so the SECOND call inside a minute
-  got a 429 and the gateway turned it into a 502 — whisper appeared to be down in prod). Both
-  are now at `capacity: 3`, which is the **subscription's hard ceiling** in northcentralus
-  (`az cognitiveservices usage list -l northcentralus` → `OpenAI.Standard.whisper limit=3`).
-  More capacity requires a quota increase (https://aka.ms/oai/quotaincrease). Check the live
-  value before blaming the code:
+  got a 429 and the gateway turned it into a 502 — whisper appeared to be down in prod), then at
+  `capacity: 3` (the old subscription ceiling). Since a quota increase both are at `capacity: 30`,
+  which is the **current ceiling** in northcentralus (`az cognitiveservices usage list -l
+  northcentralus` → `OpenAI.Standard.whisper limit=30`, measured 2026-10-27). More requires
+  another quota increase (https://aka.ms/oai/quotaincrease). Check the live value before
+  blaming the code:
   ```bash
   az cognitiveservices account deployment show -n susurro-openai -g susurro-rg \
     --deployment-name whisper --query "{capacity:sku.capacity, rpm:properties.rateLimits[0].count}"

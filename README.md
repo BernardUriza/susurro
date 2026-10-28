@@ -69,7 +69,7 @@ Secrets (`ADMIN_TOKEN`, `AZURE_OPENAI_KEY`, `TABLES_CONN`, …) are set out-of-b
 
 ## Roadmap
 
-See `ROADMAP.html`. Next: migrate remaining consumers, then swap the engine to self-hosted
+See `ROADMAP.html`. The local listening engine (mic + speaker capture, voice segmentation, live transcription through this gateway, Mac and Windows) is `escucha/`, see [escucha/README.md](escucha/README.md). Next: migrate remaining consumers, then swap the engine to self-hosted
 Whisper + Kokoro/Piper (the contract doesn't change).
 
 ## License

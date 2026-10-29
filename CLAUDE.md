@@ -63,6 +63,29 @@ Three things live in this repo:
    beats whisper on the TTS proper noun («Infios» ×5) and returns nothing on the 24
    near-silent clips whisper turned into «¡Gracias!» / «Bye.», which is exactly the witness
    the careo needs.
+   **Teams live captions as the preferred LLAMADA source (2026-10-29):** `escucha/teams_captions.mjs`
+   (Node ≥ 22, no npm; raw CDP over the debug Chrome on `127.0.0.1:9333`) installs a scraper in every
+   Teams web target (`teams.microsoft.com` / `teams.cloud.microsoft`), polls `drenar()` every 150 ms
+   (1.2 ms median round-trip measured) and emits one JSON line per caption `{ts, speaker, text, rev,
+   t_estable_ms, fuente}` to stdout and to `--out` (default `%LOCALAPPDATA%\escucha\captions.jsonl`).
+   A caption is final when its text has been stable 900 ms or a newer caption appeared; a later edit
+   by Teams re-emits it with `rev+1`. `escucha/captions.py` (`FuenteCaptions`) spawns it from
+   `dictar.py`; captions print as `CACHO n [LLAMADA·<speaker>]: …` with `fuente=captions` and
+   `latencia_captions_ms` in `registro.jsonl`, and while captions arrive (20 s window) loopback
+   utterances tagged LLAMADA are discarded (`motivo=captions-activos`): the loopback is the fallback,
+   not the primary. Why: 2026-10-29 call with Brian, 690 loopback utterances, median 7.2 s long
+   (a trainer never leaves the 500 ms gap) + 1.9 s STT = 9.6 s median phrase→text, p90 16.6 s, and
+   Whisper misheard him repeatedly. The DOM selectors (header of the `.mjs`) are the community-known
+   ones (`[data-tid="closed-captions-renderer"]`, `.fui-ChatMessageCompact`, `[data-tid="author"]`,
+   `[data-tid="closed-caption-text"]`, with classic/transcript/generic fallbacks) and are NOT yet
+   verified in a live call; `node escucha/teams_captions.mjs --una-vez` is the one-line check.
+   `ESCUCHA_CAPTIONS=0` disables. **Avisos (2026-10-29):** `escucha/avisos.py` is an append-only
+   JSONL channel (`%LOCALAPPDATA%\escucha\avisos.jsonl`) that `dictar.py` tails every 0.5 s and
+   prints as `⚠ AVISO <situacion> · ~N s` + `🔊 SUGIERO DIGAS ESTO:` + 2-3 English phrases from
+   `escucha/frases_ganar_tiempo.md` (content, not code). `escucha/aviso_compact.py` writes it: as the
+   `PreCompact` hook of Claude Code (reads the hook JSON on stdin, always exit 0) or by hand
+   (`--situacion esperando-build --segundos 40`); it fires a short TTS via `hablar.py` only when a
+   dictar session wrote its registro in the last 3 min and has no PARAR. Tests: `test_captions.py`.
    `calentar_gateway()` wakes Azure Whisper at start (cold 25.8 s vs warm 1.2 s measured),
    reads the careo capabilities and loads the local model; `stt_gateway` retries once on
    429 (honoring `Retry-After`) and 5xx. `dictar.py` transcribes up to three utterances

@@ -31,14 +31,14 @@ try:
     from escucha.motor import (MotorCaptura, Fallos, transcribir_tiers, calentar_hear,
                                calentar_gateway, diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS,
                                HEAR, GATEWAY)
-    from escucha import careo, stt_local
+    from escucha import careo, stt_local, captions, avisos
     from escucha.eco import FiltroEco
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from escucha.motor import (MotorCaptura, Fallos, transcribir_tiers, calentar_hear,
                                calentar_gateway, diarizar, ahora, RMS_MIN, SILENCIO_CORTE_MS,
                                HEAR, GATEWAY)
-    from escucha import careo, stt_local
+    from escucha import careo, stt_local, captions, avisos
     from escucha.eco import FiltroEco
 
 for _flujo in (sys.stdout, sys.stderr):
@@ -150,6 +150,41 @@ def main():
     frases = []
     candado = threading.Lock()
 
+    def frase_caption(fr):
+        """Una frase de los live captions de Teams (fuente preferida de LLAMADA): sale como
+        `CACHO n [LLAMADA·Quién]: texto` sin pasar por audio ni STT. rev>0 = Teams la corrigió."""
+        nonlocal n_ok
+        hora = fr["ts"][11:19] if len(fr.get("ts", "")) >= 19 else ahora()
+        quien = f"·{fr['speaker']}" if fr.get("speaker") else ""
+        marca = " (corrección)" if fr.get("rev", 0) > 0 else ""
+        # Con bocinas abiertas la voz de Brian también entra al mic: el caption es la referencia
+        # del filtro de eco textual, igual que lo era el cacho del loopback
+        filtro_eco.registrar_llamada(fr["text"])
+        with candado:
+            n_ok += 1
+            frases.append((f"cap-{n_ok:04d}", fr["text"]))
+            with log.open("a", encoding="utf-8") as f:
+                f.write(f"**[{hora}]** [LLAMADA{quien}]{marca} {fr['text']}\n\n")
+            vum.imprimir(f"CACHO {n_ok} [LLAMADA{quien}]{marca}: {fr['text']}")
+            evento("utterance", n=n_ok, origen="LLAMADA", fuente="captions", speaker=fr.get("speaker", ""),
+                   texto=fr["text"], chars=len(fr["text"]), rev=fr.get("rev", 0),
+                   latencia_captions_ms=fr.get("t_estable_ms"), dom=fr.get("fuente", ""))
+
+    fuente_captions = captions.FuenteCaptions(fallos, base, frase_caption)
+    con_captions = fuente_captions.arrancar()
+    lector_avisos = avisos.Avisos()
+    print(f"Captions de Teams (CDP 9333): {'leyendo el DOM; la bocina queda de respaldo' if con_captions else 'no (sin node/script o ESCUCHA_CAPTIONS=0); LLAMADA viene de la bocina'}"
+          f" · avisos: {lector_avisos.ruta}", flush=True)
+
+    def drenar_avisos(parar_fn):
+        # Un hook PreCompact o un `aviso_compact.py` escribe el aviso; aquí sale a pantalla en <1 s
+        # aunque nadie esté hablando (el bucle de utterances sólo despierta con audio)
+        while not parar_fn():
+            for av in lector_avisos.nuevos():
+                for linea in avisos.formatear(av):
+                    vum.imprimir(linea)
+            time.sleep(0.5)
+
     def metrica_wav(ruta):
         """RMS medio/pico y duración leídos del .wav. Barato y sin dependencias:
         es la evidencia mínima para saber si algo fue voz cercana, eco de bocina
@@ -175,6 +210,12 @@ def main():
             hora_audio = datetime.fromtimestamp(Path(wav).stat().st_mtime).strftime("%H:%M:%S")
         except OSError:
             hora_audio = ahora()
+        if motor.origen_de(wav) == "LLAMADA" and fuente_captions.activo():
+            # Los captions de Teams ya traen al interlocutor con nombre y en ~1 s; la bocina
+            # transcrita por Whisper es el respaldo y sólo manda cuando los captions callan
+            evento("utterance.descartado", wav=Path(wav).name, motivo="captions-activos",
+                   origen="LLAMADA", **metrica_wav(wav))
+            return
         estado, txt = transcribir_tiers(wav, fallos)
         if estado != "ok":
             # Los descartes TAMBIÉN se registran: un silencio mal cortado o una
@@ -213,15 +254,22 @@ def main():
     # ya no congela las que vienen detrás ni a la otra fuente
     pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="stt")
     interrumpido = False
+    terminando = threading.Event()
+    threading.Thread(target=drenar_avisos, args=(terminando.is_set,), daemon=True).start()
     try:
         for wav in motor.utterances(parar=parar.exists):
             if wav is None:
                 vum.imprimir("LA GRABACION MURIO SOLA — el mic ya no captura. Relanza dictar.py")
                 break
+            if con_captions and not fuente_captions.vivo():
+                con_captions = False
+                vum.imprimir("⚠ el lector de captions de Teams murió; LLAMADA vuelve a la bocina")
             pool.submit(procesar, wav)
     except KeyboardInterrupt:
         interrumpido = True
 
+    terminando.set()
+    fuente_captions.cerrar()
     for wav in motor.cerrar():
         pool.submit(procesar, wav, " ·final")
     pool.shutdown(wait=True)
@@ -241,6 +289,7 @@ def main():
                 f"{motor.n_mudo} silencios descartados\n")
         if motor.antieco:
             f.write(f"- Antieco: {motor.antieco.resumen()}\n")
+        f.write(f"- {fuente_captions.resumen()}\n")
         caps = careo.capacidades()
         f.write(f"- Careo: deepgram {'sí' if caps.get('deepgram') else 'no'} · juez {'sí' if caps.get('claude') else 'no'}"
                 f" · tier local {'cargado' if stt_local.listo() else (stt_local.causa() or 'no se necesitó')}\n")

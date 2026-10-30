@@ -75,10 +75,15 @@ Three things live in this repo:
    utterances tagged LLAMADA are discarded (`motivo=captions-activos`): the loopback is the fallback,
    not the primary. Why: 2026-10-29 call with Brian, 690 loopback utterances, median 7.2 s long
    (a trainer never leaves the 500 ms gap) + 1.9 s STT = 9.6 s median phrase→text, p90 16.6 s, and
-   Whisper misheard him repeatedly. The DOM selectors (header of the `.mjs`) are the community-known
-   ones (`[data-tid="closed-captions-renderer"]`, `.fui-ChatMessageCompact`, `[data-tid="author"]`,
-   `[data-tid="closed-caption-text"]`, with classic/transcript/generic fallbacks) and are NOT yet
-   verified in a live call; `node escucha/teams_captions.mjs --una-vez` is the one-line check.
+   Whisper misheard him repeatedly. The DOM selectors (header of the `.mjs`) come from the
+   open-source Live-Captions-Saver (Zerg00s, extension 5.0.0 of 2026-10-14) and a 2024 userstyle:
+   containers tried one at a time in layout order (`closed-caption-renderer-wrapper` 2026 →
+   `closed-caption-v2-window-wrapper` → `closed-captions-renderer` 2024; a comma list returns the
+   toolbar's Captions button first), lines `.fui-ChatMessageCompact`, `[data-tid="author"]`,
+   `[data-tid="closed-caption-text"]`, with classic/transcript/generic fallbacks. The 2026 panel is a
+   virtual list (only visible lines exist in the DOM) and Teams edits lines in place, which is what
+   the `rev+1` re-emit covers. NOT yet verified in a live call; `node escucha/teams_captions.mjs
+   --una-vez` is the one-line check. No source documents the in-meeting transcript pane's DOM.
    `ESCUCHA_CAPTIONS=0` disables. **Avisos (2026-10-29):** `escucha/avisos.py` is an append-only
    JSONL channel (`%LOCALAPPDATA%\escucha\avisos.jsonl`) that `dictar.py` tails every 0.5 s and
    prints as `⚠ AVISO <situacion> · ~N s` + `🔊 SUGIERO DIGAS ESTO:` + 2-3 English phrases from

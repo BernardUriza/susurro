@@ -17,10 +17,12 @@ const OUT = arg("--out", process.env.ESCUCHA_CAPTIONS || `${process.env.LOCALAPP
 const PATRON_TEAMS = /teams\.microsoft\.com|teams\.cloud\.microsoft|teams\.live\.com/;
 
 // Selectores del DOM de Teams web (T2.1, 2026-10). Cada entrada: contenedor, fila, autor, texto. El primero que devuelve
-// filas gana; "fuente" dice cuál. Hasta no verlo en una llamada viva, los dos primeros son los documentados por la
-// comunidad (extensiones de caption-saver) y el tercero es el genérico por nombre de clase. Para refrescarlos: en la
-// llamada, con captions encendidos, `document.querySelector('[data-tid*="caption"]')` y anotar lo que cuelga de ahí.
+// filas gana; "fuente" dice cuál. Los contenedores "cc*" van UNO por entrada y en orden de layout (2026 → v2 → 2024),
+// como los prueba Live-Captions-Saver (Zerg00s): una lista con comas devuelve el botón Captions del toolbar, no el panel.
+// Sin verificar en llamada viva; fuentes en onboarding/conocimiento/investigacion/P5-teams-live-captions-dom.md.
 const SELECTORES = [
+  { fuente: "cc-2026", contenedor: '[data-tid="closed-caption-renderer-wrapper"]', fila: '.fui-ChatMessageCompact, [data-tid="closed-caption-message"], [role="listitem"]', autor: '[data-tid="author"], .fui-ChatMessageCompact__author', texto: '[data-tid="closed-caption-text"], .fui-ChatMessageCompact__body' },
+  { fuente: "cc-v2", contenedor: '[data-tid="closed-caption-v2-window-wrapper"]', fila: '.fui-ChatMessageCompact, [data-tid="closed-caption-message"], [role="listitem"]', autor: '[data-tid="author"], .fui-ChatMessageCompact__author', texto: '[data-tid="closed-caption-text"], .fui-ChatMessageCompact__body' },
   { fuente: "cc", contenedor: '[data-tid="closed-captions-renderer"]', fila: '.fui-ChatMessageCompact, [data-tid="closed-caption-message"], [role="listitem"]', autor: '[data-tid="author"], .fui-ChatMessageCompact__author', texto: '[data-tid="closed-caption-text"], .fui-ChatMessageCompact__body' },
   { fuente: "cc-classic", contenedor: '.ts-captions-container, [class*="closedCaptions"], [class*="closed-captions"]', fila: '.ui-chat__message, [class*="caption-item"], [class*="captionItem"]', autor: '.ui-chat__message__author, [class*="author"]', texto: '.ui-chat__message__content, [class*="caption-text"], [class*="captionText"]' },
   { fuente: "transcript", contenedor: '[data-tid="transcript-pane"], [data-tid*="transcript"], [aria-label*="Transcript" i]', fila: '[data-tid*="transcript-entry"], [data-tid*="transcript-item"], .fui-ChatMessageCompact, [role="listitem"]', autor: '[data-tid="author"], [class*="author"]', texto: '[data-tid*="text"], [class*="body"], [class*="content"]' },

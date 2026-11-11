@@ -42,7 +42,8 @@ const norm = (w) => [...w.toLowerCase()].filter((c) => /[\p{L}\p{N}']/u.test(c))
 const endsSentence = (w) => /[.?!]["')\]]*$/.test(w);
 const endsQuestion = (w) => /[?]["')\]]*$/.test(w);
 const TAIL_N = 6;
-const RE_REUNION = /meet[.]google[.]com[/][a-z]{3}-[a-z]{4}-[a-z]{3}/;
+// Meet also serves a call under /meet/<code>; without that prefix the reader read a live call as no call.
+const RE_REUNION = /meet[.]google[.]com[/](meet[/])?[a-z]{3}-[a-z]{4}-[a-z]{3}/;
 
 // Words -> events: one per sentence run up to maxChars; a question always closes its group.
 function agrupar(words, maxChars) {

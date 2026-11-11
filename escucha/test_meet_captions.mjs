@@ -123,6 +123,7 @@ test("presence: FIN when the call ends, waiting in the lobby", () => {
   assert.equal(p.step({ url, leave: false, blocks: null }, 2000), "OK");
   assert.equal(p.step({ url, leave: false, blocks: null }, 9000), "FIN");
   assert.equal(new Presencia().step({ url, leave: true, blocks: [] }, 0), "OK");
+  assert.equal(new Presencia().step({ url: "https://meet.google.com/meet/abc-defg-hij", leave: false, blocks: [] }, 0), "OK");
   const q = new Presencia();
   q.step({ url, leave: true, blocks: [] }, 0);
   assert.equal(q.step({ url: "https://meet.google.com/landing", leave: false, blocks: null }, 100), "FIN");

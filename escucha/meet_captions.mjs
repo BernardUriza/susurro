@@ -5,6 +5,10 @@ import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // Page-side code: no backslashes anywhere (a template literal ate "\s" once and every "s" vanished).
+// Meet renamed the toggle to "Captions and translation" + aria-pressed (2026-11-12); the old "Turn on captions" labels stay.
+const CAP_OFF_JS = "(l.startsWith('turn on captions') || l.startsWith('activar subtítulos') || l.startsWith('activar los subtítulos') || (p === 'false' && (l.startsWith('captions') || l.startsWith('subtítulos'))))";
+export const capApagado = new Function("l", "p", "return " + CAP_OFF_JS);
+
 export const PAGE_EXPR = `(() => {
   const nl = String.fromCharCode(10);
   const flat = s => (s || '').split(nl).join(' ').split(' ').filter(Boolean).join(' ');
@@ -14,7 +18,8 @@ export const PAGE_EXPR = `(() => {
   let capBtn = '';
   for (const b of document.querySelectorAll('button[aria-label]')) {
     const l = (b.getAttribute('aria-label') || '').toLowerCase();
-    if (l.startsWith('turn on captions') || l.startsWith('activar subtítulos') || l.startsWith('activar los subtítulos')) { capBtn = l; break; }
+    const p = b.getAttribute('aria-pressed');
+    if (${CAP_OFF_JS}) { capBtn = l; break; }
   }
   let blocks = null;
   if (region) {
@@ -33,7 +38,8 @@ export const PAGE_EXPR = `(() => {
 export const CLICK_CAPTIONS_EXPR = `(() => {
   for (const b of document.querySelectorAll('button[aria-label]')) {
     const l = (b.getAttribute('aria-label') || '').toLowerCase();
-    if (l.startsWith('turn on captions') || l.startsWith('activar subtítulos') || l.startsWith('activar los subtítulos')) { b.click(); return l; }
+    const p = b.getAttribute('aria-pressed');
+    if (${CAP_OFF_JS}) { b.click(); return l; }
   }
   return '';
 })()`;
@@ -184,6 +190,12 @@ class Cdp {
     ]);
     return r?.result?.result?.value ?? null;
   }
+  // Meet's own shortcut for captions; skipped while a text field has focus so it never types into the chat.
+  async teclaC() {
+    if (await this.evaluar("(() => { const a = document.activeElement; return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable); })()")) return false;
+    for (const type of ["keyDown", "keyUp"]) this.ws.send(JSON.stringify({ id: ++this.id, method: "Input.dispatchKeyEvent", params: { type, key: "c", code: "KeyC", text: type === "keyDown" ? "c" : undefined, windowsVirtualKeyCode: 67 } }));
+    return true;
+  }
   cerrar() { try { this.ws.close(); } catch { /* ya cerrado */ } }
 }
 
@@ -224,7 +236,7 @@ async function main() {
   const cdp = new Cdp(t.webSocketDebuggerUrl);
   await cdp.abrir();
   console.log(`Captions de Meet (CDP ${PORT}): leyendo el DOM · poll ${POLL} ms · salida ${OUT}`);
-  let n = 0, avisado = false, intentoOn = 0, sinRegion = null;
+  let n = 0, avisado = false, tecla = false, intentoOn = 0, sinRegion = null;
   for (;;) {
     const snap = cdp.cerrado ? null : await cdp.evaluar(PAGE_EXPR);
     const now = Date.now();
@@ -235,11 +247,14 @@ async function main() {
       if (snap.capBtn && now - intentoOn > 4000) {
         intentoOn = now;
         escribir((await cdp.evaluar(CLICK_CAPTIONS_EXPR)) ? "captions estaban apagados: los encendí" : "⚠ captions apagados y no hallé el botón; presiona c en Meet");
-      } else if (!snap.capBtn && !avisado && now - sinRegion > 8000) {
+      } else if (!snap.capBtn && !tecla && now - sinRegion > 3000) {
+        tecla = true;
+        if (await cdp.teclaC()) escribir("captions apagados y sin botón reconocible: mandé la tecla c");
+      } else if (!snap.capBtn && !avisado && now - sinRegion > 11000) {
         avisado = true;
-        escribir("⚠ no veo la región de captions (¿apagados?); presiona c en Meet");
+        escribir("⚠ no veo la región de captions ni tras la tecla c; el DOM de Meet cambió (revisar selectores)");
       }
-    } else { sinRegion = null; }
+    } else { sinRegion = null; tecla = false; }
     if (snap.blocks) {
       avisado = false;
       const { events, backlog } = tracker.feed(snap.blocks, now);

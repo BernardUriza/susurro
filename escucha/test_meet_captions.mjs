@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import { PAGE_EXPR, Tracker, Presencia, formatear } from "./meet_captions.mjs";
+import { PAGE_EXPR, Tracker, Presencia, formatear, capApagado } from "./meet_captions.mjs";
 
 const blk = (k, s, t) => ({ k, s, t });
 const texto = (evs, speaker) => evs.filter((e) => !speaker || e.speaker === speaker).map((e) => e.text).join(" ");
@@ -127,4 +127,12 @@ test("presence: FIN when the call ends, waiting in the lobby", () => {
   const q = new Presencia();
   q.step({ url, leave: true, blocks: [] }, 0);
   assert.equal(q.step({ url: "https://meet.google.com/landing", leave: false, blocks: null }, 100), "FIN");
+});
+
+test("the captions toggle is recognised under the 2026-11 label, and only while off", () => {
+  assert.equal(capApagado("captions and translation", "false"), true);
+  assert.equal(capApagado("captions and translation", "true"), false);
+  assert.equal(capApagado("turn on captions", null), true);
+  assert.equal(capApagado("turn off captions", null), false);
+  assert.equal(capApagado("subtítulos y traducción", "false"), true);
 });
